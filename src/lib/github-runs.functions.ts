@@ -147,3 +147,29 @@ export const getSiteBuildProgress = createServerFn({ method: "POST" })
       jobs,
     };
   });
+
+// Reconcile site status from a completed GitHub run when the callback missed.
+async function reconcileFromRun(
+  siteId: string,
+  run: { status: string; conclusion: string | null; html_url: string },
+  currentStatus: string,
+) {
+  if (run.status !== "completed") return;
+  if (!["pending", "generating", "building", "deploying"].includes(currentStatus)) return;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  if (run.conclusion === "success") {
+    await supabaseAdmin
+      .from("sites")
+      .update({ status: "deployed", build_log_url: run.html_url, last_error: null })
+      .eq("id", siteId);
+  } else {
+    await supabaseAdmin
+      .from("sites")
+      .update({
+        status: "failed",
+        build_log_url: run.html_url,
+        last_error: `Workflow ${run.conclusion ?? "failed"}`,
+      })
+      .eq("id", siteId);
+  }
+}
