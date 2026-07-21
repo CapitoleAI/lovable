@@ -15,6 +15,8 @@ import { DashboardSidebar } from "@/components/dashboard-sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CreateSiteDialog } from "@/components/create-site-dialog";
+import { SiteDetailDialog } from "@/components/site-detail-dialog";
+
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -73,6 +75,8 @@ function DashboardPage() {
   const retry = useServerFn(retrySite);
   const del = useServerFn(deleteSite);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [detailSite, setDetailSite] = useState<SiteRow | null>(null);
+
 
   const sitesQuery = useQuery({
     queryKey: ["sites"],
@@ -154,10 +158,16 @@ function DashboardPage() {
                 </div>
               ) : (
                 <ul className="grid gap-3 sm:grid-cols-2">
-                  {sites.map((site) => (
+                  {sites.map((site) => {
+                    const clickable = site.status === "deployed";
+                    return (
                     <li
                       key={site.id}
-                      className="rounded-lg border border-border bg-card p-4 shadow-sm"
+                      onClick={clickable ? () => setDetailSite(site) : undefined}
+                      className={
+                        "rounded-lg border border-border bg-card p-4 shadow-sm transition-colors " +
+                        (clickable ? "cursor-pointer hover:bg-accent/40" : "")
+                      }
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -171,7 +181,7 @@ function DashboardPage() {
                         <p className="mt-2 line-clamp-2 text-xs text-destructive">{site.last_error}</p>
                       )}
 
-                      <div className="mt-3 flex flex-wrap gap-2">
+                      <div className="mt-3 flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
                         {site.deploy_url && (
                           <Button size="sm" variant="outline" asChild>
                             <a href={site.deploy_url} target="_blank" rel="noreferrer">
@@ -199,7 +209,9 @@ function DashboardPage() {
                         </Button>
                       </div>
                     </li>
-                  ))}
+                    );
+                  })}
+
                 </ul>
               )}
             </div>
@@ -207,6 +219,12 @@ function DashboardPage() {
         </SidebarInset>
 
         <CreateSiteDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+        <SiteDetailDialog
+          site={detailSite}
+          open={!!detailSite}
+          onOpenChange={(v) => !v && setDetailSite(null)}
+        />
+
       </div>
     </SidebarProvider>
   );
