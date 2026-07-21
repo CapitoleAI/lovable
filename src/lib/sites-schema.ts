@@ -32,6 +32,13 @@ export type SitemapPage = {
   children?: SitemapPage[];
 };
 
+export const pageContentSchema = z.object({
+  slug: z.string().trim().min(1).max(120),
+  seo_title: z.string().trim().min(1).max(200),
+  html_content: z.string().min(1),
+});
+export type PageContent = z.infer<typeof pageContentSchema>;
+
 export const createSiteSchema = z.object({
   name: z.string().trim().min(1).max(120),
   theme: z.string().trim().min(1).max(200),
@@ -39,6 +46,7 @@ export const createSiteSchema = z.object({
   main_keyword: z.string().trim().min(1).max(120),
   secondary_keywords: z.array(z.string().trim().min(1).max(80)).max(30),
   sitemap: z.array(sitemapPageSchema).min(1).max(30),
+  pages: z.array(pageContentSchema).min(1).max(60).optional(),
   // Optional / defaults
   domain: z.string().trim().max(253).optional().default(""),
   business_name: z.string().trim().max(200).optional().default(""),
@@ -51,6 +59,19 @@ export const createSiteSchema = z.object({
     .enum(Object.keys(PALETTES) as [PaletteId, ...PaletteId[]])
     .default("ocean"),
   randomize: z.boolean().default(true),
+});
+
+export const generatePageSchema = z.object({
+  theme: z.string().trim().min(1).max(200),
+  city: z.string().trim().min(1).max(120),
+  business_name: z.string().trim().min(1).max(200),
+  main_keyword: z.string().trim().min(1).max(120),
+  secondary_keywords: z.array(z.string().trim().min(1).max(80)).max(30).default([]),
+  page: z.object({
+    title: z.string().trim().min(1).max(120),
+    slug: z.string().trim().min(1).max(120),
+  }),
+  sitemap: z.array(sitemapPageSchema).min(1).max(30),
 });
 
 export type CreateSiteInput = z.input<typeof createSiteSchema>;
