@@ -25,10 +25,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   createSite,
+  generatePageContent,
   suggestKeywords,
   suggestSitemap,
 } from "@/lib/sites.functions";
-import type { SitemapPage } from "@/lib/sites-schema";
+import type { PageContent, SitemapPage } from "@/lib/sites-schema";
 
 type Step = 1 | 2 | 3;
 
