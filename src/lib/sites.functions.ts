@@ -4,9 +4,11 @@ import { createHmac, randomBytes } from "node:crypto";
 import { z } from "zod";
 import {
   createSiteSchema,
+  generatePageSchema,
   PALETTES,
   suggestKeywordsSchema,
   suggestSitemapSchema,
+  type PageContent,
   type PaletteId,
   type SitemapPage,
 } from "./sites-schema";
