@@ -122,32 +122,44 @@ export const getSiteBuildProgress = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: site, error } = await supabaseAdmin
       .from("sites")
-      .select("id, owner_email, created_at, status, deploy_url")
+      .select("id, owner_email, name, created_at, status, deploy_url")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!site || site.owner_email !== email) throw new Error("Not found");
 
+    const slug = site.name
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9\s-]/g, "")
+      .trim()
+      .replace(/\s+/g, "-");
+
     const runs = await ghFetch(
-      `/repos/${REPO}/actions/runs?event=repository_dispatch&per_page=30`,
+      `/repos/${REPO}/actions/runs?event=repository_dispatch&per_page=50`,
     );
-    const siteCreated = new Date(site.created_at).getTime();
     type Run = {
       id: number;
+      name?: string | null;
+      display_title?: string | null;
       status: string;
       conclusion: string | null;
       html_url: string;
       created_at: string;
       updated_at: string;
     };
-    const candidates: Run[] = (runs.workflow_runs ?? [])
-      .map((r: Run) => r)
-      .filter((r: Run) => new Date(r.created_at).getTime() >= siteCreated - 30_000)
+    const slugRe = new RegExp(`(^|[^a-z0-9-])${slug}([^a-z0-9-]|$)`, "i");
+    const matches: Run[] = (runs.workflow_runs ?? [])
+      .filter((r: Run) => {
+        const hay = `${r.name ?? ""} ${r.display_title ?? ""}`;
+        return slugRe.test(hay);
+      })
       .sort(
         (a: Run, b: Run) =>
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
       );
-    const run = candidates[0] ?? null;
+    const run = matches[0] ?? null;
     if (!run) return { run: null, jobs: [] };
 
     const jobsRes = await ghFetch(`/repos/${REPO}/actions/runs/${run.id}/jobs`);
