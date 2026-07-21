@@ -112,7 +112,7 @@ function DashboardPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm("Supprimer ce site ?")) return;
+    if (!window.confirm("Supprimer ce site (Cloudflare + base) ?")) return;
     try {
       await del({ data: { id } });
       toast.success("Site supprimé");
@@ -121,6 +121,21 @@ function DashboardPage() {
       toast.error((e as Error).message);
     }
   }
+
+  async function handleSyncCf(id: string) {
+    try {
+      const res = await syncCf({ data: { id } });
+      if (res.ok) {
+        toast.success(`Statut Cloudflare : ${res.status}`);
+        sitesQuery.refetch();
+      } else {
+        toast.error(res.error ?? "Vérification impossible");
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
 
   const sidebarSites = sites.map((s) => ({ id: s.id, name: s.name, url: "/dashboard" }));
 
