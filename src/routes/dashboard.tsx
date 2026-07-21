@@ -15,6 +15,8 @@ import { DashboardSidebar } from "@/components/dashboard-sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CreateSiteDialog } from "@/components/create-site-dialog";
+import { SiteDetailDialog } from "@/components/site-detail-dialog";
+
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
