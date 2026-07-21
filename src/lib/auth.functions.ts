@@ -17,6 +17,7 @@ function getSessionConfig() {
       secure: true,
       sameSite: "none" as const,
       path: "/",
+      partitioned: true,
     },
   };
 }
