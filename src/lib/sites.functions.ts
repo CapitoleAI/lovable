@@ -240,7 +240,7 @@ export const suggestSitemap = createServerFn({ method: "POST" })
   });
 
 
-async function triggerRunner(siteId: string, siteName: string, siteData: SiteData) {
+async function triggerRunner(siteId: string, siteName: string) {
   const url = process.env.ASTRO_RUNNER_WEBHOOK_URL;
   const secret = process.env.ASTRO_RUNNER_SECRET;
   const callbackBase = (process.env.PUBLIC_APP_URL ?? "").replace(/\/$/, "");
@@ -251,13 +251,14 @@ async function triggerRunner(siteId: string, siteName: string, siteData: SiteDat
     return { triggered: false, error: "PUBLIC_APP_URL n'est pas configuré : l'URL de callback ne peut pas être absolue" };
   }
   const callbackUrl = `${callbackBase}/api/public/astro-deploy-callback`;
+  const dataUrl = `${callbackBase}/api/public/site-data?site_id=${encodeURIComponent(siteId)}`;
   const payload = JSON.stringify({
     event_type: "build_site",
     client_payload: {
       site_id: siteId,
       site_name: slugify(siteName),
       callback_url: callbackUrl,
-      site_data: siteData,
+      data_url: dataUrl,
       ts: Date.now(),
     },
   });
