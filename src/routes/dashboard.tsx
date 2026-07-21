@@ -381,6 +381,13 @@ function DashboardPage() {
           open={!!detailSite}
           onOpenChange={(v) => !v && setDetailSite(null)}
         />
+        <EditSiteDialog
+          site={editSite}
+          open={!!editSite}
+          onOpenChange={(v) => !v && setEditSite(null)}
+          onSaved={() => sitesQuery.refetch()}
+        />
+
 
 
       </div>
