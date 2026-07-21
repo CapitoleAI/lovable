@@ -279,24 +279,28 @@ function DashboardPage() {
                         )}
                       </div>
 
-                      {site.deploy_url && site.status === "deployed" && (
-                        <div className="mt-3 overflow-hidden rounded-md border border-border bg-muted">
-                          <div className="relative aspect-[16/10] w-full">
-                            <iframe
-                              src={site.deploy_url}
-                              title={`Aperçu ${site.name}`}
-                              loading="lazy"
-                              sandbox="allow-scripts allow-same-origin"
-                              className="pointer-events-none absolute left-0 top-0 origin-top-left"
-                              style={{
-                                width: "1280px",
-                                height: "800px",
-                                transform: "scale(0.28)",
-                              }}
-                            />
+                      {(() => {
+                        const html = getIndexHtml(site);
+                        if (!html || site.status !== "deployed") return null;
+                        return (
+                          <div className="mt-3 overflow-hidden rounded-md border border-border bg-muted">
+                            <div className="relative aspect-[16/10] w-full">
+                              <iframe
+                                srcDoc={buildPreviewDoc(html)}
+                                title={`Aperçu ${site.name}`}
+                                loading="lazy"
+                                sandbox="allow-scripts"
+                                className="pointer-events-none absolute left-0 top-0 origin-top-left"
+                                style={{
+                                  width: "1280px",
+                                  height: "800px",
+                                  transform: "scale(0.28)",
+                                }}
+                              />
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
 
                       {site.last_error && (
                         <p className="mt-2 line-clamp-2 text-xs text-destructive">{site.last_error}</p>
