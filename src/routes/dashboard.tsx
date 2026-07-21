@@ -2,10 +2,11 @@ import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { LogOut, ExternalLink, RefreshCw, Trash2, FileText } from "lucide-react";
+import { LogOut, ExternalLink, RefreshCw, Trash2, FileText, CloudCheck } from "lucide-react";
 import { toast } from "sonner";
 import { getAuthStatus, signOut } from "@/lib/auth.functions";
-import { listSites, retrySite, deleteSite } from "@/lib/sites.functions";
+import { listSites, retrySite, deleteSite, syncCloudflareStatus } from "@/lib/sites.functions";
+
 import {
   SidebarProvider,
   SidebarTrigger,
