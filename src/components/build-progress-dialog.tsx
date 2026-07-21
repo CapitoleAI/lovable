@@ -78,11 +78,21 @@ export function BuildProgressDialog({ siteId, open, onOpenChange }: Props) {
     retry: false,
   });
 
-  // Si Cloudflare a bien un déploiement en ligne, on considère le site comme
-  // déployé même si un ancien run GitHub avait marqué la ligne DB en "failed".
+  // Si le run GitHub est terminé avec succès OU si Cloudflare a un déploiement
+  // en ligne, on considère le site comme déployé — même si la ligne DB n'a pas
+  // encore été réconciliée par le callback.
   const rawStatus = site?.status ?? null;
-  const status: SiteRow["status"] | null = site?.deploy_url ? "deployed" : rawStatus;
+  const runOk =
+    progressQ.data?.run?.status === "completed" &&
+    progressQ.data?.run?.conclusion === "success";
+  const runFailed =
+    progressQ.data?.run?.status === "completed" &&
+    progressQ.data?.run?.conclusion !== null &&
+    progressQ.data?.run?.conclusion !== "success";
+  const status: SiteRow["status"] | null =
+    site?.deploy_url || runOk ? "deployed" : runFailed ? "failed" : rawStatus;
   const finished = status === "deployed" || status === "failed";
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
