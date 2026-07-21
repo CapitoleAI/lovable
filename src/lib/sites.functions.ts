@@ -61,7 +61,70 @@ async function loadAdmin() {
   return supabaseAdmin;
 }
 
-async function triggerRunner(siteId: string, siteName: string) {
+type SiteData = { titre: string; description: string; hero_image: string };
+
+const FALLBACK_HERO =
+  "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?q=80&w=1000&auto=format&fit=crop";
+
+async function generateSiteData(input: {
+  theme: string;
+  city: string;
+  business_name: string;
+  main_keyword: string;
+}): Promise<SiteData> {
+  const apiKey = process.env.LOVABLE_API_KEY;
+  if (!apiKey) {
+    return {
+      titre: `${input.business_name} — ${input.theme}`,
+      description: `${input.business_name}, expert ${input.theme} à ${input.city}. Intervention rapide et service de confiance.`,
+      hero_image: FALLBACK_HERO,
+    };
+  }
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Lovable-API-Key": apiKey,
+      },
+      body: JSON.stringify({
+        model: "openai/gpt-5.5",
+        reasoning_effort: "none",
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content:
+              "Tu génères du contenu SEO en français au format JSON strict avec les clés titre, description, hero_image. Ne renvoie que du JSON.",
+          },
+          {
+            role: "user",
+            content: `Thématique: ${input.theme}\nVille: ${input.city}\nEntreprise: ${input.business_name}\nMot-clé principal: ${input.main_keyword}\n\nGénère un JSON: {"titre": "titre SEO pertinent (max 65 caractères)", "description": "2 à 3 phrases accrocheuses", "hero_image": "${FALLBACK_HERO}"}`,
+          },
+        ],
+      }),
+    });
+    if (!res.ok) throw new Error(`AI ${res.status}`);
+    const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const text = json.choices?.[0]?.message?.content ?? "{}";
+    const parsed = JSON.parse(text) as Partial<SiteData>;
+    return {
+      titre: parsed.titre?.trim() || `${input.business_name} — ${input.theme}`,
+      description:
+        parsed.description?.trim() ||
+        `${input.business_name}, expert ${input.theme} à ${input.city}.`,
+      hero_image: parsed.hero_image?.trim() || FALLBACK_HERO,
+    };
+  } catch {
+    return {
+      titre: `${input.business_name} — ${input.theme}`,
+      description: `${input.business_name}, expert ${input.theme} à ${input.city}. Intervention rapide et service de confiance.`,
+      hero_image: FALLBACK_HERO,
+    };
+  }
+}
+
+async function triggerRunner(siteId: string, siteName: string, siteData: SiteData) {
   const url = process.env.ASTRO_RUNNER_WEBHOOK_URL;
   const secret = process.env.ASTRO_RUNNER_SECRET;
   const callbackBase = (process.env.PUBLIC_APP_URL ?? "").replace(/\/$/, "");
@@ -78,6 +141,7 @@ async function triggerRunner(siteId: string, siteName: string) {
       site_id: siteId,
       site_name: slugify(siteName),
       callback_url: callbackUrl,
+      site_data: siteData,
       ts: Date.now(),
     },
   });
@@ -151,7 +215,13 @@ export const createSite = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
-    const trig = await triggerRunner(row.id, row.name);
+    const siteData = await generateSiteData({
+      theme: data.theme,
+      city: data.city,
+      business_name: data.business_name,
+      main_keyword: data.main_keyword,
+    });
+    const trig = await triggerRunner(row.id, row.name, siteData);
     if (!trig.triggered) {
       await supabase
         .from("sites")
@@ -170,7 +240,7 @@ export const retrySite = createServerFn({ method: "POST" })
     const supabase = await loadAdmin();
     const { data: row, error } = await supabase
       .from("sites")
-      .select("id, owner_email, name")
+      .select("id, owner_email, name, theme, city, business_name, main_keyword")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -180,7 +250,13 @@ export const retrySite = createServerFn({ method: "POST" })
       .from("sites")
       .update({ status: "pending", last_error: null })
       .eq("id", data.id);
-    const trig = await triggerRunner(data.id, row.name);
+    const siteData = await generateSiteData({
+      theme: row.theme,
+      city: row.city,
+      business_name: row.business_name,
+      main_keyword: row.main_keyword,
+    });
+    const trig = await triggerRunner(data.id, row.name, siteData);
     if (!trig.triggered) {
       await supabase
         .from("sites")

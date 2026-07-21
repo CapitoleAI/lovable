@@ -147,8 +147,13 @@ export function CreateSiteDialog({ open, onOpenChange }: CreateSiteDialogProps) 
           <section className="space-y-3">
             <h3 className="text-sm font-semibold">B · SEO & sémantique</h3>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Thématique principale">
-                <Input value={form.theme} onChange={(e) => set("theme", e.target.value)} required />
+              <Field label="Thématique du site">
+                <Input
+                  value={form.theme}
+                  onChange={(e) => set("theme", e.target.value)}
+                  placeholder="Plombier à Paris, Avocat à Lyon…"
+                  required
+                />
               </Field>
               <Field label="Ville / zone cible">
                 <Input value={form.city} onChange={(e) => set("city", e.target.value)} required />
