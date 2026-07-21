@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CreateSiteDialog } from "@/components/create-site-dialog";
 import { SiteDetailDialog } from "@/components/site-detail-dialog";
+import { SiteBuildProgress } from "@/components/site-build-progress";
 
 
 export const Route = createFileRoute("/dashboard")({
@@ -179,6 +180,15 @@ function DashboardPage() {
 
                       {site.last_error && (
                         <p className="mt-2 line-clamp-2 text-xs text-destructive">{site.last_error}</p>
+                      )}
+
+                      {["pending", "generating", "building", "deploying", "failed"].includes(
+                        site.status,
+                      ) && (
+                        <SiteBuildProgress
+                          siteId={site.id}
+                          active={site.status !== "failed"}
+                        />
                       )}
 
                       <div className="mt-3 flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
