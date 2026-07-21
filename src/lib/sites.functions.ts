@@ -70,6 +70,7 @@ async function triggerRunner(siteId: string) {
       headers: {
         "content-type": "application/json",
         "x-astro-signature": signature,
+        "User-Agent": "Lovable-Astro-Runner",
       },
       body: payload,
     });
