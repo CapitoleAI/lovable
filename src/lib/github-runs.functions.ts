@@ -186,9 +186,14 @@ export const getSiteBuildProgress = createServerFn({ method: "POST" })
     }));
 
     if (run.status === "completed") {
-      const needsReconcile = ["pending", "generating", "building", "deploying"].includes(
-        site.status,
-      );
+      const needsReconcile = [
+        "pending",
+        "generating",
+        "building",
+        "deploying",
+        "failed",
+      ].includes(site.status);
+
       const needsDeployUrl = run.conclusion === "success" && !site.deploy_url;
 
       let deployUrl: string | null = null;
