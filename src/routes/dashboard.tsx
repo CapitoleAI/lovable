@@ -99,7 +99,7 @@ function DashboardPage() {
   const sitesQuery = useQuery({
     ...sitesQueryOptions,
     queryFn: () => list(),
-    initialData: initialSites as { sites: SiteRow[] },
+    initialData: initialSites as never,
     refetchInterval: (q) => {
       const data = q.state.data as { sites: SiteRow[] } | undefined;
       const inProgress = data?.sites.some((s) =>
