@@ -246,20 +246,22 @@ export const createSite = createServerFn({ method: "POST" })
     const email = await requireUser();
     const supabase = await loadAdmin();
     const palette = [...PALETTES[data.palette as PaletteId]];
-    const random_seed = buildRandomSeed(data.randomize);
+    const random_seed = { ...buildRandomSeed(data.randomize), sitemap: data.sitemap };
+    const businessName = data.business_name || data.name;
+    const domain = data.domain || `${slugify(data.name)}.pages.dev`;
 
     const { data: row, error } = await supabase
       .from("sites")
       .insert({
         owner_email: email,
         name: data.name,
-        domain: data.domain,
+        domain,
         hosting_target: data.hosting_target,
         theme: data.theme,
         city: data.city,
         main_keyword: data.main_keyword,
         secondary_keywords: data.secondary_keywords,
-        business_name: data.business_name,
+        business_name: businessName,
         phone: data.phone,
         email: data.email,
         address: data.address,
@@ -276,9 +278,12 @@ export const createSite = createServerFn({ method: "POST" })
     const siteData = await generateSiteData({
       theme: data.theme,
       city: data.city,
-      business_name: data.business_name,
+      business_name: businessName,
       main_keyword: data.main_keyword,
+      sitemap: data.sitemap,
+      secondary_keywords: data.secondary_keywords,
     });
+
     const trig = await triggerRunner(row.id, row.name, siteData);
     if (!trig.triggered) {
       await supabase
