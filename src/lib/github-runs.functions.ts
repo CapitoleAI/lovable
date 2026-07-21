@@ -49,6 +49,40 @@ async function ghFetch(path: string) {
   return res.json();
 }
 
+async function ghFetchJobLog(jobId: number): Promise<string> {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) throw new Error("GITHUB_TOKEN missing");
+  const res = await fetch(
+    `https://api.github.com/repos/${REPO}/actions/jobs/${jobId}/logs`,
+    {
+      headers: {
+        Accept: "application/vnd.github+json",
+        "User-Agent": "Lovable-Astro-Runner",
+        Authorization: `Bearer ${token}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      redirect: "follow",
+    },
+  );
+  if (!res.ok) return "";
+  return res.text();
+}
+
+function extractDeployUrl(log: string): string | null {
+  const patterns = [
+    /https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.pages\.dev/i,
+    /https:\/\/[a-z0-9-]+\.pages\.dev/i,
+    /https:\/\/[a-z0-9-]+\.workers\.dev/i,
+    /https:\/\/[a-z0-9-]+\.netlify\.app/i,
+    /https:\/\/[a-z0-9-]+\.vercel\.app/i,
+  ];
+  for (const re of patterns) {
+    const m = log.match(re);
+    if (m) return m[0];
+  }
+  return null;
+}
+
 type StepDTO = {
   name: string;
   status: string;
@@ -83,7 +117,7 @@ export const getSiteBuildProgress = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: site, error } = await supabaseAdmin
       .from("sites")
-      .select("id, owner_email, created_at, status")
+      .select("id, owner_email, created_at, status, deploy_url")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
