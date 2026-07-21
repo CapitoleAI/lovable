@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, queryOptions } from "@tanstack/react-query";
 import { useState } from "react";
 import { useEffect } from "react";
-import { LogOut, ExternalLink, RefreshCw, Trash2, FileText } from "lucide-react";
+import { LogOut, ExternalLink, RefreshCw, Trash2, FileText, Pencil } from "lucide-react";
 
 import { toast } from "sonner";
 import { getAuthStatus, signOut } from "@/lib/auth.functions";
