@@ -100,7 +100,7 @@ export const createSite = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const email = await requireUser();
     const supabase = await loadAdmin();
-    const palette = PALETTES[data.palette as PaletteId];
+    const palette = [...PALETTES[data.palette as PaletteId]];
     const random_seed = buildRandomSeed(data.randomize);
 
     const { data: row, error } = await supabase

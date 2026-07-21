@@ -34,11 +34,17 @@ export const Route = createFileRoute("/api/public/astro-deploy-callback")({
         }
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const update: Record<string, unknown> = { status: parsed.status };
+        const update: {
+          status: typeof parsed.status;
+          deploy_url?: string;
+          build_log_url?: string;
+          last_error: string | null;
+        } = {
+          status: parsed.status,
+          last_error: parsed.status === "failed" ? parsed.error ?? "Unknown error" : null,
+        };
         if (parsed.deploy_url) update.deploy_url = parsed.deploy_url;
         if (parsed.build_log_url) update.build_log_url = parsed.build_log_url;
-        if (parsed.error) update.last_error = parsed.error;
-        if (parsed.status !== "failed") update.last_error = null;
 
         const { error } = await supabaseAdmin
           .from("sites")
