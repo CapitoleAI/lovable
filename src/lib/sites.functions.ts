@@ -54,16 +54,20 @@ async function loadAdmin() {
 async function triggerRunner(siteId: string, siteName: string) {
   const url = process.env.ASTRO_RUNNER_WEBHOOK_URL;
   const secret = process.env.ASTRO_RUNNER_SECRET;
-  const callbackBase = process.env.PUBLIC_APP_URL ?? "";
+  const callbackBase = (process.env.PUBLIC_APP_URL ?? "").replace(/\/$/, "");
   if (!url || !secret) {
     return { triggered: false, error: "Runner non configuré (ASTRO_RUNNER_WEBHOOK_URL manquant)" };
   }
+  if (!callbackBase) {
+    return { triggered: false, error: "PUBLIC_APP_URL n'est pas configuré : l'URL de callback ne peut pas être absolue" };
+  }
+  const callbackUrl = `${callbackBase}/api/public/astro-deploy-callback`;
   const payload = JSON.stringify({
     event_type: "build_site",
     client_payload: {
       site_id: siteId,
       site_name: siteName,
-      callback_url: `${callbackBase}/api/public/astro-deploy-callback`,
+      callback_url: callbackUrl,
       ts: Date.now(),
     },
   });
