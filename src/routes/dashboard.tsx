@@ -1,6 +1,6 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { requireAuth, signOut } from "@/lib/auth.functions";
+import { getAuthStatus, signOut } from "@/lib/auth.functions";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -10,7 +10,14 @@ export const Route = createFileRoute("/dashboard")({
       { name: "robots", content: "noindex" },
     ],
   }),
-  loader: () => requireAuth(),
+  beforeLoad: async () => {
+    const status = await getAuthStatus();
+    if (!status.authenticated) {
+      throw redirect({ to: "/login" });
+    }
+    return { email: status.email };
+  },
+  loader: ({ context }) => ({ email: (context as { email: string | null }).email }),
   component: DashboardPage,
 });
 
