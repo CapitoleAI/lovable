@@ -76,7 +76,7 @@ async function triggerRunner(siteId: string, siteName: string) {
     event_type: "build_site",
     client_payload: {
       site_id: siteId,
-      site_name: siteName,
+      site_name: slugify(siteName),
       callback_url: callbackUrl,
       ts: Date.now(),
     },
