@@ -51,7 +51,7 @@ async function loadAdmin() {
   return supabaseAdmin;
 }
 
-async function triggerRunner(siteId: string) {
+async function triggerRunner(siteId: string, siteName: string) {
   const url = process.env.ASTRO_RUNNER_WEBHOOK_URL;
   const secret = process.env.ASTRO_RUNNER_SECRET;
   const callbackBase = process.env.PUBLIC_APP_URL ?? "";
@@ -59,9 +59,13 @@ async function triggerRunner(siteId: string) {
     return { triggered: false, error: "Runner non configuré (ASTRO_RUNNER_WEBHOOK_URL manquant)" };
   }
   const payload = JSON.stringify({
-    site_id: siteId,
-    callback_url: `${callbackBase}/api/public/astro-deploy-callback`,
-    ts: Date.now(),
+    event_type: "build_site",
+    client_payload: {
+      site_id: siteId,
+      site_name: siteName,
+      callback_url: `${callbackBase}/api/public/astro-deploy-callback`,
+      ts: Date.now(),
+    },
   });
   const signature = createHmac("sha256", secret).update(payload).digest("hex");
   const githubToken = process.env.GITHUB_TOKEN;
@@ -133,7 +137,7 @@ export const createSite = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
-    const trig = await triggerRunner(row.id);
+    const trig = await triggerRunner(row.id, row.name);
     if (!trig.triggered) {
       await supabase
         .from("sites")
@@ -152,7 +156,7 @@ export const retrySite = createServerFn({ method: "POST" })
     const supabase = await loadAdmin();
     const { data: row, error } = await supabase
       .from("sites")
-      .select("id, owner_email")
+      .select("id, owner_email, name")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -162,7 +166,7 @@ export const retrySite = createServerFn({ method: "POST" })
       .from("sites")
       .update({ status: "pending", last_error: null })
       .eq("id", data.id);
-    const trig = await triggerRunner(data.id);
+    const trig = await triggerRunner(data.id, row.name);
     if (!trig.triggered) {
       await supabase
         .from("sites")
