@@ -129,7 +129,9 @@ function DashboardPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [detailSite, setDetailSite] = useState<SiteRow | null>(null);
+  const [editSite, setEditSite] = useState<SiteRow | null>(null);
   const [launchedSiteId, setLaunchedSiteId] = useState<string | null>(null);
+
 
 
 
