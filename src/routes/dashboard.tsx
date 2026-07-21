@@ -40,13 +40,15 @@ export const Route = createFileRoute("/dashboard")({
     return { email: status.email };
   },
   loader: async ({ context }) => {
-    await (context as { queryClient: import("@tanstack/react-query").QueryClient }).queryClient
+    const qc = (context as { queryClient: import("@tanstack/react-query").QueryClient }).queryClient;
+    const sites = await qc
       .ensureQueryData(sitesQueryOptions)
-      .catch(() => undefined);
-    return { email: (context as { email: string | null }).email };
+      .catch(() => ({ sites: [] as SiteRow[] }));
+    return { email: (context as { email: string | null }).email, sites };
   },
   component: DashboardPage,
 });
+
 
 
 type SiteRow = {
@@ -80,7 +82,7 @@ const STATUS_VARIANT: Record<SiteRow["status"], "default" | "secondary" | "destr
 };
 
 function DashboardPage() {
-  const { email } = Route.useLoaderData();
+  const { email, sites: initialSites } = Route.useLoaderData();
   const router = useRouter();
   const logout = useServerFn(signOut);
   const list = useServerFn(listSites);
@@ -97,6 +99,7 @@ function DashboardPage() {
   const sitesQuery = useQuery({
     ...sitesQueryOptions,
     queryFn: () => list(),
+    initialData: initialSites as never,
     refetchInterval: (q) => {
       const data = q.state.data as { sites: SiteRow[] } | undefined;
       const inProgress = data?.sites.some((s) =>
@@ -107,6 +110,7 @@ function DashboardPage() {
   });
 
   const sites = (sitesQuery.data?.sites as SiteRow[] | undefined) ?? [];
+
 
   async function handleLogout() {
     await logout({});
