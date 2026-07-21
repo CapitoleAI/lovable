@@ -40,13 +40,15 @@ export const Route = createFileRoute("/dashboard")({
     return { email: status.email };
   },
   loader: async ({ context }) => {
-    await (context as { queryClient: import("@tanstack/react-query").QueryClient }).queryClient
+    const qc = (context as { queryClient: import("@tanstack/react-query").QueryClient }).queryClient;
+    const sites = await qc
       .ensureQueryData(sitesQueryOptions)
-      .catch(() => undefined);
-    return { email: (context as { email: string | null }).email };
+      .catch(() => ({ sites: [] as SiteRow[] }));
+    return { email: (context as { email: string | null }).email, sites };
   },
   component: DashboardPage,
 });
+
 
 
 type SiteRow = {
