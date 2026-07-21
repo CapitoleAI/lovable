@@ -53,6 +53,8 @@ export const Route = createFileRoute("/dashboard")({
 
 
 
+type PageContent = { slug: string; seo_title: string; html_content: string };
+type SitemapNode = { title: string; slug: string; children?: SitemapNode[] };
 type SiteRow = {
   id: string;
   name: string;
@@ -63,7 +65,20 @@ type SiteRow = {
   build_log_url: string | null;
   last_error: string | null;
   created_at: string;
+  site_data?: { pages?: PageContent[] } | null;
+  random_seed?: { sitemap?: SitemapNode[] } | null;
 };
+
+function buildPreviewDoc(html: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=1280"><script src="https://cdn.tailwindcss.com"></script><style>html,body{margin:0;padding:0;background:#fff;}</style></head><body>${html}</body></html>`;
+}
+
+function getIndexHtml(site: SiteRow): string | null {
+  const pages = site.site_data?.pages;
+  if (!pages || pages.length === 0) return null;
+  const home = pages.find((p) => p.slug === "index") ?? pages[0];
+  return home?.html_content ?? null;
+}
 
 const STATUS_LABEL: Record<SiteRow["status"], string> = {
   pending: "En attente",
@@ -264,24 +279,28 @@ function DashboardPage() {
                         )}
                       </div>
 
-                      {site.deploy_url && site.status === "deployed" && (
-                        <div className="mt-3 overflow-hidden rounded-md border border-border bg-muted">
-                          <div className="relative aspect-[16/10] w-full">
-                            <iframe
-                              src={site.deploy_url}
-                              title={`Aperçu ${site.name}`}
-                              loading="lazy"
-                              sandbox="allow-scripts allow-same-origin"
-                              className="pointer-events-none absolute left-0 top-0 origin-top-left"
-                              style={{
-                                width: "1280px",
-                                height: "800px",
-                                transform: "scale(0.28)",
-                              }}
-                            />
+                      {(() => {
+                        const html = getIndexHtml(site);
+                        if (!html || site.status !== "deployed") return null;
+                        return (
+                          <div className="mt-3 overflow-hidden rounded-md border border-border bg-muted">
+                            <div className="relative aspect-[16/10] w-full">
+                              <iframe
+                                srcDoc={buildPreviewDoc(html)}
+                                title={`Aperçu ${site.name}`}
+                                loading="lazy"
+                                sandbox="allow-scripts"
+                                className="pointer-events-none absolute left-0 top-0 origin-top-left"
+                                style={{
+                                  width: "1280px",
+                                  height: "800px",
+                                  transform: "scale(0.28)",
+                                }}
+                              />
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
 
                       {site.last_error && (
                         <p className="mt-2 line-clamp-2 text-xs text-destructive">{site.last_error}</p>
