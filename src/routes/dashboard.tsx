@@ -53,6 +53,8 @@ export const Route = createFileRoute("/dashboard")({
 
 
 
+type PageContent = { slug: string; seo_title: string; html_content: string };
+type SitemapNode = { title: string; slug: string; children?: SitemapNode[] };
 type SiteRow = {
   id: string;
   name: string;
@@ -63,7 +65,20 @@ type SiteRow = {
   build_log_url: string | null;
   last_error: string | null;
   created_at: string;
+  site_data?: { pages?: PageContent[] } | null;
+  random_seed?: { sitemap?: SitemapNode[] } | null;
 };
+
+function buildPreviewDoc(html: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=1280"><script src="https://cdn.tailwindcss.com"></script><style>html,body{margin:0;padding:0;background:#fff;}</style></head><body>${html}</body></html>`;
+}
+
+function getIndexHtml(site: SiteRow): string | null {
+  const pages = site.site_data?.pages;
+  if (!pages || pages.length === 0) return null;
+  const home = pages.find((p) => p.slug === "index") ?? pages[0];
+  return home?.html_content ?? null;
+}
 
 const STATUS_LABEL: Record<SiteRow["status"], string> = {
   pending: "En attente",
