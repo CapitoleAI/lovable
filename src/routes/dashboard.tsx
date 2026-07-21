@@ -2,7 +2,9 @@ import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, queryOptions } from "@tanstack/react-query";
 import { useState } from "react";
-import { LogOut, ExternalLink, RefreshCw, Trash2, FileText, Cloud } from "lucide-react";
+import { useEffect } from "react";
+import { LogOut, ExternalLink, RefreshCw, Trash2, FileText } from "lucide-react";
+
 import { toast } from "sonner";
 import { getAuthStatus, signOut } from "@/lib/auth.functions";
 import { listSites, retrySite, deleteSite, syncCloudflareStatus } from "@/lib/sites.functions";
@@ -81,6 +83,24 @@ const STATUS_VARIANT: Record<SiteRow["status"], "default" | "secondary" | "destr
   failed: "destructive",
 };
 
+function StatusDot({ up, title }: { up: boolean; title: string }) {
+  const color = up ? "bg-emerald-500" : "bg-red-500";
+  const soft = up ? "bg-emerald-500/40" : "bg-red-500/40";
+  return (
+    <span
+      role="status"
+      aria-label={title}
+      title={title}
+      className="relative inline-flex h-3 w-3 shrink-0 items-center justify-center"
+    >
+      <span className={`absolute inline-flex h-full w-full animate-ping rounded-full ${soft}`} />
+      <span className={`relative inline-flex h-2 w-2 rounded-full ${color}`} />
+    </span>
+  );
+}
+
+
+
 function DashboardPage() {
   const { email, sites: initialSites } = Route.useLoaderData();
   const router = useRouter();
@@ -138,19 +158,33 @@ function DashboardPage() {
     }
   }
 
-  async function handleSyncCf(id: string) {
-    try {
-      const res = await syncCf({ data: { id } });
-      if (res.ok) {
-        toast.success(`Statut Cloudflare : ${res.status}`);
-        sitesQuery.refetch();
-      } else {
-        toast.error(res.error ?? "Vérification impossible");
+  // Vérification Cloudflare en tâche de fond toutes les minutes pour chaque
+  // site déjà déployé — met à jour statut / deploy_url en base et déclenche
+  // un refetch de la liste.
+  useEffect(() => {
+    const ids = sites
+      .filter((s) => s.status === "deployed" || s.status === "failed")
+      .map((s) => s.id);
+    if (ids.length === 0) return;
+    let cancelled = false;
+    async function tick() {
+      for (const id of ids) {
+        try {
+          await syncCf({ data: { id } });
+        } catch {
+          // silencieux : simple heartbeat
+        }
       }
-    } catch (e) {
-      toast.error((e as Error).message);
+      if (!cancelled) sitesQuery.refetch();
     }
-  }
+    const t = setInterval(tick, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sites.map((s) => s.id).join(","), sites.map((s) => s.status).join(",")]);
+
 
 
   const sidebarSites = sites.map((s) => ({ id: s.id, name: s.name, url: "/dashboard" }));
@@ -205,12 +239,49 @@ function DashboardPage() {
                       }
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium text-card-foreground">{site.name}</p>
-                          <p className="truncate text-xs text-muted-foreground">{site.domain}</p>
+                          {site.deploy_url ? (
+                            <a
+                              href={site.deploy_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="block truncate text-xs text-muted-foreground hover:text-foreground hover:underline"
+                            >
+                              {site.domain}
+                            </a>
+                          ) : (
+                            <p className="truncate text-xs text-muted-foreground">{site.domain}</p>
+                          )}
                         </div>
-                        <Badge variant={STATUS_VARIANT[site.status]}>{STATUS_LABEL[site.status]}</Badge>
+                        {site.status === "deployed" ? (
+                          <StatusDot up={true} title="En ligne" />
+                        ) : site.status === "failed" ? (
+                          <StatusDot up={false} title="Hors ligne" />
+                        ) : (
+                          <Badge variant={STATUS_VARIANT[site.status]}>{STATUS_LABEL[site.status]}</Badge>
+                        )}
                       </div>
+
+                      {site.deploy_url && site.status === "deployed" && (
+                        <div className="mt-3 overflow-hidden rounded-md border border-border bg-muted">
+                          <div className="relative aspect-[16/10] w-full">
+                            <iframe
+                              src={site.deploy_url}
+                              title={`Aperçu ${site.name}`}
+                              loading="lazy"
+                              sandbox="allow-scripts allow-same-origin"
+                              className="pointer-events-none absolute left-0 top-0 origin-top-left"
+                              style={{
+                                width: "1280px",
+                                height: "800px",
+                                transform: "scale(0.28)",
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
 
                       {site.last_error && (
                         <p className="mt-2 line-clamp-2 text-xs text-destructive">{site.last_error}</p>
@@ -245,9 +316,7 @@ function DashboardPage() {
                             <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Relancer
                           </Button>
                         )}
-                        <Button size="sm" variant="ghost" onClick={() => handleSyncCf(site.id)}>
-                          <Cloud className="mr-1.5 h-3.5 w-3.5" /> Vérifier
-                        </Button>
+
 
                         <Button
                           size="sm"
