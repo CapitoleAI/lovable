@@ -61,10 +61,10 @@ async function loadAdmin() {
   return supabaseAdmin;
 }
 
-type SiteData = { titre: string; description: string; hero_image: string };
+type SiteData = { seo_title: string; html_content: string };
 
-const FALLBACK_HERO =
-  "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?q=80&w=1000&auto=format&fit=crop";
+const FALLBACK_HTML = (theme: string, city: string, business: string) =>
+  `<header class="bg-white shadow"><div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between"><span class="text-xl font-bold">${business}</span><nav class="space-x-6 text-sm"><a href="#services">Services</a><a href="#contact">Contact</a></nav></div></header><section class="py-20 bg-gradient-to-br from-slate-50 to-white"><div class="max-w-4xl mx-auto px-6 text-center"><h1 class="text-5xl font-bold tracking-tight mb-6">${business} — ${theme} à ${city}</h1><p class="text-lg text-slate-600 mb-8">Service professionnel, rapide et de confiance.</p><a href="#contact" class="inline-block bg-slate-900 text-white px-8 py-3 rounded-lg font-semibold">Nous contacter</a></div></section><footer class="py-8 bg-slate-900 text-slate-300 text-center text-sm">© ${business}</footer>`;
 
 async function generateSiteData(input: {
   theme: string;
@@ -73,13 +73,11 @@ async function generateSiteData(input: {
   main_keyword: string;
 }): Promise<SiteData> {
   const apiKey = process.env.LOVABLE_API_KEY;
-  if (!apiKey) {
-    return {
-      titre: `${input.business_name} — ${input.theme}`,
-      description: `${input.business_name}, expert ${input.theme} à ${input.city}. Intervention rapide et service de confiance.`,
-      hero_image: FALLBACK_HERO,
-    };
-  }
+  const fallback: SiteData = {
+    seo_title: `${input.business_name} — ${input.theme} à ${input.city}`,
+    html_content: FALLBACK_HTML(input.theme, input.city, input.business_name),
+  };
+  if (!apiKey) return fallback;
   try {
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -95,11 +93,11 @@ async function generateSiteData(input: {
           {
             role: "system",
             content:
-              "Tu génères du contenu SEO en français au format JSON strict avec les clés titre, description, hero_image. Ne renvoie que du JSON.",
+              "Tu es un développeur frontend expert. Tu génères une landing page complète en HTML + Tailwind CSS. RÈGLES STRICTES: (1) Ne JAMAIS inclure <html>, <head>, <body> — uniquement le contenu intérieur (<header>, <section>, <footer>, <div>, etc.). (2) Utiliser massivement les classes utilitaires Tailwind CSS pour un design moderne, aéré, responsive. (3) Contenu en français, pertinent et riche pour la thématique. (4) Inclure au minimum: header avec navigation, hero, section services, section à propos/confiance, section contact, footer. (5) Répondre UNIQUEMENT en JSON strict avec les clés seo_title (string) et html_content (string). La chaîne html_content doit être correctement échappée pour JSON.",
           },
           {
             role: "user",
-            content: `Thématique: ${input.theme}\nVille: ${input.city}\nEntreprise: ${input.business_name}\nMot-clé principal: ${input.main_keyword}\n\nGénère un JSON: {"titre": "titre SEO pertinent (max 65 caractères)", "description": "2 à 3 phrases accrocheuses", "hero_image": "${FALLBACK_HERO}"}`,
+            content: `Thématique: ${input.theme}\nVille: ${input.city}\nEntreprise: ${input.business_name}\nMot-clé principal: ${input.main_keyword}\n\nGénère la landing page complète au format {"seo_title": "...", "html_content": "..."}.`,
           },
         ],
       }),
@@ -108,19 +106,12 @@ async function generateSiteData(input: {
     const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
     const text = json.choices?.[0]?.message?.content ?? "{}";
     const parsed = JSON.parse(text) as Partial<SiteData>;
-    return {
-      titre: parsed.titre?.trim() || `${input.business_name} — ${input.theme}`,
-      description:
-        parsed.description?.trim() ||
-        `${input.business_name}, expert ${input.theme} à ${input.city}.`,
-      hero_image: parsed.hero_image?.trim() || FALLBACK_HERO,
-    };
+    const seo_title = parsed.seo_title?.trim();
+    const html_content = parsed.html_content?.trim();
+    if (!seo_title || !html_content) return fallback;
+    return { seo_title, html_content };
   } catch {
-    return {
-      titre: `${input.business_name} — ${input.theme}`,
-      description: `${input.business_name}, expert ${input.theme} à ${input.city}. Intervention rapide et service de confiance.`,
-      hero_image: FALLBACK_HERO,
-    };
+    return fallback;
   }
 }
 
