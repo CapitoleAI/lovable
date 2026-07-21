@@ -453,9 +453,58 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
         )}
 
         {step === 3 && (
-          <div className="py-8 text-center">
-            <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm">Initialisation du site…</p>
+          <div className="space-y-4 py-4">
+            <div className="rounded-lg border border-border bg-muted/30 p-6 text-center">
+              {launchStatus.phase === "error" ? (
+                <>
+                  <X className="mx-auto mb-3 h-8 w-8 text-destructive" />
+                  <p className="text-sm font-medium text-destructive">
+                    {launchStatus.error ?? "Erreur inattendue"}
+                  </p>
+                </>
+              ) : launchStatus.phase === "done" ? (
+                <>
+                  <Check className="mx-auto mb-3 h-8 w-8 text-emerald-500" />
+                  <p className="text-sm font-medium">{launchStatus.label}</p>
+                </>
+              ) : (
+                <>
+                  <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-primary" />
+                  <p className="text-sm font-medium">
+                    {launchStatus.label || "Initialisation…"}
+                  </p>
+                </>
+              )}
+
+              {launchStatus.total > 0 && (
+                <div className="mx-auto mt-4 h-2 w-full max-w-sm overflow-hidden rounded-full bg-border">
+                  <div
+                    className="h-full bg-primary transition-all"
+                    style={{
+                      width: `${Math.round(
+                        (launchStatus.current / Math.max(launchStatus.total, 1)) *
+                          (launchStatus.phase === "sending" || launchStatus.phase === "done"
+                            ? 100
+                            : 90),
+                      )}%`,
+                    }}
+                  />
+                </div>
+              )}
+              {launchStatus.total > 0 && launchStatus.phase === "generating" && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {launchStatus.current} / {launchStatus.total} pages rédigées
+                </p>
+              )}
+            </div>
+
+            {launchStatus.phase === "error" && (
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={() => setStep(2)}>
+                  <ArrowLeft className="mr-1.5 h-4 w-4" /> Retour à l'arborescence
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </DialogContent>
