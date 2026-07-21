@@ -78,14 +78,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "CapitoleAI" },
+      { name: "description", content: "A secure login page grants access to a simple, single-page application." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "CapitoleAI" },
+      { property: "og:description", content: "A secure login page grants access to a simple, single-page application." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "CapitoleAI" },
+      { name: "twitter:description", content: "A secure login page grants access to a simple, single-page application." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4d1a9d53-1c42-4d7a-83f7-721e455850a2/id-preview-01f5fee6--5e5a1051-ca3a-41ad-909d-b2cec22233a8.lovable.app-1784629609592.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4d1a9d53-1c42-4d7a-83f7-721e455850a2/id-preview-01f5fee6--5e5a1051-ca3a-41ad-909d-b2cec22233a8.lovable.app-1784629609592.png" },
     ],
     links: [
       {
