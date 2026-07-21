@@ -137,7 +137,7 @@ export const createSite = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
-    const trig = await triggerRunner(row.id);
+    const trig = await triggerRunner(row.id, row.name);
     if (!trig.triggered) {
       await supabase
         .from("sites")
@@ -156,7 +156,7 @@ export const retrySite = createServerFn({ method: "POST" })
     const supabase = await loadAdmin();
     const { data: row, error } = await supabase
       .from("sites")
-      .select("id, owner_email")
+      .select("id, owner_email, name")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -166,7 +166,7 @@ export const retrySite = createServerFn({ method: "POST" })
       .from("sites")
       .update({ status: "pending", last_error: null })
       .eq("id", data.id);
-    const trig = await triggerRunner(data.id);
+    const trig = await triggerRunner(data.id, row.name);
     if (!trig.triggered) {
       await supabase
         .from("sites")
