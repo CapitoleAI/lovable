@@ -333,14 +333,16 @@ export const createSite = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
-    const siteData = await generateSiteData({
-      theme: data.theme,
-      city: data.city,
-      business_name: businessName,
-      main_keyword: data.main_keyword,
-      sitemap: data.sitemap,
-      secondary_keywords: data.secondary_keywords,
-    });
+    const siteData: SiteData = data.pages && data.pages.length > 0
+      ? { pages: data.pages.map((p) => ({ ...p, slug: normalizePageSlug(p.slug) })) }
+      : await generateAllPages({
+          theme: data.theme,
+          city: data.city,
+          business_name: businessName,
+          main_keyword: data.main_keyword,
+          sitemap: data.sitemap,
+          secondary_keywords: data.secondary_keywords,
+        });
 
     const trig = await triggerRunner(row.id, row.name, siteData);
     if (!trig.triggered) {
