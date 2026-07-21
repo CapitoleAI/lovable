@@ -21,6 +21,8 @@ import { CreateSiteDialog } from "@/components/create-site-dialog";
 import { SiteDetailDialog } from "@/components/site-detail-dialog";
 import { SiteBuildProgress } from "@/components/site-build-progress";
 import { BuildProgressDialog } from "@/components/build-progress-dialog";
+import { EditSiteDialog } from "@/components/edit-site-dialog";
+
 
 const sitesQueryOptions = queryOptions({
   queryKey: ["sites"],
