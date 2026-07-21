@@ -215,7 +215,13 @@ export const createSite = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
-    const trig = await triggerRunner(row.id, row.name);
+    const siteData = await generateSiteData({
+      theme: data.theme,
+      city: data.city,
+      business_name: data.business_name,
+      main_keyword: data.main_keyword,
+    });
+    const trig = await triggerRunner(row.id, row.name, siteData);
     if (!trig.triggered) {
       await supabase
         .from("sites")
