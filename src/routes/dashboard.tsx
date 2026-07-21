@@ -229,6 +229,10 @@ function DashboardPage() {
                             <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Relancer
                           </Button>
                         )}
+                        <Button size="sm" variant="ghost" onClick={() => handleSyncCf(site.id)}>
+                          <Cloud className="mr-1.5 h-3.5 w-3.5" /> Vérifier
+                        </Button>
+
                         <Button
                           size="sm"
                           variant="ghost"
