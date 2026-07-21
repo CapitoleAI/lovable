@@ -17,9 +17,10 @@ import {
   Globe,
   Calendar,
 } from "lucide-react";
-import type { ComponentType } from "react";
+import { useMemo } from "react";
 
 type SitemapNode = { title: string; slug: string; children?: SitemapNode[] };
+type PageContent = { slug: string; seo_title: string; html_content: string };
 
 type Site = {
   id: string;
@@ -28,6 +29,7 @@ type Site = {
   deploy_url: string | null;
   created_at: string;
   random_seed?: { sitemap?: SitemapNode[] } | null;
+  site_data?: { pages?: PageContent[] } | null;
 };
 
 interface SiteDetailDialogProps {
@@ -36,135 +38,162 @@ interface SiteDetailDialogProps {
   onOpenChange: (v: boolean) => void;
 }
 
-type LaidOutNode = {
-  id: string;
-  label: string;
-  path: string;
-  icon: ComponentType<{ className?: string }>;
-  x: number;
-  y: number;
-  accent?: boolean;
-};
-
-const CARD_W = 168;
-const CARD_H = 64;
-const H_GAP = 16;
-const ROW_H = 124;
-const CARD_SPACE = CARD_W + H_GAP;
+function normalizeSlug(raw: string): string {
+  const s = (raw ?? "").trim().toLowerCase();
+  if (!s || s === "/" || s === "index" || s === "/index") return "index";
+  return s.replace(/^\/+/, "").replace(/\/+$/, "").replace(/\.html?$/, "");
+}
 
 function pathOf(slug: string): string {
-  const s = (slug ?? "").trim();
-  if (!s || s === "index" || s === "/") return "/";
-  return "/" + s.replace(/^\/+/, "");
+  const s = normalizeSlug(slug);
+  return s === "index" ? "/" : "/" + s;
 }
 
-function layoutSitemap(sitemap: SitemapNode[]): {
-  nodes: LaidOutNode[];
-  edges: Array<[string, string]>;
-  width: number;
-  height: number;
-} {
-  // Determine root and level-1 nodes.
-  // If the first sitemap entry has slug 'index' (or path '/'), use it as root.
-  let root: SitemapNode | null = null;
-  let level1: SitemapNode[] = [];
-  if (sitemap.length > 0) {
-    const first = sitemap[0];
-    const isHome =
-      first.slug === "index" ||
-      first.slug === "/" ||
-      first.title.toLowerCase() === "accueil";
-    if (isHome) {
-      root = first;
-      level1 = sitemap.slice(1);
-    } else {
-      root = { title: "Accueil", slug: "index" };
-      level1 = sitemap;
+function collectSitemapNodes(sitemap: SitemapNode[]): Array<{ title: string; slug: string }> {
+  const out: Array<{ title: string; slug: string }> = [];
+  const seen = new Set<string>();
+  const walk = (list: SitemapNode[]) => {
+    for (const n of list) {
+      const slug = normalizeSlug(n.slug);
+      if (!seen.has(slug)) {
+        seen.add(slug);
+        out.push({ title: n.title, slug });
+      }
+      if (n.children) walk(n.children);
     }
-  } else {
-    root = { title: "Accueil", slug: "index" };
+  };
+  walk(sitemap);
+  return out;
+}
+
+function extractLinks(html: string): string[] {
+  const re = /href\s*=\s*["']([^"']+)["']/gi;
+  const out: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const href = m[1].trim();
+    // ignore external, mail, tel, anchors, protocol-relative
+    if (
+      !href ||
+      href.startsWith("#") ||
+      href.startsWith("mailto:") ||
+      href.startsWith("tel:") ||
+      href.startsWith("http") ||
+      href.startsWith("//")
+    ) {
+      continue;
+    }
+    out.push(href.split("#")[0].split("?")[0]);
+  }
+  return out;
+}
+
+type GraphNode = {
+  id: string;
+  label: string;
+  slug: string;
+  x: number;
+  y: number;
+  accent: boolean;
+};
+
+function buildGraph(
+  sitemap: SitemapNode[],
+  pages: PageContent[],
+  width: number,
+  height: number,
+): { nodes: GraphNode[]; edges: Array<[string, string]> } {
+  // Build node list: from sitemap, plus any page slug not already listed.
+  const nodesMap = new Map<string, { title: string; slug: string }>();
+  for (const n of collectSitemapNodes(sitemap)) nodesMap.set(n.slug, n);
+  for (const p of pages) {
+    const slug = normalizeSlug(p.slug);
+    if (!nodesMap.has(slug)) {
+      // derive a title from seo_title if possible
+      const title = (p.seo_title || slug).split("—")[0].trim() || slug;
+      nodesMap.set(slug, { title, slug });
+    }
+  }
+  const slugs = Array.from(nodesMap.keys());
+  // Ensure home is first
+  slugs.sort((a, b) => (a === "index" ? -1 : b === "index" ? 1 : 0));
+
+  // Layout: home center, others on circle around
+  const cx = width / 2;
+  const cy = height / 2;
+  const radius = Math.min(width, height) / 2 - 90;
+  const others = slugs.filter((s) => s !== "index");
+  const homeIdx = slugs.indexOf("index");
+
+  const nodes: GraphNode[] = [];
+  if (homeIdx >= 0) {
+    const home = nodesMap.get("index")!;
+    nodes.push({
+      id: "index",
+      label: home.title,
+      slug: "index",
+      x: cx,
+      y: cy,
+      accent: true,
+    });
+  }
+  others.forEach((slug, i) => {
+    const info = nodesMap.get(slug)!;
+    const angle = (-Math.PI / 2) + (i * 2 * Math.PI) / Math.max(1, others.length);
+    nodes.push({
+      id: slug,
+      label: info.title,
+      slug,
+      x: cx + radius * Math.cos(angle),
+      y: cy + radius * Math.sin(angle),
+      accent: false,
+    });
+  });
+
+  // Build edges from actual HTML content
+  const validSlugs = new Set(slugs);
+  const edgeSet = new Set<string>();
+  const edges: Array<[string, string]> = [];
+  for (const p of pages) {
+    const from = normalizeSlug(p.slug);
+    if (!validSlugs.has(from)) continue;
+    const links = extractLinks(p.html_content);
+    for (const href of links) {
+      const to = normalizeSlug(href);
+      if (!validSlugs.has(to) || to === from) continue;
+      const key = from < to ? `${from}|${to}` : `${to}|${from}`;
+      if (edgeSet.has(key)) continue;
+      edgeSet.add(key);
+      edges.push([from, to]);
+    }
   }
 
-  // Compute subtree width for each level1 node (in card units)
-  const subtreeUnits = level1.map((n) =>
-    Math.max(1, (n.children?.length ?? 0)),
-  );
-  const totalUnits = subtreeUnits.reduce((a, b) => a + b, 0) || 1;
-
-  const width = Math.max(
-    CARD_SPACE * (level1.length || 1),
-    CARD_SPACE * totalUnits,
-    CARD_SPACE * 2,
-  );
-
-  const hasLevel2 = level1.some((n) => (n.children?.length ?? 0) > 0);
-  const height = 24 + CARD_H + ROW_H + (hasLevel2 ? ROW_H : 0) + 24;
-
-  const nodes: LaidOutNode[] = [];
-  const edges: Array<[string, string]> = [];
-
-  // Root centered
-  const rootX = width / 2 - CARD_W / 2;
-  nodes.push({
-    id: "root",
-    label: root.title,
-    path: pathOf(root.slug),
-    icon: Home,
-    x: rootX,
-    y: 24,
-    accent: true,
-  });
-
-  // Level 1 positions: center each parent's block within its allocated units
-  let cursor = 0;
-  level1.forEach((node, i) => {
-    const units = subtreeUnits[i];
-    const blockCenter = (cursor + units / 2) * CARD_SPACE;
-    const x = blockCenter - CARD_W / 2 + (width - totalUnits * CARD_SPACE) / 2;
-    const y = 24 + CARD_H + ROW_H - CARD_H;
-    const id = `l1-${i}`;
-    nodes.push({
-      id,
-      label: node.title,
-      path: pathOf(node.slug),
-      icon: FileText,
-      x,
-      y,
-    });
-    edges.push(["root", id]);
-
-    // Level 2 children
-    const children = node.children ?? [];
-    children.forEach((child, ci) => {
-      const cx =
-        (cursor + ci + 0.5) * CARD_SPACE -
-        CARD_W / 2 +
-        (width - totalUnits * CARD_SPACE) / 2;
-      const cy = 24 + CARD_H + ROW_H * 2 - CARD_H;
-      const cid = `${id}-c${ci}`;
-      nodes.push({
-        id: cid,
-        label: child.title,
-        path: pathOf(child.slug),
-        icon: FileText,
-        x: cx,
-        y: cy,
-      });
-      edges.push([id, cid]);
-    });
-
-    cursor += units;
-  });
-
-  return { nodes, edges, width, height };
+  return { nodes, edges };
 }
 
-function Sitemap({ sitemap }: { sitemap: SitemapNode[] }) {
-  const { nodes, edges, width, height } = layoutSitemap(sitemap);
+const CARD_W = 168;
+const CARD_H = 56;
+
+function Sitemap({
+  sitemap,
+  pages,
+}: {
+  sitemap: SitemapNode[];
+  pages: PageContent[];
+}) {
+  const total = Math.max(
+    collectSitemapNodes(sitemap).length,
+    pages.length,
+  );
+  // Scale canvas with number of nodes so cards don't overlap
+  const size = Math.max(520, 260 + total * 46);
+  const width = size;
+  const height = size;
+  const { nodes, edges } = useMemo(
+    () => buildGraph(sitemap, pages, width, height),
+    [sitemap, pages, width, height],
+  );
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
-  const cx = (n: LaidOutNode) => n.x + CARD_W / 2;
-  const topY = (n: LaidOutNode) => n.y;
-  const bottomY = (n: LaidOutNode) => n.y + CARD_H;
 
   return (
     <div className="overflow-x-auto">
@@ -177,73 +206,80 @@ function Sitemap({ sitemap }: { sitemap: SitemapNode[] }) {
         >
           <defs>
             <marker
-              id="sitemap-dot"
-              markerWidth="6"
-              markerHeight="6"
-              refX="3"
-              refY="3"
+              id="sitemap-arrow"
+              markerWidth="7"
+              markerHeight="7"
+              refX="3.5"
+              refY="3.5"
               orient="auto"
             >
-              <circle cx="3" cy="3" r="2.5" className="fill-primary" />
+              <circle cx="3.5" cy="3.5" r="2.5" className="fill-primary/70" />
             </marker>
           </defs>
-          {edges.map(([from, to]) => {
+          {edges.map(([from, to], i) => {
             const a = byId[from];
             const b = byId[to];
             if (!a || !b) return null;
-            const x1 = cx(a);
-            const y1 = bottomY(a);
-            const x2 = cx(b);
-            const y2 = topY(b);
-            const midY = (y1 + y2) / 2;
-            const d = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+            // Slight curvature for visual mesh feel
+            const mx = (a.x + b.x) / 2;
+            const my = (a.y + b.y) / 2;
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            const len = Math.hypot(dx, dy) || 1;
+            const nx = -dy / len;
+            const ny = dx / len;
+            const bow = Math.min(60, len * 0.15) * ((i % 2) === 0 ? 1 : -1);
+            const cx1 = mx + nx * bow;
+            const cy1 = my + ny * bow;
+            const d = `M ${a.x} ${a.y} Q ${cx1} ${cy1} ${b.x} ${b.y}`;
             return (
               <path
-                key={`${from}-${to}`}
+                key={`${from}-${to}-${i}`}
                 d={d}
-                className="stroke-border"
-                strokeWidth={1.5}
+                className="stroke-primary/40"
+                strokeWidth={1.25}
                 strokeDasharray="4 4"
-                markerEnd="url(#sitemap-dot)"
               />
             );
           })}
         </svg>
 
-        {nodes.map((n) => {
-          const Icon = n.icon;
-          return (
+        {nodes.map((n) => (
+          <div
+            key={n.id}
+            className={
+              "absolute flex items-center gap-2 rounded-xl border bg-card px-3 py-2 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md " +
+              (n.accent
+                ? "border-primary/40 ring-1 ring-primary/20"
+                : "border-border")
+            }
+            style={{
+              left: n.x - CARD_W / 2,
+              top: n.y - CARD_H / 2,
+              width: CARD_W,
+              height: CARD_H,
+            }}
+          >
             <div
-              key={n.id}
               className={
-                "absolute flex items-center gap-3 rounded-xl border bg-card px-3 py-2.5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md " +
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg " +
                 (n.accent
-                  ? "border-primary/40 ring-1 ring-primary/20"
-                  : "border-border")
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-foreground")
               }
-              style={{ left: n.x, top: n.y, width: CARD_W, height: CARD_H }}
             >
-              <div
-                className={
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg " +
-                  (n.accent
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-foreground")
-                }
-              >
-                <Icon className="h-4 w-4" />
+              {n.accent ? <Home className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+            </div>
+            <div className="min-w-0">
+              <div className="truncate text-xs font-semibold leading-tight">
+                {n.label}
               </div>
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold leading-tight">
-                  {n.label}
-                </div>
-                <div className="truncate font-mono text-[11px] text-muted-foreground">
-                  {n.path}
-                </div>
+              <div className="truncate font-mono text-[10px] text-muted-foreground">
+                {pathOf(n.slug)}
               </div>
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -255,7 +291,7 @@ function StatCard({
   value,
   hint,
 }: {
-  icon: ComponentType<{ className?: string }>;
+  icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
   hint: string;
@@ -280,6 +316,23 @@ export function SiteDetailDialog({ site, open, onOpenChange }: SiteDetailDialogP
     year: "numeric",
   });
   const sitemap = site.random_seed?.sitemap ?? [];
+  const pages = site.site_data?.pages ?? [];
+  const linkCount = (() => {
+    const validSlugs = new Set<string>();
+    for (const n of collectSitemapNodes(sitemap)) validSlugs.add(n.slug);
+    for (const p of pages) validSlugs.add(normalizeSlug(p.slug));
+    const seen = new Set<string>();
+    for (const p of pages) {
+      const from = normalizeSlug(p.slug);
+      for (const href of extractLinks(p.html_content)) {
+        const to = normalizeSlug(href);
+        if (!validSlugs.has(to) || to === from) continue;
+        const key = from < to ? `${from}|${to}` : `${to}|${from}`;
+        seen.add(key);
+      }
+    }
+    return seen.size;
+  })();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -300,24 +353,9 @@ export function SiteDetailDialog({ site, open, onOpenChange }: SiteDetailDialogP
 
           <TabsContent value="analyse" className="mt-4 space-y-3">
             <div className="grid gap-3 sm:grid-cols-3">
-              <StatCard
-                icon={TrendingUp}
-                label="Trafic"
-                value="—"
-                hint="Visites mensuelles"
-              />
-              <StatCard
-                icon={Search}
-                label="Mots-clés"
-                value="—"
-                hint="Positionnés en top 100"
-              />
-              <StatCard
-                icon={Activity}
-                label="Santé SEO"
-                value="—"
-                hint="Score global"
-              />
+              <StatCard icon={TrendingUp} label="Trafic" value="—" hint="Visites mensuelles" />
+              <StatCard icon={Search} label="Mots-clés" value="—" hint="Positionnés en top 100" />
+              <StatCard icon={Activity} label="Santé SEO" value="—" hint="Score global" />
             </div>
             <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
               Les données d'analyse seront disponibles ici prochainement.
@@ -357,23 +395,22 @@ export function SiteDetailDialog({ site, open, onOpenChange }: SiteDetailDialogP
             <div className="rounded-lg border border-border bg-card">
               <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
                 <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Sitemap
+                  Maillage interne
                 </span>
                 <span className="text-[11px] text-muted-foreground">
-                  Maillage interne du site
+                  {pages.length} pages · {linkCount} liens détectés
                 </span>
               </div>
               <div className="p-4">
-                {sitemap.length > 0 ? (
-                  <Sitemap sitemap={sitemap} />
+                {pages.length > 0 || sitemap.length > 0 ? (
+                  <Sitemap sitemap={sitemap} pages={pages} />
                 ) : (
                   <div className="p-6 text-center text-sm text-muted-foreground">
-                    Aucune arborescence enregistrée pour ce site.
+                    Aucune donnée disponible pour ce site.
                   </div>
                 )}
               </div>
             </div>
-
           </TabsContent>
         </Tabs>
       </DialogContent>
