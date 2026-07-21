@@ -386,7 +386,8 @@ export const retrySite = createServerFn({ method: "POST" })
       secondary_keywords: row.secondary_keywords ?? [],
     });
 
-    const trig = await triggerRunner(data.id, row.name, siteData);
+    await supabase.from("sites").update({ site_data: siteData }).eq("id", data.id);
+    const trig = await triggerRunner(data.id, row.name);
     if (!trig.triggered) {
       await supabase
         .from("sites")
