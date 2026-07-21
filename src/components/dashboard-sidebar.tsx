@@ -1,5 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { LayoutDashboard, Plus } from "lucide-react";
+import logoAsset from "@/assets/capitoleai-logo.png.asset.json";
 import {
   Sidebar,
   SidebarContent,
@@ -28,18 +29,12 @@ export function DashboardSidebar({ sites, onCreate, email }: DashboardSidebarPro
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
-        <div className="flex items-center gap-2 px-2 py-3">
+        <div className="flex items-center px-2 py-3">
           <img
-            src="/logo.png"
-            alt="Logo"
-            className="h-8 w-8 rounded object-contain"
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).style.display = "none";
-            }}
+            src={logoAsset.url}
+            alt="CapitoleAI"
+            className="h-8 w-auto object-contain group-data-[collapsible=icon]:h-6"
           />
-          <span className="text-sm font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
-            Mon espace
-          </span>
         </div>
       </SidebarHeader>
 
