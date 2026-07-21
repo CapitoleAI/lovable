@@ -334,11 +334,17 @@ function DashboardPage() {
                             </a>
                           </Button>
                         )}
+                        {site.status === "deployed" && (
+                          <Button size="sm" variant="ghost" onClick={() => setEditSite(site)}>
+                            <Pencil className="mr-1.5 h-3.5 w-3.5" /> Modifier
+                          </Button>
+                        )}
                         {site.status !== "deployed" && (
                           <Button size="sm" variant="ghost" onClick={() => handleRetry(site.id)}>
                             <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Relancer
                           </Button>
                         )}
+
 
 
                         <Button
