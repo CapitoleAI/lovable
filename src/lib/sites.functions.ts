@@ -259,13 +259,14 @@ export const syncCloudflareStatus = createServerFn({ method: "POST" })
       `https://${projectName}.pages.dev`;
     const deployUrl = newStatus === "deployed" ? canonicalUrl : row.deploy_url;
 
-    const update: Record<string, unknown> = { status: newStatus };
+    const update: { status: string; deploy_url?: string } = { status: newStatus };
     if (deployUrl && deployUrl !== row.deploy_url) update.deploy_url = deployUrl;
     if (newStatus !== row.status || update.deploy_url) {
       await supabase.from("sites").update(update).eq("id", data.id);
     }
     return { ok: true, status: newStatus, deploy_url: deployUrl };
   });
+
 
 export const deleteSite = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
