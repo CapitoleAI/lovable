@@ -303,7 +303,7 @@ export const retrySite = createServerFn({ method: "POST" })
     const supabase = await loadAdmin();
     const { data: row, error } = await supabase
       .from("sites")
-      .select("id, owner_email, name, theme, city, business_name, main_keyword")
+      .select("id, owner_email, name, theme, city, business_name, main_keyword, secondary_keywords, random_seed")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -313,12 +313,16 @@ export const retrySite = createServerFn({ method: "POST" })
       .from("sites")
       .update({ status: "pending", last_error: null })
       .eq("id", data.id);
+    const seed = (row.random_seed ?? {}) as { sitemap?: SitemapPage[] };
     const siteData = await generateSiteData({
       theme: row.theme,
       city: row.city,
       business_name: row.business_name,
       main_keyword: row.main_keyword,
+      sitemap: seed.sitemap,
+      secondary_keywords: row.secondary_keywords ?? [],
     });
+
     const trig = await triggerRunner(data.id, row.name, siteData);
     if (!trig.triggered) {
       await supabase
