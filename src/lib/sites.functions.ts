@@ -48,7 +48,26 @@ function slugify(input: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9\s-]/g, "")
     .trim()
-    .replace(/\s+/g, "-");
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+}
+
+function normalizePageSlug(input: string): string {
+  const raw = (input ?? "").trim();
+  if (!raw || raw === "/" || raw.toLowerCase() === "/index" || raw.toLowerCase() === "index") {
+    return "index";
+  }
+  const cleaned = slugify(raw.replace(/^\/+/, "").replace(/\/+$/, ""));
+  return cleaned || "index";
+}
+
+function flattenSitemap(sitemap: SitemapPage[]): SitemapPage[] {
+  const out: SitemapPage[] = [];
+  for (const p of sitemap) {
+    out.push({ title: p.title, slug: p.slug });
+    if (p.children) for (const c of p.children) out.push({ title: c.title, slug: c.slug });
+  }
+  return out;
 }
 
 function buildRandomSeed(randomize: boolean) {
