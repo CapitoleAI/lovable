@@ -97,9 +97,81 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const createMutation = useMutation({
-    mutationFn: async () =>
-      createFn({
+  function normalizeSlug(input: string): string {
+    const raw = (input ?? "").trim();
+    if (!raw || raw === "/" || raw.toLowerCase() === "/index" || raw.toLowerCase() === "index") {
+      return "index";
+    }
+    return (
+      raw
+        .replace(/^\/+/, "")
+        .replace(/\/+$/, "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9\s-]/g, "")
+        .trim()
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-") || "index"
+    );
+  }
+
+  function flatten(sm: SitemapPage[]): SitemapPage[] {
+    const out: SitemapPage[] = [];
+    for (const p of sm) {
+      out.push({ title: p.title, slug: p.slug });
+      if (p.children) for (const c of p.children) out.push({ title: c.title, slug: c.slug });
+    }
+    return out;
+  }
+
+  async function launch() {
+    const flat = flatten(sitemap);
+    const seen = new Set<string>();
+    const uniquePages = flat
+      .map((p) => ({ title: p.title, slug: normalizeSlug(p.slug) }))
+      .filter((p) => {
+        if (seen.has(p.slug)) return false;
+        seen.add(p.slug);
+        return true;
+      });
+    if (!uniquePages.some((p) => p.slug === "index") && uniquePages[0]) {
+      uniquePages[0] = { ...uniquePages[0], slug: "index" };
+    }
+
+    const total = uniquePages.length;
+    const pages: PageContent[] = [];
+    try {
+      for (let i = 0; i < uniquePages.length; i++) {
+        const p = uniquePages[i];
+        setLaunchStatus({
+          phase: "generating",
+          current: i + 1,
+          total,
+          label: `Rédaction de la page ${p.title} (${i + 1}/${total})…`,
+        });
+        const res = await genPage({
+          data: {
+            theme,
+            city,
+            business_name: name,
+            main_keyword: mainKeyword || Array.from(selectedKw)[0] || theme,
+            secondary_keywords: Array.from(selectedKw),
+            sitemap,
+            page: p,
+          },
+        });
+        pages.push({ ...res.page, slug: normalizeSlug(res.page.slug) });
+      }
+
+      setLaunchStatus({
+        phase: "sending",
+        current: total,
+        total,
+        label: "Envoi du code vers GitHub…",
+      });
+
+      const res = await createFn({
         data: {
           name,
           theme,
@@ -107,18 +179,28 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
           main_keyword: mainKeyword || Array.from(selectedKw)[0] || theme,
           secondary_keywords: Array.from(selectedKw),
           sitemap,
+          pages,
           business_name: name,
         },
-      }),
-    onSuccess: (res) => {
+      });
+
+      setLaunchStatus({
+        phase: "done",
+        current: total,
+        total,
+        label: "Build lancé, en attente du déploiement Cloudflare…",
+      });
       toast.success("Création lancée");
       qc.invalidateQueries({ queryKey: ["sites"] });
       onLaunched?.(res.site.id);
       reset();
       onOpenChange(false);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+    } catch (e) {
+      const msg = (e as Error).message;
+      setLaunchStatus((s) => ({ ...s, phase: "error", error: msg, label: msg }));
+      toast.error(msg);
+    }
+  }
 
   function reset() {
     setStep(1);
@@ -130,6 +212,7 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
     setSelectedKw(new Set());
     setNewKw("");
     setSitemap([]);
+    setLaunchStatus({ phase: "idle", current: 0, total: 0, label: "" });
   }
 
   function toggleKw(k: string) {
