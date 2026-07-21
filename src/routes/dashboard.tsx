@@ -219,6 +219,12 @@ function DashboardPage() {
         </SidebarInset>
 
         <CreateSiteDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+        <SiteDetailDialog
+          site={detailSite}
+          open={!!detailSite}
+          onOpenChange={(v) => !v && setDetailSite(null)}
+        />
+
       </div>
     </SidebarProvider>
   );
