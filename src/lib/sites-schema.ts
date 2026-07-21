@@ -19,32 +19,52 @@ export const PALETTES = {
 
 export type PaletteId = keyof typeof PALETTES;
 
+export const sitemapPageSchema: z.ZodType<SitemapPage> = z.lazy(() =>
+  z.object({
+    title: z.string().trim().min(1).max(80),
+    slug: z.string().trim().min(1).max(80),
+    children: z.array(sitemapPageSchema).max(20).optional(),
+  }),
+);
+export type SitemapPage = {
+  title: string;
+  slug: string;
+  children?: SitemapPage[];
+};
+
 export const createSiteSchema = z.object({
-  // A
   name: z.string().trim().min(1).max(120),
-  domain: z
-    .string()
-    .trim()
-    .min(3)
-    .max(253)
-    .regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i, "Domaine invalide"),
-  hosting_target: z.enum(HOSTING_TARGETS),
-  // B
   theme: z.string().trim().min(1).max(200),
   city: z.string().trim().min(1).max(120),
   main_keyword: z.string().trim().min(1).max(120),
-  secondary_keywords: z.array(z.string().trim().min(1).max(60)).max(20),
-  // C
-  business_name: z.string().trim().min(1).max(200),
-  phone: z.string().trim().min(4).max(40),
-  email: z.string().trim().email().max(255),
-  address: z.string().trim().min(1).max(300),
-  // D
-  astro_template: z.enum(ASTRO_TEMPLATES),
-  palette: z.enum(
-    Object.keys(PALETTES) as [PaletteId, ...PaletteId[]],
-  ),
-  randomize: z.boolean(),
+  secondary_keywords: z.array(z.string().trim().min(1).max(80)).max(30),
+  sitemap: z.array(sitemapPageSchema).min(1).max(30),
+  // Optional / defaults
+  domain: z.string().trim().max(253).optional().default(""),
+  business_name: z.string().trim().max(200).optional().default(""),
+  phone: z.string().trim().max(40).optional().default(""),
+  email: z.string().trim().max(255).optional().default(""),
+  address: z.string().trim().max(300).optional().default(""),
+  hosting_target: z.enum(HOSTING_TARGETS).default("cloudflare_pages"),
+  astro_template: z.enum(ASTRO_TEMPLATES).default("alpha"),
+  palette: z
+    .enum(Object.keys(PALETTES) as [PaletteId, ...PaletteId[]])
+    .default("ocean"),
+  randomize: z.boolean().default(true),
 });
 
-export type CreateSiteInput = z.infer<typeof createSiteSchema>;
+export type CreateSiteInput = z.input<typeof createSiteSchema>;
+export type CreateSiteParsed = z.output<typeof createSiteSchema>;
+
+export const suggestKeywordsSchema = z.object({
+  theme: z.string().trim().min(1).max(200),
+  city: z.string().trim().max(120).optional().default(""),
+  business_name: z.string().trim().max(200).optional().default(""),
+});
+
+export const suggestSitemapSchema = z.object({
+  theme: z.string().trim().min(1).max(200),
+  city: z.string().trim().max(120).optional().default(""),
+  business_name: z.string().trim().max(200).optional().default(""),
+  keywords: z.array(z.string().trim().min(1).max(80)).max(30).default([]),
+});

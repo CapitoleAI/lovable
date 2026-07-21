@@ -18,6 +18,8 @@ import { Badge } from "@/components/ui/badge";
 import { CreateSiteDialog } from "@/components/create-site-dialog";
 import { SiteDetailDialog } from "@/components/site-detail-dialog";
 import { SiteBuildProgress } from "@/components/site-build-progress";
+import { BuildProgressDialog } from "@/components/build-progress-dialog";
+
 
 
 export const Route = createFileRoute("/dashboard")({
@@ -80,6 +82,8 @@ function DashboardPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [detailSite, setDetailSite] = useState<SiteRow | null>(null);
+  const [launchedSiteId, setLaunchedSiteId] = useState<string | null>(null);
+
 
 
   const sitesQuery = useQuery({
@@ -252,12 +256,22 @@ function DashboardPage() {
           </main>
         </SidebarInset>
 
-        <CreateSiteDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+        <CreateSiteDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          onLaunched={(id) => setLaunchedSiteId(id)}
+        />
+        <BuildProgressDialog
+          siteId={launchedSiteId}
+          open={!!launchedSiteId}
+          onOpenChange={(v) => !v && setLaunchedSiteId(null)}
+        />
         <SiteDetailDialog
           site={detailSite}
           open={!!detailSite}
           onOpenChange={(v) => !v && setDetailSite(null)}
         />
+
 
       </div>
     </SidebarProvider>

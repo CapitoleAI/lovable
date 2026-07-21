@@ -2,7 +2,15 @@ import { createServerFn } from "@tanstack/react-start";
 import { useSession } from "@tanstack/react-start/server";
 import { createHmac, randomBytes } from "node:crypto";
 import { z } from "zod";
-import { createSiteSchema, PALETTES, type PaletteId } from "./sites-schema";
+import {
+  createSiteSchema,
+  PALETTES,
+  suggestKeywordsSchema,
+  suggestSitemapSchema,
+  type PaletteId,
+  type SitemapPage,
+} from "./sites-schema";
+
 
 type AuthSession = { authenticated?: boolean; email?: string };
 
@@ -61,7 +69,38 @@ async function loadAdmin() {
   return supabaseAdmin;
 }
 
-type SiteData = { seo_title: string; html_content: string };
+type SiteData = {
+  seo_title: string;
+  html_content: string;
+  sitemap?: SitemapPage[];
+  secondary_keywords?: string[];
+};
+
+async function callAiJson<T>(system: string, user: string, fallback: T): Promise<T> {
+  const apiKey = process.env.LOVABLE_API_KEY;
+  if (!apiKey) return fallback;
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey },
+      body: JSON.stringify({
+        model: "openai/gpt-5.5",
+        reasoning_effort: "none",
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      }),
+    });
+    if (!res.ok) throw new Error(`AI ${res.status}`);
+    const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const text = json.choices?.[0]?.message?.content ?? "{}";
+    return JSON.parse(text) as T;
+  } catch {
+    return fallback;
+  }
+}
 
 const FALLBACK_HTML = (theme: string, city: string, business: string) =>
   `<header class="bg-white shadow"><div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between"><span class="text-xl font-bold">${business}</span><nav class="space-x-6 text-sm"><a href="#services">Services</a><a href="#contact">Contact</a></nav></div></header><section class="py-20 bg-gradient-to-br from-slate-50 to-white"><div class="max-w-4xl mx-auto px-6 text-center"><h1 class="text-5xl font-bold tracking-tight mb-6">${business} — ${theme} à ${city}</h1><p class="text-lg text-slate-600 mb-8">Service professionnel, rapide et de confiance.</p><a href="#contact" class="inline-block bg-slate-900 text-white px-8 py-3 rounded-lg font-semibold">Nous contacter</a></div></section><footer class="py-8 bg-slate-900 text-slate-300 text-center text-sm">© ${business}</footer>`;
@@ -71,49 +110,77 @@ async function generateSiteData(input: {
   city: string;
   business_name: string;
   main_keyword: string;
+  sitemap?: SitemapPage[];
+  secondary_keywords?: string[];
 }): Promise<SiteData> {
-  const apiKey = process.env.LOVABLE_API_KEY;
   const fallback: SiteData = {
     seo_title: `${input.business_name} — ${input.theme} à ${input.city}`,
     html_content: FALLBACK_HTML(input.theme, input.city, input.business_name),
+    sitemap: input.sitemap,
+    secondary_keywords: input.secondary_keywords,
   };
-  if (!apiKey) return fallback;
-  try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Lovable-API-Key": apiKey,
-      },
-      body: JSON.stringify({
-        model: "openai/gpt-5.5",
-        reasoning_effort: "none",
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content:
-              "Tu es un développeur frontend expert. Tu génères une landing page complète en HTML + Tailwind CSS. RÈGLES STRICTES: (1) Ne JAMAIS inclure <html>, <head>, <body> — uniquement le contenu intérieur (<header>, <section>, <footer>, <div>, etc.). (2) Utiliser massivement les classes utilitaires Tailwind CSS pour un design moderne, aéré, responsive. (3) Contenu en français, pertinent et riche pour la thématique. (4) Inclure au minimum: header avec navigation, hero, section services, section à propos/confiance, section contact, footer. (5) Répondre UNIQUEMENT en JSON strict avec les clés seo_title (string) et html_content (string). La chaîne html_content doit être correctement échappée pour JSON.",
-          },
-          {
-            role: "user",
-            content: `Thématique: ${input.theme}\nVille: ${input.city}\nEntreprise: ${input.business_name}\nMot-clé principal: ${input.main_keyword}\n\nGénère la landing page complète au format {"seo_title": "...", "html_content": "..."}.`,
-          },
-        ],
-      }),
-    });
-    if (!res.ok) throw new Error(`AI ${res.status}`);
-    const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    const text = json.choices?.[0]?.message?.content ?? "{}";
-    const parsed = JSON.parse(text) as Partial<SiteData>;
-    const seo_title = parsed.seo_title?.trim();
-    const html_content = parsed.html_content?.trim();
-    if (!seo_title || !html_content) return fallback;
-    return { seo_title, html_content };
-  } catch {
-    return fallback;
-  }
+  const sitemapStr = input.sitemap ? JSON.stringify(input.sitemap) : "[]";
+  const parsed = await callAiJson<Partial<SiteData>>(
+    "Tu es un développeur frontend expert. Tu génères une landing page complète en HTML + Tailwind CSS. RÈGLES STRICTES: (1) Ne JAMAIS inclure <html>, <head>, <body> — uniquement le contenu intérieur. (2) Utiliser massivement Tailwind pour un design moderne, aéré, responsive. (3) Contenu en français riche et pertinent. (4) Inclure header avec navigation (utiliser l'arborescence fournie), hero, sections, footer. (5) Réponds UNIQUEMENT en JSON strict {\"seo_title\": string, \"html_content\": string}.",
+    `Thématique: ${input.theme}\nVille: ${input.city}\nEntreprise: ${input.business_name}\nMot-clé principal: ${input.main_keyword}\nArborescence (sitemap): ${sitemapStr}\n\nRéponds au format JSON.`,
+    {},
+  );
+  const seo_title = parsed.seo_title?.trim();
+  const html_content = parsed.html_content?.trim();
+  if (!seo_title || !html_content) return fallback;
+  return {
+    seo_title,
+    html_content,
+    sitemap: input.sitemap,
+    secondary_keywords: input.secondary_keywords,
+  };
 }
+
+export const suggestKeywords = createServerFn({ method: "POST" })
+  .inputValidator((input) => suggestKeywordsSchema.parse(input))
+  .handler(async ({ data }) => {
+    await requireUser();
+    const parsed = await callAiJson<{ keywords?: string[] }>(
+      "Tu es un expert SEO francophone. Génère 12 mots-clés de longue traîne pertinents (3-6 mots), localisés, orientés intention d'achat/service. Réponds UNIQUEMENT en JSON {\"keywords\": string[]}. Pas de doublons.",
+      `Thématique: ${data.theme}\nVille: ${data.city}\nEntreprise: ${data.business_name}`,
+      { keywords: [] },
+    );
+    const kws = Array.from(
+      new Set((parsed.keywords ?? []).map((k) => k.trim()).filter(Boolean)),
+    ).slice(0, 15);
+    return { keywords: kws };
+  });
+
+export const suggestSitemap = createServerFn({ method: "POST" })
+  .inputValidator((input) => suggestSitemapSchema.parse(input))
+  .handler(async ({ data }) => {
+    await requireUser();
+    const fallback: { sitemap: SitemapPage[] } = {
+      sitemap: [
+        { title: "Accueil", slug: "/" },
+        { title: "Services", slug: "/services", children: [] },
+        { title: "À propos", slug: "/a-propos" },
+        { title: "Contact", slug: "/contact" },
+      ],
+    };
+    const parsed = await callAiJson<{ sitemap?: SitemapPage[] }>(
+      "Tu es un architecte SEO. Propose une arborescence de site cohérente pour référencement local. Racine + 4-7 rubriques, avec 2-4 sous-pages pertinentes par rubrique quand utile (services détaillés, articles blog). Slugs en kebab-case, français, sans accents. Réponds UNIQUEMENT en JSON {\"sitemap\": [{\"title\": string, \"slug\": string, \"children\"?: [{\"title\": string, \"slug\": string}]}]}.",
+      `Thématique: ${data.theme}\nVille: ${data.city}\nEntreprise: ${data.business_name}\nMots-clés: ${data.keywords.join(", ")}`,
+      fallback,
+    );
+    const sm = (parsed.sitemap ?? []).slice(0, 15).map((p) => ({
+      title: (p.title ?? "").trim() || "Page",
+      slug: (p.slug ?? "").trim() || "/page",
+      children: Array.isArray(p.children)
+        ? p.children.slice(0, 10).map((c) => ({
+            title: (c.title ?? "").trim() || "Sous-page",
+            slug: (c.slug ?? "").trim() || "/sous-page",
+          }))
+        : undefined,
+    }));
+    return { sitemap: sm.length ? sm : fallback.sitemap };
+  });
+
 
 async function triggerRunner(siteId: string, siteName: string, siteData: SiteData) {
   const url = process.env.ASTRO_RUNNER_WEBHOOK_URL;
@@ -179,20 +246,22 @@ export const createSite = createServerFn({ method: "POST" })
     const email = await requireUser();
     const supabase = await loadAdmin();
     const palette = [...PALETTES[data.palette as PaletteId]];
-    const random_seed = buildRandomSeed(data.randomize);
+    const random_seed = { ...buildRandomSeed(data.randomize), sitemap: data.sitemap };
+    const businessName = data.business_name || data.name;
+    const domain = data.domain || `${slugify(data.name)}.pages.dev`;
 
     const { data: row, error } = await supabase
       .from("sites")
       .insert({
         owner_email: email,
         name: data.name,
-        domain: data.domain,
+        domain,
         hosting_target: data.hosting_target,
         theme: data.theme,
         city: data.city,
         main_keyword: data.main_keyword,
         secondary_keywords: data.secondary_keywords,
-        business_name: data.business_name,
+        business_name: businessName,
         phone: data.phone,
         email: data.email,
         address: data.address,
@@ -209,9 +278,12 @@ export const createSite = createServerFn({ method: "POST" })
     const siteData = await generateSiteData({
       theme: data.theme,
       city: data.city,
-      business_name: data.business_name,
+      business_name: businessName,
       main_keyword: data.main_keyword,
+      sitemap: data.sitemap,
+      secondary_keywords: data.secondary_keywords,
     });
+
     const trig = await triggerRunner(row.id, row.name, siteData);
     if (!trig.triggered) {
       await supabase
@@ -231,7 +303,7 @@ export const retrySite = createServerFn({ method: "POST" })
     const supabase = await loadAdmin();
     const { data: row, error } = await supabase
       .from("sites")
-      .select("id, owner_email, name, theme, city, business_name, main_keyword")
+      .select("id, owner_email, name, theme, city, business_name, main_keyword, secondary_keywords, random_seed")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -241,12 +313,16 @@ export const retrySite = createServerFn({ method: "POST" })
       .from("sites")
       .update({ status: "pending", last_error: null })
       .eq("id", data.id);
+    const seed = (row.random_seed ?? {}) as { sitemap?: SitemapPage[] };
     const siteData = await generateSiteData({
       theme: row.theme,
       city: row.city,
       business_name: row.business_name,
       main_keyword: row.main_keyword,
+      sitemap: seed.sitemap,
+      secondary_keywords: row.secondary_keywords ?? [],
     });
+
     const trig = await triggerRunner(data.id, row.name, siteData);
     if (!trig.triggered) {
       await supabase
