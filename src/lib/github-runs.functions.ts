@@ -78,10 +78,15 @@ function extractDeployUrl(log: string): string | null {
   ];
   for (const re of patterns) {
     const m = log.match(re);
-    if (m) return m[0];
+    if (m) {
+      // Cloudflare Pages preview URLs look like https://<hash>.<project>.pages.dev
+      // Strip the deploy hash to return the canonical production URL.
+      return m[0].replace(/^https:\/\/[a-z0-9-]+\.([a-z0-9-]+\.pages\.dev)$/i, "https://$1");
+    }
   }
   return null;
 }
+
 
 type StepDTO = {
   name: string;
