@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { useSession } from "@tanstack/react-start/server";
-import { redirect } from "@tanstack/react-router";
+
 import { createHash, timingSafeEqual } from "node:crypto";
 
 type AuthSession = { authenticated?: boolean; email?: string };
@@ -64,12 +64,3 @@ export const getAuthStatus = createServerFn({ method: "GET" }).handler(
   },
 );
 
-export const requireAuth = createServerFn({ method: "GET" }).handler(
-  async () => {
-    const session = await useSession<AuthSession>(getSessionConfig());
-    if (!session.data.authenticated) {
-      throw redirect({ to: "/login" });
-    }
-    return { email: session.data.email ?? null };
-  },
-);
