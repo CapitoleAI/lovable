@@ -95,7 +95,7 @@ function DashboardPage() {
 
 
   const sitesQuery = useQuery({
-    queryKey: ["sites"],
+    ...sitesQueryOptions,
     queryFn: () => list(),
     refetchInterval: (q) => {
       const data = q.state.data as { sites: SiteRow[] } | undefined;
