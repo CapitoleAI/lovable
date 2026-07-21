@@ -82,7 +82,7 @@ const STATUS_VARIANT: Record<SiteRow["status"], "default" | "secondary" | "destr
 };
 
 function DashboardPage() {
-  const { email } = Route.useLoaderData();
+  const { email, sites: initialSites } = Route.useLoaderData();
   const router = useRouter();
   const logout = useServerFn(signOut);
   const list = useServerFn(listSites);
