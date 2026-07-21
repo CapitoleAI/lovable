@@ -83,7 +83,7 @@ export const getSiteBuildProgress = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: site, error } = await supabaseAdmin
       .from("sites")
-      .select("id, owner_email, created_at")
+      .select("id, owner_email, created_at, status")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -134,6 +134,27 @@ export const getSiteBuildProgress = createServerFn({ method: "POST" })
         completed_at: s.completed_at,
       })),
     }));
+
+    if (
+      run.status === "completed" &&
+      ["pending", "generating", "building", "deploying"].includes(site.status)
+    ) {
+      if (run.conclusion === "success") {
+        await supabaseAdmin
+          .from("sites")
+          .update({ status: "deployed", build_log_url: run.html_url, last_error: null })
+          .eq("id", site.id);
+      } else {
+        await supabaseAdmin
+          .from("sites")
+          .update({
+            status: "failed",
+            build_log_url: run.html_url,
+            last_error: `Workflow ${run.conclusion ?? "failed"}`,
+          })
+          .eq("id", site.id);
+      }
+    }
 
     return {
       run: {
