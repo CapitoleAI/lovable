@@ -2,10 +2,11 @@ import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { LogOut, ExternalLink, RefreshCw, Trash2, FileText } from "lucide-react";
+import { LogOut, ExternalLink, RefreshCw, Trash2, FileText, Cloud } from "lucide-react";
 import { toast } from "sonner";
 import { getAuthStatus, signOut } from "@/lib/auth.functions";
-import { listSites, retrySite, deleteSite } from "@/lib/sites.functions";
+import { listSites, retrySite, deleteSite, syncCloudflareStatus } from "@/lib/sites.functions";
+
 import {
   SidebarProvider,
   SidebarTrigger,
@@ -75,6 +76,8 @@ function DashboardPage() {
   const list = useServerFn(listSites);
   const retry = useServerFn(retrySite);
   const del = useServerFn(deleteSite);
+  const syncCf = useServerFn(syncCloudflareStatus);
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [detailSite, setDetailSite] = useState<SiteRow | null>(null);
 
@@ -109,7 +112,7 @@ function DashboardPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm("Supprimer ce site ?")) return;
+    if (!window.confirm("Supprimer ce site (Cloudflare + base) ?")) return;
     try {
       await del({ data: { id } });
       toast.success("Site supprimé");
@@ -118,6 +121,21 @@ function DashboardPage() {
       toast.error((e as Error).message);
     }
   }
+
+  async function handleSyncCf(id: string) {
+    try {
+      const res = await syncCf({ data: { id } });
+      if (res.ok) {
+        toast.success(`Statut Cloudflare : ${res.status}`);
+        sitesQuery.refetch();
+      } else {
+        toast.error(res.error ?? "Vérification impossible");
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
 
   const sidebarSites = sites.map((s) => ({ id: s.id, name: s.name, url: "/dashboard" }));
 
@@ -211,6 +229,10 @@ function DashboardPage() {
                             <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Relancer
                           </Button>
                         )}
+                        <Button size="sm" variant="ghost" onClick={() => handleSyncCf(site.id)}>
+                          <Cloud className="mr-1.5 h-3.5 w-3.5" /> Vérifier
+                        </Button>
+
                         <Button
                           size="sm"
                           variant="ghost"
