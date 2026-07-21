@@ -169,23 +169,53 @@ export const getSiteBuildProgress = createServerFn({ method: "POST" })
       })),
     }));
 
-    if (
-      run.status === "completed" &&
-      ["pending", "generating", "building", "deploying"].includes(site.status)
-    ) {
-      if (run.conclusion === "success") {
+    if (run.status === "completed") {
+      const needsReconcile = ["pending", "generating", "building", "deploying"].includes(
+        site.status,
+      );
+      const needsDeployUrl = run.conclusion === "success" && !site.deploy_url;
+
+      let deployUrl: string | null = null;
+      if (needsDeployUrl) {
+        for (const j of jobs) {
+          try {
+            const log = await ghFetchJobLog(j.id);
+            const found = extractDeployUrl(log);
+            if (found) {
+              deployUrl = found;
+              break;
+            }
+          } catch {
+            // ignore log fetch failures
+          }
+        }
+      }
+
+      if (needsReconcile) {
+        if (run.conclusion === "success") {
+          await supabaseAdmin
+            .from("sites")
+            .update({
+              status: "deployed",
+              build_log_url: run.html_url,
+              last_error: null,
+              ...(deployUrl ? { deploy_url: deployUrl } : {}),
+            })
+            .eq("id", site.id);
+        } else {
+          await supabaseAdmin
+            .from("sites")
+            .update({
+              status: "failed",
+              build_log_url: run.html_url,
+              last_error: `Workflow ${run.conclusion ?? "failed"}`,
+            })
+            .eq("id", site.id);
+        }
+      } else if (deployUrl) {
         await supabaseAdmin
           .from("sites")
-          .update({ status: "deployed", build_log_url: run.html_url, last_error: null })
-          .eq("id", site.id);
-      } else {
-        await supabaseAdmin
-          .from("sites")
-          .update({
-            status: "failed",
-            build_log_url: run.html_url,
-            last_error: `Workflow ${run.conclusion ?? "failed"}`,
-          })
+          .update({ deploy_url: deployUrl })
           .eq("id", site.id);
       }
     }
