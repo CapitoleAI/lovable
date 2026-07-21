@@ -51,7 +51,7 @@ async function loadAdmin() {
   return supabaseAdmin;
 }
 
-async function triggerRunner(siteId: string) {
+async function triggerRunner(siteId: string, siteName: string) {
   const url = process.env.ASTRO_RUNNER_WEBHOOK_URL;
   const secret = process.env.ASTRO_RUNNER_SECRET;
   const callbackBase = process.env.PUBLIC_APP_URL ?? "";
@@ -59,9 +59,13 @@ async function triggerRunner(siteId: string) {
     return { triggered: false, error: "Runner non configuré (ASTRO_RUNNER_WEBHOOK_URL manquant)" };
   }
   const payload = JSON.stringify({
-    site_id: siteId,
-    callback_url: `${callbackBase}/api/public/astro-deploy-callback`,
-    ts: Date.now(),
+    event_type: "build_site",
+    client_payload: {
+      site_id: siteId,
+      site_name: siteName,
+      callback_url: `${callbackBase}/api/public/astro-deploy-callback`,
+      ts: Date.now(),
+    },
   });
   const signature = createHmac("sha256", secret).update(payload).digest("hex");
   const githubToken = process.env.GITHUB_TOKEN;
