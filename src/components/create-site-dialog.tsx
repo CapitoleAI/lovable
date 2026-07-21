@@ -55,9 +55,17 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
   const [selectedKw, setSelectedKw] = useState<Set<string>>(new Set());
   const [newKw, setNewKw] = useState("");
   const [sitemap, setSitemap] = useState<SitemapPage[]>([]);
+  const [launchStatus, setLaunchStatus] = useState<{
+    phase: "idle" | "generating" | "sending" | "done" | "error";
+    current: number;
+    total: number;
+    label: string;
+    error?: string;
+  }>({ phase: "idle", current: 0, total: 0, label: "" });
 
   const suggestKw = useServerFn(suggestKeywords);
   const suggestSm = useServerFn(suggestSitemap);
+  const genPage = useServerFn(generatePageContent);
   const createFn = useServerFn(createSite);
   const qc = useQueryClient();
 
