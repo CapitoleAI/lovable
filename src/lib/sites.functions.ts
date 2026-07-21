@@ -2,7 +2,15 @@ import { createServerFn } from "@tanstack/react-start";
 import { useSession } from "@tanstack/react-start/server";
 import { createHmac, randomBytes } from "node:crypto";
 import { z } from "zod";
-import { createSiteSchema, PALETTES, type PaletteId } from "./sites-schema";
+import {
+  createSiteSchema,
+  PALETTES,
+  suggestKeywordsSchema,
+  suggestSitemapSchema,
+  type PaletteId,
+  type SitemapPage,
+} from "./sites-schema";
+
 
 type AuthSession = { authenticated?: boolean; email?: string };
 
