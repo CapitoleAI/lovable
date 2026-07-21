@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, queryOptions } from "@tanstack/react-query";
 import { useState } from "react";
 import { useEffect } from "react";
-import { LogOut, ExternalLink, RefreshCw, Trash2, FileText } from "lucide-react";
+import { LogOut, ExternalLink, RefreshCw, Trash2, FileText, Pencil } from "lucide-react";
 
 import { toast } from "sonner";
 import { getAuthStatus, signOut } from "@/lib/auth.functions";
@@ -21,6 +21,8 @@ import { CreateSiteDialog } from "@/components/create-site-dialog";
 import { SiteDetailDialog } from "@/components/site-detail-dialog";
 import { SiteBuildProgress } from "@/components/site-build-progress";
 import { BuildProgressDialog } from "@/components/build-progress-dialog";
+import { EditSiteDialog } from "@/components/edit-site-dialog";
+
 
 const sitesQueryOptions = queryOptions({
   queryKey: ["sites"],
@@ -127,7 +129,9 @@ function DashboardPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [detailSite, setDetailSite] = useState<SiteRow | null>(null);
+  const [editSite, setEditSite] = useState<SiteRow | null>(null);
   const [launchedSiteId, setLaunchedSiteId] = useState<string | null>(null);
+
 
 
 
@@ -330,11 +334,17 @@ function DashboardPage() {
                             </a>
                           </Button>
                         )}
+                        {site.status === "deployed" && (
+                          <Button size="sm" variant="ghost" onClick={() => setEditSite(site)}>
+                            <Pencil className="mr-1.5 h-3.5 w-3.5" /> Modifier
+                          </Button>
+                        )}
                         {site.status !== "deployed" && (
                           <Button size="sm" variant="ghost" onClick={() => handleRetry(site.id)}>
                             <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Relancer
                           </Button>
                         )}
+
 
 
                         <Button
@@ -371,6 +381,13 @@ function DashboardPage() {
           open={!!detailSite}
           onOpenChange={(v) => !v && setDetailSite(null)}
         />
+        <EditSiteDialog
+          site={editSite}
+          open={!!editSite}
+          onOpenChange={(v) => !v && setEditSite(null)}
+          onSaved={() => sitesQuery.refetch()}
+        />
+
 
 
       </div>

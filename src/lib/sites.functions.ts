@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
   createSiteSchema,
   generatePageSchema,
+  pageContentSchema,
   PALETTES,
   suggestKeywordsSchema,
   suggestSitemapSchema,
@@ -12,6 +13,7 @@ import {
   type PaletteId,
   type SitemapPage,
 } from "./sites-schema";
+
 
 
 type AuthSession = { authenticated?: boolean; email?: string };
@@ -473,6 +475,89 @@ export const syncCloudflareStatus = createServerFn({ method: "POST" })
     }
     return { ok: true, status: newStatus, deploy_url: deployUrl };
   });
+
+
+const updateSiteSchema = z.object({
+  id: z.string().uuid(),
+  pages: z.array(pageContentSchema).min(1).max(60),
+});
+
+export const updateSite = createServerFn({ method: "POST" })
+  .inputValidator((input) => updateSiteSchema.parse(input))
+  .handler(async ({ data }) => {
+    const email = await requireUser();
+    const supabase = await loadAdmin();
+    const { data: row, error } = await supabase
+      .from("sites")
+      .select("id, owner_email, name, random_seed")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row || row.owner_email !== email) throw new Error("Not found");
+
+    const pages = data.pages.map((p) => ({ ...p, slug: normalizePageSlug(p.slug) }));
+    // Rebuild sitemap from pages (flat), keep 'index' first
+    const sitemap: SitemapPage[] = pages.map((p) => ({
+      title: p.seo_title.split("—")[0].trim() || p.slug,
+      slug: p.slug === "index" ? "/" : `/${p.slug}`,
+    }));
+    const seed = (row.random_seed ?? {}) as Record<string, unknown>;
+    const newSeed = { ...seed, sitemap };
+
+    await supabase
+      .from("sites")
+      .update({
+        site_data: { pages },
+        random_seed: newSeed,
+        status: "pending",
+        last_error: null,
+      })
+      .eq("id", data.id);
+
+    const trig = await triggerRunner(data.id, row.name);
+    if (!trig.triggered) {
+      await supabase
+        .from("sites")
+        .update({ status: "failed", last_error: trig.error })
+        .eq("id", data.id);
+      return { ok: false, error: trig.error };
+    }
+    await supabase.from("sites").update({ status: "generating" }).eq("id", data.id);
+    return { ok: true };
+  });
+
+export const generatePageForSite = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z.object({
+      id: z.string().uuid(),
+      title: z.string().trim().min(1).max(120),
+      slug: z.string().trim().min(1).max(120),
+    }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const email = await requireUser();
+    const supabase = await loadAdmin();
+    const { data: row, error } = await supabase
+      .from("sites")
+      .select("id, owner_email, theme, city, business_name, main_keyword, secondary_keywords, random_seed, site_data")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row || row.owner_email !== email) throw new Error("Not found");
+    const seed = (row.random_seed ?? {}) as { sitemap?: SitemapPage[] };
+    const sitemap = seed.sitemap ?? [];
+    const page = await generatePageContentServer({
+      theme: row.theme,
+      city: row.city,
+      business_name: row.business_name,
+      main_keyword: row.main_keyword,
+      secondary_keywords: row.secondary_keywords ?? [],
+      sitemap,
+      page: { title: data.title, slug: data.slug },
+    });
+    return { page };
+  });
+
 
 
 export const deleteSite = createServerFn({ method: "POST" })
