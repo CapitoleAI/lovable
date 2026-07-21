@@ -83,6 +83,24 @@ const STATUS_VARIANT: Record<SiteRow["status"], "default" | "secondary" | "destr
   failed: "destructive",
 };
 
+function StatusDot({ up, title }: { up: boolean; title: string }) {
+  const color = up ? "bg-emerald-500" : "bg-red-500";
+  const soft = up ? "bg-emerald-500/40" : "bg-red-500/40";
+  return (
+    <span
+      role="status"
+      aria-label={title}
+      title={title}
+      className="relative inline-flex h-3 w-3 shrink-0 items-center justify-center"
+    >
+      <span className={`absolute inline-flex h-full w-full animate-ping rounded-full ${soft}`} />
+      <span className={`relative inline-flex h-2 w-2 rounded-full ${color}`} />
+    </span>
+  );
+}
+
+
+
 function DashboardPage() {
   const { email, sites: initialSites } = Route.useLoaderData();
   const router = useRouter();
