@@ -145,8 +145,7 @@ export const getSiteBuildProgress = createServerFn({ method: "POST" })
       .filter((r: Run) => new Date(r.created_at).getTime() >= siteCreated - 30_000)
       .sort(
         (a: Run, b: Run) =>
-          Math.abs(new Date(a.created_at).getTime() - siteCreated) -
-          Math.abs(new Date(b.created_at).getTime() - siteCreated),
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
       );
     const run = candidates[0] ?? null;
     if (!run) return { run: null, jobs: [] };
