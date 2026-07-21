@@ -345,7 +345,8 @@ export const createSite = createServerFn({ method: "POST" })
           secondary_keywords: data.secondary_keywords,
         });
 
-    const trig = await triggerRunner(row.id, row.name, siteData);
+    await supabase.from("sites").update({ site_data: siteData }).eq("id", row.id);
+    const trig = await triggerRunner(row.id, row.name);
     if (!trig.triggered) {
       await supabase
         .from("sites")
