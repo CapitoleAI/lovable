@@ -76,6 +76,8 @@ function DashboardPage() {
   const list = useServerFn(listSites);
   const retry = useServerFn(retrySite);
   const del = useServerFn(deleteSite);
+  const syncCf = useServerFn(syncCloudflareStatus);
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [detailSite, setDetailSite] = useState<SiteRow | null>(null);
 
