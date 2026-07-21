@@ -69,9 +69,39 @@ async function loadAdmin() {
   return supabaseAdmin;
 }
 
-type SiteData = { seo_title: string; html_content: string };
+type SiteData = {
+  seo_title: string;
+  html_content: string;
+  sitemap?: SitemapPage[];
+  secondary_keywords?: string[];
+};
 
-const FALLBACK_HTML = (theme: string, city: string, business: string) =>
+async function callAiJson<T>(system: string, user: string, fallback: T): Promise<T> {
+  const apiKey = process.env.LOVABLE_API_KEY;
+  if (!apiKey) return fallback;
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey },
+      body: JSON.stringify({
+        model: "openai/gpt-5.5",
+        reasoning_effort: "none",
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      }),
+    });
+    if (!res.ok) throw new Error(`AI ${res.status}`);
+    const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const text = json.choices?.[0]?.message?.content ?? "{}";
+    return JSON.parse(text) as T;
+  } catch {
+    return fallback;
+  }
+}
+
   `<header class="bg-white shadow"><div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between"><span class="text-xl font-bold">${business}</span><nav class="space-x-6 text-sm"><a href="#services">Services</a><a href="#contact">Contact</a></nav></div></header><section class="py-20 bg-gradient-to-br from-slate-50 to-white"><div class="max-w-4xl mx-auto px-6 text-center"><h1 class="text-5xl font-bold tracking-tight mb-6">${business} — ${theme} à ${city}</h1><p class="text-lg text-slate-600 mb-8">Service professionnel, rapide et de confiance.</p><a href="#contact" class="inline-block bg-slate-900 text-white px-8 py-3 rounded-lg font-semibold">Nous contacter</a></div></section><footer class="py-8 bg-slate-900 text-slate-300 text-center text-sm">© ${business}</footer>`;
 
 async function generateSiteData(input: {
