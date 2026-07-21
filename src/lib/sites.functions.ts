@@ -64,14 +64,18 @@ async function triggerRunner(siteId: string) {
     ts: Date.now(),
   });
   const signature = createHmac("sha256", secret).update(payload).digest("hex");
+  const githubToken = process.env.GITHUB_TOKEN;
   try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "Accept": "application/vnd.github.v3+json",
+      "User-Agent": "Lovable-Astro-Runner",
+      "x-astro-signature": signature,
+    };
+    if (githubToken) headers["Authorization"] = `Bearer ${githubToken}`;
     const res = await fetch(url, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-astro-signature": signature,
-        "User-Agent": "Lovable-Astro-Runner",
-      },
+      headers,
       body: payload,
     });
     if (!res.ok) {
