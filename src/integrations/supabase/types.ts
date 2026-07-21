@@ -14,7 +14,84 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      sites: {
+        Row: {
+          address: string
+          astro_template: string
+          build_log_url: string | null
+          business_name: string
+          city: string
+          color_palette: Json
+          created_at: string
+          deploy_url: string | null
+          domain: string
+          email: string
+          hosting_target: string
+          id: string
+          last_error: string | null
+          main_keyword: string
+          name: string
+          owner_email: string
+          phone: string
+          random_seed: Json
+          randomize: boolean
+          secondary_keywords: string[]
+          status: string
+          theme: string
+          updated_at: string
+        }
+        Insert: {
+          address: string
+          astro_template: string
+          build_log_url?: string | null
+          business_name: string
+          city: string
+          color_palette?: Json
+          created_at?: string
+          deploy_url?: string | null
+          domain: string
+          email: string
+          hosting_target: string
+          id?: string
+          last_error?: string | null
+          main_keyword: string
+          name: string
+          owner_email: string
+          phone: string
+          random_seed?: Json
+          randomize?: boolean
+          secondary_keywords?: string[]
+          status?: string
+          theme: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string
+          astro_template?: string
+          build_log_url?: string | null
+          business_name?: string
+          city?: string
+          color_palette?: Json
+          created_at?: string
+          deploy_url?: string | null
+          domain?: string
+          email?: string
+          hosting_target?: string
+          id?: string
+          last_error?: string | null
+          main_keyword?: string
+          name?: string
+          owner_email?: string
+          phone?: string
+          random_seed?: Json
+          randomize?: boolean
+          secondary_keywords?: string[]
+          status?: string
+          theme?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
