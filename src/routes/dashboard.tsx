@@ -140,19 +140,33 @@ function DashboardPage() {
     }
   }
 
-  async function handleSyncCf(id: string) {
-    try {
-      const res = await syncCf({ data: { id } });
-      if (res.ok) {
-        toast.success(`Statut Cloudflare : ${res.status}`);
-        sitesQuery.refetch();
-      } else {
-        toast.error(res.error ?? "Vérification impossible");
+  // Vérification Cloudflare en tâche de fond toutes les minutes pour chaque
+  // site déjà déployé — met à jour statut / deploy_url en base et déclenche
+  // un refetch de la liste.
+  useEffect(() => {
+    const ids = sites
+      .filter((s) => s.status === "deployed" || s.status === "failed")
+      .map((s) => s.id);
+    if (ids.length === 0) return;
+    let cancelled = false;
+    async function tick() {
+      for (const id of ids) {
+        try {
+          await syncCf({ data: { id } });
+        } catch {
+          // silencieux : simple heartbeat
+        }
       }
-    } catch (e) {
-      toast.error((e as Error).message);
+      if (!cancelled) sitesQuery.refetch();
     }
-  }
+    const t = setInterval(tick, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sites.map((s) => s.id).join(","), sites.map((s) => s.status).join(",")]);
+
 
 
   const sidebarSites = sites.map((s) => ({ id: s.id, name: s.name, url: "/dashboard" }));
