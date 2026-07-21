@@ -207,12 +207,49 @@ function DashboardPage() {
                       }
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium text-card-foreground">{site.name}</p>
-                          <p className="truncate text-xs text-muted-foreground">{site.domain}</p>
+                          {site.deploy_url ? (
+                            <a
+                              href={site.deploy_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="block truncate text-xs text-muted-foreground hover:text-foreground hover:underline"
+                            >
+                              {site.domain}
+                            </a>
+                          ) : (
+                            <p className="truncate text-xs text-muted-foreground">{site.domain}</p>
+                          )}
                         </div>
-                        <Badge variant={STATUS_VARIANT[site.status]}>{STATUS_LABEL[site.status]}</Badge>
+                        {site.status === "deployed" ? (
+                          <StatusDot up={true} title="En ligne" />
+                        ) : site.status === "failed" ? (
+                          <StatusDot up={false} title="Hors ligne" />
+                        ) : (
+                          <Badge variant={STATUS_VARIANT[site.status]}>{STATUS_LABEL[site.status]}</Badge>
+                        )}
                       </div>
+
+                      {site.deploy_url && site.status === "deployed" && (
+                        <div className="mt-3 overflow-hidden rounded-md border border-border bg-muted">
+                          <div className="relative aspect-[16/10] w-full">
+                            <iframe
+                              src={site.deploy_url}
+                              title={`Aperçu ${site.name}`}
+                              loading="lazy"
+                              sandbox="allow-scripts allow-same-origin"
+                              className="pointer-events-none absolute left-0 top-0 origin-top-left"
+                              style={{
+                                width: "1280px",
+                                height: "800px",
+                                transform: "scale(0.28)",
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
 
                       {site.last_error && (
                         <p className="mt-2 line-clamp-2 text-xs text-destructive">{site.last_error}</p>
@@ -247,9 +284,7 @@ function DashboardPage() {
                             <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Relancer
                           </Button>
                         )}
-                        <Button size="sm" variant="ghost" onClick={() => handleSyncCf(site.id)}>
-                          <Cloud className="mr-1.5 h-3.5 w-3.5" /> Vérifier
-                        </Button>
+
 
                         <Button
                           size="sm"
