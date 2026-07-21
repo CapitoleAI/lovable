@@ -31,6 +31,16 @@ async function requireUser(): Promise<string> {
   return session.data.email;
 }
 
+function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-");
+}
+
 function buildRandomSeed(randomize: boolean) {
   if (!randomize) return {};
   const sections = ["hero", "services", "about", "trust", "cta", "contact"];
