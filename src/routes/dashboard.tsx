@@ -206,9 +206,11 @@ function DashboardPage() {
                             </a>
                           </Button>
                         )}
-                        <Button size="sm" variant="ghost" onClick={() => handleRetry(site.id)}>
-                          <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Relancer
-                        </Button>
+                        {site.status !== "deployed" && (
+                          <Button size="sm" variant="ghost" onClick={() => handleRetry(site.id)}>
+                            <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Relancer
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="ghost"
