@@ -78,7 +78,10 @@ export function BuildProgressDialog({ siteId, open, onOpenChange }: Props) {
     retry: false,
   });
 
-  const status = site?.status ?? null;
+  // Si Cloudflare a bien un déploiement en ligne, on considère le site comme
+  // déployé même si un ancien run GitHub avait marqué la ligne DB en "failed".
+  const rawStatus = site?.status ?? null;
+  const status: SiteRow["status"] | null = site?.deploy_url ? "deployed" : rawStatus;
   const finished = status === "deployed" || status === "failed";
 
   return (
