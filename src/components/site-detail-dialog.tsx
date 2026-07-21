@@ -9,11 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
   Home,
-  Wrench,
-  Info,
-  Mail,
-  Newspaper,
-  FileText as ArticleIcon,
+  FileText,
   ExternalLink,
   TrendingUp,
   Search,
@@ -23,12 +19,15 @@ import {
 } from "lucide-react";
 import type { ComponentType } from "react";
 
+type SitemapNode = { title: string; slug: string; children?: SitemapNode[] };
+
 type Site = {
   id: string;
   name: string;
   domain: string;
   deploy_url: string | null;
   created_at: string;
+  random_seed?: { sitemap?: SitemapNode[] } | null;
 };
 
 interface SiteDetailDialogProps {
@@ -37,7 +36,7 @@ interface SiteDetailDialogProps {
   onOpenChange: (v: boolean) => void;
 }
 
-type SitemapNode = {
+type LaidOutNode = {
   id: string;
   label: string;
   path: string;
@@ -47,39 +46,132 @@ type SitemapNode = {
   accent?: boolean;
 };
 
-// Coordinates in a 760 × 440 viewBox. Card size 168 × 64, anchored top-left.
 const CARD_W = 168;
 const CARD_H = 64;
+const H_GAP = 16;
+const ROW_H = 124;
+const CARD_SPACE = CARD_W + H_GAP;
 
-const NODES: SitemapNode[] = [
-  { id: "home", label: "Accueil", path: "/", icon: Home, x: 296, y: 24, accent: true },
-  { id: "services", label: "Services", path: "/services", icon: Wrench, x: 24, y: 188 },
-  { id: "about", label: "À propos", path: "/a-propos", icon: Info, x: 208, y: 188 },
-  { id: "contact", label: "Contact", path: "/contact", icon: Mail, x: 392, y: 188 },
-  { id: "blog", label: "Blog", path: "/blog", icon: Newspaper, x: 576, y: 188 },
-  { id: "article", label: "Article", path: "/blog/:slug", icon: ArticleIcon, x: 576, y: 348 },
-];
+function pathOf(slug: string): string {
+  const s = (slug ?? "").trim();
+  if (!s || s === "index" || s === "/") return "/";
+  return "/" + s.replace(/^\/+/, "");
+}
 
-const EDGES: Array<[string, string]> = [
-  ["home", "services"],
-  ["home", "about"],
-  ["home", "contact"],
-  ["home", "blog"],
-  ["blog", "article"],
-];
+function layoutSitemap(sitemap: SitemapNode[]): {
+  nodes: LaidOutNode[];
+  edges: Array<[string, string]>;
+  width: number;
+  height: number;
+} {
+  // Determine root and level-1 nodes.
+  // If the first sitemap entry has slug 'index' (or path '/'), use it as root.
+  let root: SitemapNode | null = null;
+  let level1: SitemapNode[] = [];
+  if (sitemap.length > 0) {
+    const first = sitemap[0];
+    const isHome =
+      first.slug === "index" ||
+      first.slug === "/" ||
+      first.title.toLowerCase() === "accueil";
+    if (isHome) {
+      root = first;
+      level1 = sitemap.slice(1);
+    } else {
+      root = { title: "Accueil", slug: "index" };
+      level1 = sitemap;
+    }
+  } else {
+    root = { title: "Accueil", slug: "index" };
+  }
 
-function Sitemap() {
-  const byId = Object.fromEntries(NODES.map((n) => [n.id, n]));
-  const cx = (n: SitemapNode) => n.x + CARD_W / 2;
-  const topY = (n: SitemapNode) => n.y;
-  const bottomY = (n: SitemapNode) => n.y + CARD_H;
+  // Compute subtree width for each level1 node (in card units)
+  const subtreeUnits = level1.map((n) =>
+    Math.max(1, (n.children?.length ?? 0)),
+  );
+  const totalUnits = subtreeUnits.reduce((a, b) => a + b, 0) || 1;
+
+  const width = Math.max(
+    CARD_SPACE * (level1.length || 1),
+    CARD_SPACE * totalUnits,
+    CARD_SPACE * 2,
+  );
+
+  const hasLevel2 = level1.some((n) => (n.children?.length ?? 0) > 0);
+  const height = 24 + CARD_H + ROW_H + (hasLevel2 ? ROW_H : 0) + 24;
+
+  const nodes: LaidOutNode[] = [];
+  const edges: Array<[string, string]> = [];
+
+  // Root centered
+  const rootX = width / 2 - CARD_W / 2;
+  nodes.push({
+    id: "root",
+    label: root.title,
+    path: pathOf(root.slug),
+    icon: Home,
+    x: rootX,
+    y: 24,
+    accent: true,
+  });
+
+  // Level 1 positions: center each parent's block within its allocated units
+  let cursor = 0;
+  level1.forEach((node, i) => {
+    const units = subtreeUnits[i];
+    const blockCenter = (cursor + units / 2) * CARD_SPACE;
+    const x = blockCenter - CARD_W / 2 + (width - totalUnits * CARD_SPACE) / 2;
+    const y = 24 + CARD_H + ROW_H - CARD_H;
+    const id = `l1-${i}`;
+    nodes.push({
+      id,
+      label: node.title,
+      path: pathOf(node.slug),
+      icon: FileText,
+      x,
+      y,
+    });
+    edges.push(["root", id]);
+
+    // Level 2 children
+    const children = node.children ?? [];
+    children.forEach((child, ci) => {
+      const cx =
+        (cursor + ci + 0.5) * CARD_SPACE -
+        CARD_W / 2 +
+        (width - totalUnits * CARD_SPACE) / 2;
+      const cy = 24 + CARD_H + ROW_H * 2 - CARD_H;
+      const cid = `${id}-c${ci}`;
+      nodes.push({
+        id: cid,
+        label: child.title,
+        path: pathOf(child.slug),
+        icon: FileText,
+        x: cx,
+        y: cy,
+      });
+      edges.push([id, cid]);
+    });
+
+    cursor += units;
+  });
+
+  return { nodes, edges, width, height };
+}
+
+function Sitemap({ sitemap }: { sitemap: SitemapNode[] }) {
+  const { nodes, edges, width, height } = layoutSitemap(sitemap);
+  const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
+  const cx = (n: LaidOutNode) => n.x + CARD_W / 2;
+  const topY = (n: LaidOutNode) => n.y;
+  const bottomY = (n: LaidOutNode) => n.y + CARD_H;
 
   return (
     <div className="overflow-x-auto">
-      <div className="relative mx-auto" style={{ width: 760, height: 440 }}>
+      <div className="relative mx-auto" style={{ width, height }}>
         <svg
           className="absolute inset-0 h-full w-full"
-          viewBox="0 0 760 440"
+          viewBox={`0 0 ${width} ${height}`}
           fill="none"
           aria-hidden
         >
@@ -95,9 +187,10 @@ function Sitemap() {
               <circle cx="3" cy="3" r="2.5" className="fill-primary" />
             </marker>
           </defs>
-          {EDGES.map(([from, to]) => {
+          {edges.map(([from, to]) => {
             const a = byId[from];
             const b = byId[to];
+            if (!a || !b) return null;
             const x1 = cx(a);
             const y1 = bottomY(a);
             const x2 = cx(b);
@@ -117,7 +210,7 @@ function Sitemap() {
           })}
         </svg>
 
-        {NODES.map((n) => {
+        {nodes.map((n) => {
           const Icon = n.icon;
           return (
             <div
@@ -156,14 +249,13 @@ function Sitemap() {
   );
 }
 
-
 function StatCard({
   icon: Icon,
   label,
   value,
   hint,
 }: {
-  icon: React.ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string }>;
   label: string;
   value: string;
   hint: string;
@@ -187,6 +279,7 @@ export function SiteDetailDialog({ site, open, onOpenChange }: SiteDetailDialogP
     month: "long",
     year: "numeric",
   });
+  const sitemap = site.random_seed?.sitemap ?? [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -267,11 +360,17 @@ export function SiteDetailDialog({ site, open, onOpenChange }: SiteDetailDialogP
                   Sitemap
                 </span>
                 <span className="text-[11px] text-muted-foreground">
-                  Maillage interne · données de démonstration
+                  Maillage interne du site
                 </span>
               </div>
               <div className="p-4">
-                <Sitemap />
+                {sitemap.length > 0 ? (
+                  <Sitemap sitemap={sitemap} />
+                ) : (
+                  <div className="p-6 text-center text-sm text-muted-foreground">
+                    Aucune arborescence enregistrée pour ce site.
+                  </div>
+                )}
               </div>
             </div>
 
