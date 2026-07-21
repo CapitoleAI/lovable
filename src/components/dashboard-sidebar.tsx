@@ -27,13 +27,13 @@ export function DashboardSidebar({ sites, onCreate, email }: DashboardSidebarPro
   const currentPath = useRouterState({ select: (r) => r.location.pathname });
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b border-sidebar-border">
-        <div className="flex items-center px-2 py-3">
+    <Sidebar collapsible="icon" className="bg-white border-r">
+      <SidebarHeader className="border-b border-sidebar-border bg-white">
+        <div className="flex items-center px-2 py-4">
           <img
             src={logoAsset.url}
             alt="CapitoleAI"
-            className="h-8 w-auto object-contain group-data-[collapsible=icon]:h-6"
+            className="h-14 w-auto object-contain group-data-[collapsible=icon]:h-10"
           />
         </div>
       </SidebarHeader>
