@@ -33,7 +33,7 @@ export function DashboardSidebar({ sites, onCreate, email }: DashboardSidebarPro
           <img
             src={logoAsset.url}
             alt="CapitoleAI"
-            className="h-14 w-auto object-contain group-data-[collapsible=icon]:h-10"
+            className="h-9 w-auto object-contain group-data-[collapsible=icon]:h-7"
           />
         </div>
       </SidebarHeader>
