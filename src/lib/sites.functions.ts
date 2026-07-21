@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
   createSiteSchema,
   generatePageSchema,
+  pageContentSchema,
   PALETTES,
   suggestKeywordsSchema,
   suggestSitemapSchema,
@@ -12,6 +13,7 @@ import {
   type PaletteId,
   type SitemapPage,
 } from "./sites-schema";
+
 
 
 type AuthSession = { authenticated?: boolean; email?: string };
