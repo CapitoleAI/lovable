@@ -317,7 +317,7 @@ export function SiteDetailDialog({ site, open, onOpenChange }: SiteDetailDialogP
   });
   const sitemap = site.random_seed?.sitemap ?? [];
   const pages = site.site_data?.pages ?? [];
-  const linkCount = useMemo(() => {
+  const linkCount = (() => {
     const validSlugs = new Set<string>();
     for (const n of collectSitemapNodes(sitemap)) validSlugs.add(n.slug);
     for (const p of pages) validSlugs.add(normalizeSlug(p.slug));
@@ -332,7 +332,7 @@ export function SiteDetailDialog({ site, open, onOpenChange }: SiteDetailDialogP
       }
     }
     return seen.size;
-  }, [sitemap, pages]);
+  })();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
