@@ -258,7 +258,7 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
       return;
     }
     setStep(3);
-    createMutation.mutate();
+    void launch();
   }
 
   return (
