@@ -374,12 +374,13 @@ export const retrySite = createServerFn({ method: "POST" })
       .update({ status: "pending", last_error: null })
       .eq("id", data.id);
     const seed = (row.random_seed ?? {}) as { sitemap?: SitemapPage[] };
-    const siteData = await generateSiteData({
+    const sitemap = seed.sitemap ?? [{ title: "Accueil", slug: "index" }];
+    const siteData = await generateAllPages({
       theme: row.theme,
       city: row.city,
       business_name: row.business_name,
       main_keyword: row.main_keyword,
-      sitemap: seed.sitemap,
+      sitemap,
       secondary_keywords: row.secondary_keywords ?? [],
     });
 
