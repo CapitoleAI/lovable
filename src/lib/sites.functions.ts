@@ -192,11 +192,109 @@ export const retrySite = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+async function cfFetch(path: string, init: RequestInit = {}) {
+  const accountId = process.env.CF_ACCOUNT_ID;
+  const token = process.env.CF_API_TOKEN;
+  if (!accountId || !token) {
+    throw new Error("CF_ACCOUNT_ID ou CF_API_TOKEN manquant");
+  }
+  const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}${path}`;
+  const res = await fetch(url, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      ...(init.headers as Record<string, string> | undefined),
+    },
+  });
+  return res;
+}
+
+export const syncCloudflareStatus = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data }) => {
+    const email = await requireUser();
+    const supabase = await loadAdmin();
+    const { data: row, error } = await supabase
+      .from("sites")
+      .select("id, owner_email, name, status, deploy_url")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row || row.owner_email !== email) throw new Error("Not found");
+
+    const projectName = slugify(row.name);
+    const res = await cfFetch(`/pages/projects/${projectName}/deployments`);
+    if (res.status === 404) {
+      return { ok: false, error: "Projet Cloudflare introuvable", status: row.status };
+    }
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      return { ok: false, error: `Cloudflare ${res.status}: ${body.slice(0, 200)}`, status: row.status };
+    }
+    const json = (await res.json()) as {
+      result?: Array<{
+        latest_stage?: { name?: string; status?: string };
+        url?: string;
+        aliases?: string[] | null;
+      }>;
+    };
+    const latest = json.result?.[0];
+    if (!latest) {
+      return { ok: false, error: "Aucun déploiement trouvé", status: row.status };
+    }
+    const stageStatus = latest.latest_stage?.status;
+    const stageName = latest.latest_stage?.name;
+
+    let newStatus = row.status;
+    if (stageStatus === "success" && stageName === "deploy") newStatus = "deployed";
+    else if (stageStatus === "failure") newStatus = "failed";
+    else if (stageStatus === "active" || stageStatus === "idle") {
+      if (stageName === "build") newStatus = "building";
+      else if (stageName === "deploy") newStatus = "deploying";
+    }
+
+    const canonicalUrl =
+      (latest.aliases && latest.aliases[0]) ||
+      `https://${projectName}.pages.dev`;
+    const deployUrl = newStatus === "deployed" ? canonicalUrl : row.deploy_url;
+
+    const update: Record<string, unknown> = { status: newStatus };
+    if (deployUrl && deployUrl !== row.deploy_url) update.deploy_url = deployUrl;
+    if (newStatus !== row.status || update.deploy_url) {
+      await supabase.from("sites").update(update).eq("id", data.id);
+    }
+    return { ok: true, status: newStatus, deploy_url: deployUrl };
+  });
+
 export const deleteSite = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const email = await requireUser();
     const supabase = await loadAdmin();
+    const { data: row, error: selErr } = await supabase
+      .from("sites")
+      .select("id, owner_email, name")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (selErr) throw new Error(selErr.message);
+    if (!row || row.owner_email !== email) throw new Error("Not found");
+
+    const projectName = slugify(row.name);
+    try {
+      const res = await cfFetch(`/pages/projects/${projectName}`, { method: "DELETE" });
+      if (!res.ok && res.status !== 404) {
+        const body = await res.text().catch(() => "");
+        throw new Error(`Cloudflare ${res.status}: ${body.slice(0, 200)}`);
+      }
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (!/manquant/.test(msg) && !/404/.test(msg)) {
+        throw new Error(`Suppression Cloudflare échouée: ${msg}`);
+      }
+      if (/manquant/.test(msg)) throw e;
+    }
+
     const { error } = await supabase
       .from("sites")
       .delete()
@@ -205,3 +303,4 @@ export const deleteSite = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
