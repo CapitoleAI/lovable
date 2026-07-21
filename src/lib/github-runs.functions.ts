@@ -83,7 +83,7 @@ export const getSiteBuildProgress = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: site, error } = await supabaseAdmin
       .from("sites")
-      .select("id, owner_email, created_at")
+      .select("id, owner_email, created_at, status")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
