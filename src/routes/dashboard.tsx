@@ -99,6 +99,7 @@ function DashboardPage() {
   const sitesQuery = useQuery({
     ...sitesQueryOptions,
     queryFn: () => list(),
+    initialData: initialSites as { sites: SiteRow[] },
     refetchInterval: (q) => {
       const data = q.state.data as { sites: SiteRow[] } | undefined;
       const inProgress = data?.sites.some((s) =>
@@ -109,6 +110,7 @@ function DashboardPage() {
   });
 
   const sites = (sitesQuery.data?.sites as SiteRow[] | undefined) ?? [];
+
 
   async function handleLogout() {
     await logout({});
