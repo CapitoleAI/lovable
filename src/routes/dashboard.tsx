@@ -75,6 +75,8 @@ function DashboardPage() {
   const retry = useServerFn(retrySite);
   const del = useServerFn(deleteSite);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [detailSite, setDetailSite] = useState<SiteRow | null>(null);
+
 
   const sitesQuery = useQuery({
     queryKey: ["sites"],
