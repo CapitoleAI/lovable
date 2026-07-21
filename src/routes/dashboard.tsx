@@ -1,6 +1,6 @@
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, queryOptions } from "@tanstack/react-query";
 import { useState } from "react";
 import { LogOut, ExternalLink, RefreshCw, Trash2, FileText, Cloud } from "lucide-react";
 import { toast } from "sonner";
@@ -20,7 +20,11 @@ import { SiteDetailDialog } from "@/components/site-detail-dialog";
 import { SiteBuildProgress } from "@/components/site-build-progress";
 import { BuildProgressDialog } from "@/components/build-progress-dialog";
 
-
+const sitesQueryOptions = queryOptions({
+  queryKey: ["sites"],
+  queryFn: () => listSites(),
+  staleTime: 10_000,
+});
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -35,11 +39,15 @@ export const Route = createFileRoute("/dashboard")({
     if (!status.authenticated) throw redirect({ to: "/login" });
     return { email: status.email };
   },
-  loader: ({ context }) => ({
-    email: (context as { email: string | null }).email,
-  }),
+  loader: async ({ context }) => {
+    await (context as { queryClient: import("@tanstack/react-query").QueryClient }).queryClient
+      .ensureQueryData(sitesQueryOptions)
+      .catch(() => undefined);
+    return { email: (context as { email: string | null }).email };
+  },
   component: DashboardPage,
 });
+
 
 type SiteRow = {
   id: string;
