@@ -36,6 +36,7 @@ export type Database = {
           random_seed: Json
           randomize: boolean
           secondary_keywords: string[]
+          site_data: Json
           status: string
           theme: string
           updated_at: string
@@ -61,6 +62,7 @@ export type Database = {
           random_seed?: Json
           randomize?: boolean
           secondary_keywords?: string[]
+          site_data?: Json
           status?: string
           theme: string
           updated_at?: string
@@ -86,6 +88,7 @@ export type Database = {
           random_seed?: Json
           randomize?: boolean
           secondary_keywords?: string[]
+          site_data?: Json
           status?: string
           theme?: string
           updated_at?: string

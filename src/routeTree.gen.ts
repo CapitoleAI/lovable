@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPublicSiteDataRouteImport } from './routes/api/public/site-data'
 import { Route as ApiPublicAstroDeployCallbackRouteImport } from './routes/api/public/astro-deploy-callback'
 
 const LoginRoute = LoginRouteImport.update({
@@ -29,6 +30,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicSiteDataRoute = ApiPublicSiteDataRouteImport.update({
+  id: '/api/public/site-data',
+  path: '/api/public/site-data',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicAstroDeployCallbackRoute =
   ApiPublicAstroDeployCallbackRouteImport.update({
     id: '/api/public/astro-deploy-callback',
@@ -41,12 +47,14 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
   '/api/public/astro-deploy-callback': typeof ApiPublicAstroDeployCallbackRoute
+  '/api/public/site-data': typeof ApiPublicSiteDataRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
   '/api/public/astro-deploy-callback': typeof ApiPublicAstroDeployCallbackRoute
+  '/api/public/site-data': typeof ApiPublicSiteDataRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -54,18 +62,30 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
   '/api/public/astro-deploy-callback': typeof ApiPublicAstroDeployCallbackRoute
+  '/api/public/site-data': typeof ApiPublicSiteDataRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/login' | '/api/public/astro-deploy-callback'
+  fullPaths:
+    | '/'
+    | '/dashboard'
+    | '/login'
+    | '/api/public/astro-deploy-callback'
+    | '/api/public/site-data'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/login' | '/api/public/astro-deploy-callback'
+  to:
+    | '/'
+    | '/dashboard'
+    | '/login'
+    | '/api/public/astro-deploy-callback'
+    | '/api/public/site-data'
   id:
     | '__root__'
     | '/'
     | '/dashboard'
     | '/login'
     | '/api/public/astro-deploy-callback'
+    | '/api/public/site-data'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -73,6 +93,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
   ApiPublicAstroDeployCallbackRoute: typeof ApiPublicAstroDeployCallbackRoute
+  ApiPublicSiteDataRoute: typeof ApiPublicSiteDataRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -98,6 +119,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/site-data': {
+      id: '/api/public/site-data'
+      path: '/api/public/site-data'
+      fullPath: '/api/public/site-data'
+      preLoaderRoute: typeof ApiPublicSiteDataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/astro-deploy-callback': {
       id: '/api/public/astro-deploy-callback'
       path: '/api/public/astro-deploy-callback'
@@ -113,6 +141,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,
   ApiPublicAstroDeployCallbackRoute: ApiPublicAstroDeployCallbackRoute,
+  ApiPublicSiteDataRoute: ApiPublicSiteDataRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
