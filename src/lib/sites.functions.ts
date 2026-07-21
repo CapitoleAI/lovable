@@ -4,9 +4,11 @@ import { createHmac, randomBytes } from "node:crypto";
 import { z } from "zod";
 import {
   createSiteSchema,
+  generatePageSchema,
   PALETTES,
   suggestKeywordsSchema,
   suggestSitemapSchema,
+  type PageContent,
   type PaletteId,
   type SitemapPage,
 } from "./sites-schema";
@@ -46,7 +48,26 @@ function slugify(input: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9\s-]/g, "")
     .trim()
-    .replace(/\s+/g, "-");
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+}
+
+function normalizePageSlug(input: string): string {
+  const raw = (input ?? "").trim();
+  if (!raw || raw === "/" || raw.toLowerCase() === "/index" || raw.toLowerCase() === "index") {
+    return "index";
+  }
+  const cleaned = slugify(raw.replace(/^\/+/, "").replace(/\/+$/, ""));
+  return cleaned || "index";
+}
+
+function flattenSitemap(sitemap: SitemapPage[]): SitemapPage[] {
+  const out: SitemapPage[] = [];
+  for (const p of sitemap) {
+    out.push({ title: p.title, slug: p.slug });
+    if (p.children) for (const c of p.children) out.push({ title: c.title, slug: c.slug });
+  }
+  return out;
 }
 
 function buildRandomSeed(randomize: boolean) {
@@ -70,10 +91,7 @@ async function loadAdmin() {
 }
 
 type SiteData = {
-  seo_title: string;
-  html_content: string;
-  sitemap?: SitemapPage[];
-  secondary_keywords?: string[];
+  pages: PageContent[];
 };
 
 async function callAiJson<T>(system: string, user: string, fallback: T): Promise<T> {
@@ -102,38 +120,78 @@ async function callAiJson<T>(system: string, user: string, fallback: T): Promise
   }
 }
 
-const FALLBACK_HTML = (theme: string, city: string, business: string) =>
-  `<header class="bg-white shadow"><div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between"><span class="text-xl font-bold">${business}</span><nav class="space-x-6 text-sm"><a href="#services">Services</a><a href="#contact">Contact</a></nav></div></header><section class="py-20 bg-gradient-to-br from-slate-50 to-white"><div class="max-w-4xl mx-auto px-6 text-center"><h1 class="text-5xl font-bold tracking-tight mb-6">${business} — ${theme} à ${city}</h1><p class="text-lg text-slate-600 mb-8">Service professionnel, rapide et de confiance.</p><a href="#contact" class="inline-block bg-slate-900 text-white px-8 py-3 rounded-lg font-semibold">Nous contacter</a></div></section><footer class="py-8 bg-slate-900 text-slate-300 text-center text-sm">© ${business}</footer>`;
+function fallbackHtml(pageTitle: string, business: string, theme: string, city: string) {
+  return `<section class="py-20 bg-gradient-to-br from-slate-50 to-white"><div class="max-w-4xl mx-auto px-6 text-center"><h1 class="text-5xl font-bold tracking-tight mb-6">${pageTitle}</h1><p class="text-lg text-slate-600 mb-8">${business} — ${theme} à ${city}. Service professionnel, rapide et de confiance.</p><a href="/contact" class="inline-block bg-slate-900 text-white px-8 py-3 rounded-lg font-semibold">Nous contacter</a></div></section>`;
+}
 
-async function generateSiteData(input: {
+async function generatePageContentServer(input: {
   theme: string;
   city: string;
   business_name: string;
   main_keyword: string;
-  sitemap?: SitemapPage[];
   secondary_keywords?: string[];
-}): Promise<SiteData> {
-  const fallback: SiteData = {
-    seo_title: `${input.business_name} — ${input.theme} à ${input.city}`,
-    html_content: FALLBACK_HTML(input.theme, input.city, input.business_name),
-    sitemap: input.sitemap,
-    secondary_keywords: input.secondary_keywords,
+  sitemap: SitemapPage[];
+  page: { title: string; slug: string };
+}): Promise<PageContent> {
+  const normalizedSlug = normalizePageSlug(input.page.slug);
+  const navSitemap = flattenSitemap(input.sitemap).map((p) => ({
+    title: p.title,
+    slug: normalizePageSlug(p.slug),
+  }));
+  const fallback: PageContent = {
+    slug: normalizedSlug,
+    seo_title: `${input.page.title} — ${input.business_name}`,
+    html_content: fallbackHtml(input.page.title, input.business_name, input.theme, input.city),
   };
-  const sitemapStr = input.sitemap ? JSON.stringify(input.sitemap) : "[]";
-  const parsed = await callAiJson<Partial<SiteData>>(
-    "Tu es un développeur frontend expert. Tu génères une landing page complète en HTML + Tailwind CSS. RÈGLES STRICTES: (1) Ne JAMAIS inclure <html>, <head>, <body> — uniquement le contenu intérieur. (2) Utiliser massivement Tailwind pour un design moderne, aéré, responsive. (3) Contenu en français riche et pertinent. (4) Inclure header avec navigation (utiliser l'arborescence fournie), hero, sections, footer. (5) Réponds UNIQUEMENT en JSON strict {\"seo_title\": string, \"html_content\": string}.",
-    `Thématique: ${input.theme}\nVille: ${input.city}\nEntreprise: ${input.business_name}\nMot-clé principal: ${input.main_keyword}\nArborescence (sitemap): ${sitemapStr}\n\nRéponds au format JSON.`,
+  const parsed = await callAiJson<{ seo_title?: string; html_content?: string }>(
+    "Tu es un développeur frontend et rédacteur SEO expert. Tu génères UNE page complète d'un site vitrine en français, en HTML + Tailwind CSS. RÈGLES STRICTES: (1) N'inclus JAMAIS <html>, <head>, <body>, <title> — uniquement le contenu intérieur du <body>. (2) Design moderne, aéré, responsive : utilise exclusivement des classes Tailwind CSS pour la mise en page, la typographie, les couleurs, les espacements, les grilles. (3) Contenu riche : plusieurs sections avec titres (h1/h2/h3), paragraphes détaillés, listes à puces, cartes, CTA, adaptés à la page demandée. (4) Inclus un header avec la navigation basée sur l'arborescence fournie (les liens pointent vers /slug ou / pour l'accueil = slug 'index'), un hero adapté à la page, plusieurs sections de contenu, et un footer. (5) Contenu orienté SEO local. (6) Réponds UNIQUEMENT en JSON strict {\"seo_title\": string, \"html_content\": string}.",
+    `Entreprise: ${input.business_name}\nThématique: ${input.theme}\nVille: ${input.city}\nMot-clé principal: ${input.main_keyword}\nMots-clés secondaires: ${(input.secondary_keywords ?? []).join(", ")}\nArborescence du site: ${JSON.stringify(navSitemap)}\n\nPAGE À GÉNÉRER: titre="${input.page.title}", slug="${normalizedSlug}"\n\nRéponds au format JSON.`,
     {},
   );
   const seo_title = parsed.seo_title?.trim();
   const html_content = parsed.html_content?.trim();
   if (!seo_title || !html_content) return fallback;
-  return {
-    seo_title,
-    html_content,
-    sitemap: input.sitemap,
-    secondary_keywords: input.secondary_keywords,
-  };
+  return { slug: normalizedSlug, seo_title, html_content };
+}
+
+export const generatePageContent = createServerFn({ method: "POST" })
+  .inputValidator((input) => generatePageSchema.parse(input))
+  .handler(async ({ data }) => {
+    await requireUser();
+    const page = await generatePageContentServer({
+      theme: data.theme,
+      city: data.city,
+      business_name: data.business_name,
+      main_keyword: data.main_keyword,
+      secondary_keywords: data.secondary_keywords,
+      sitemap: data.sitemap,
+      page: data.page,
+    });
+    return { page };
+  });
+
+async function generateAllPages(input: {
+  theme: string;
+  city: string;
+  business_name: string;
+  main_keyword: string;
+  secondary_keywords?: string[];
+  sitemap: SitemapPage[];
+}): Promise<SiteData> {
+  const flat = flattenSitemap(input.sitemap);
+  const pages: PageContent[] = [];
+  const seen = new Set<string>();
+  for (const p of flat) {
+    const slug = normalizePageSlug(p.slug);
+    if (seen.has(slug)) continue;
+    seen.add(slug);
+    const content = await generatePageContentServer({ ...input, page: p });
+    pages.push({ ...content, slug });
+  }
+  if (!pages.some((p) => p.slug === "index") && pages[0]) {
+    pages[0] = { ...pages[0], slug: "index" };
+  }
+  return { pages };
 }
 
 export const suggestKeywords = createServerFn({ method: "POST" })
@@ -275,14 +333,16 @@ export const createSite = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
-    const siteData = await generateSiteData({
-      theme: data.theme,
-      city: data.city,
-      business_name: businessName,
-      main_keyword: data.main_keyword,
-      sitemap: data.sitemap,
-      secondary_keywords: data.secondary_keywords,
-    });
+    const siteData: SiteData = data.pages && data.pages.length > 0
+      ? { pages: data.pages.map((p) => ({ ...p, slug: normalizePageSlug(p.slug) })) }
+      : await generateAllPages({
+          theme: data.theme,
+          city: data.city,
+          business_name: businessName,
+          main_keyword: data.main_keyword,
+          sitemap: data.sitemap,
+          secondary_keywords: data.secondary_keywords,
+        });
 
     const trig = await triggerRunner(row.id, row.name, siteData);
     if (!trig.triggered) {
@@ -314,12 +374,13 @@ export const retrySite = createServerFn({ method: "POST" })
       .update({ status: "pending", last_error: null })
       .eq("id", data.id);
     const seed = (row.random_seed ?? {}) as { sitemap?: SitemapPage[] };
-    const siteData = await generateSiteData({
+    const sitemap = seed.sitemap ?? [{ title: "Accueil", slug: "index" }];
+    const siteData = await generateAllPages({
       theme: row.theme,
       city: row.city,
       business_name: row.business_name,
       main_keyword: row.main_keyword,
-      sitemap: seed.sitemap,
+      sitemap,
       secondary_keywords: row.secondary_keywords ?? [],
     });
 

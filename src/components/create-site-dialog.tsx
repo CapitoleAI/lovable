@@ -25,10 +25,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   createSite,
+  generatePageContent,
   suggestKeywords,
   suggestSitemap,
 } from "@/lib/sites.functions";
-import type { SitemapPage } from "@/lib/sites-schema";
+import type { PageContent, SitemapPage } from "@/lib/sites-schema";
 
 type Step = 1 | 2 | 3;
 
@@ -54,9 +55,17 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
   const [selectedKw, setSelectedKw] = useState<Set<string>>(new Set());
   const [newKw, setNewKw] = useState("");
   const [sitemap, setSitemap] = useState<SitemapPage[]>([]);
+  const [launchStatus, setLaunchStatus] = useState<{
+    phase: "idle" | "generating" | "sending" | "done" | "error";
+    current: number;
+    total: number;
+    label: string;
+    error?: string;
+  }>({ phase: "idle", current: 0, total: 0, label: "" });
 
   const suggestKw = useServerFn(suggestKeywords);
   const suggestSm = useServerFn(suggestSitemap);
+  const genPage = useServerFn(generatePageContent);
   const createFn = useServerFn(createSite);
   const qc = useQueryClient();
 
@@ -88,9 +97,81 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const createMutation = useMutation({
-    mutationFn: async () =>
-      createFn({
+  function normalizeSlug(input: string): string {
+    const raw = (input ?? "").trim();
+    if (!raw || raw === "/" || raw.toLowerCase() === "/index" || raw.toLowerCase() === "index") {
+      return "index";
+    }
+    return (
+      raw
+        .replace(/^\/+/, "")
+        .replace(/\/+$/, "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9\s-]/g, "")
+        .trim()
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-") || "index"
+    );
+  }
+
+  function flatten(sm: SitemapPage[]): SitemapPage[] {
+    const out: SitemapPage[] = [];
+    for (const p of sm) {
+      out.push({ title: p.title, slug: p.slug });
+      if (p.children) for (const c of p.children) out.push({ title: c.title, slug: c.slug });
+    }
+    return out;
+  }
+
+  async function launch() {
+    const flat = flatten(sitemap);
+    const seen = new Set<string>();
+    const uniquePages = flat
+      .map((p) => ({ title: p.title, slug: normalizeSlug(p.slug) }))
+      .filter((p) => {
+        if (seen.has(p.slug)) return false;
+        seen.add(p.slug);
+        return true;
+      });
+    if (!uniquePages.some((p) => p.slug === "index") && uniquePages[0]) {
+      uniquePages[0] = { ...uniquePages[0], slug: "index" };
+    }
+
+    const total = uniquePages.length;
+    const pages: PageContent[] = [];
+    try {
+      for (let i = 0; i < uniquePages.length; i++) {
+        const p = uniquePages[i];
+        setLaunchStatus({
+          phase: "generating",
+          current: i + 1,
+          total,
+          label: `Rédaction de la page ${p.title} (${i + 1}/${total})…`,
+        });
+        const res = await genPage({
+          data: {
+            theme,
+            city,
+            business_name: name,
+            main_keyword: mainKeyword || Array.from(selectedKw)[0] || theme,
+            secondary_keywords: Array.from(selectedKw),
+            sitemap,
+            page: p,
+          },
+        });
+        pages.push({ ...res.page, slug: normalizeSlug(res.page.slug) });
+      }
+
+      setLaunchStatus({
+        phase: "sending",
+        current: total,
+        total,
+        label: "Envoi du code vers GitHub…",
+      });
+
+      const res = await createFn({
         data: {
           name,
           theme,
@@ -98,18 +179,28 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
           main_keyword: mainKeyword || Array.from(selectedKw)[0] || theme,
           secondary_keywords: Array.from(selectedKw),
           sitemap,
+          pages,
           business_name: name,
         },
-      }),
-    onSuccess: (res) => {
+      });
+
+      setLaunchStatus({
+        phase: "done",
+        current: total,
+        total,
+        label: "Build lancé, en attente du déploiement Cloudflare…",
+      });
       toast.success("Création lancée");
       qc.invalidateQueries({ queryKey: ["sites"] });
       onLaunched?.(res.site.id);
       reset();
       onOpenChange(false);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+    } catch (e) {
+      const msg = (e as Error).message;
+      setLaunchStatus((s) => ({ ...s, phase: "error", error: msg, label: msg }));
+      toast.error(msg);
+    }
+  }
 
   function reset() {
     setStep(1);
@@ -121,6 +212,7 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
     setSelectedKw(new Set());
     setNewKw("");
     setSitemap([]);
+    setLaunchStatus({ phase: "idle", current: 0, total: 0, label: "" });
   }
 
   function toggleKw(k: string) {
@@ -166,7 +258,7 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
       return;
     }
     setStep(3);
-    createMutation.mutate();
+    void launch();
   }
 
   return (
@@ -361,9 +453,58 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
         )}
 
         {step === 3 && (
-          <div className="py-8 text-center">
-            <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm">Initialisation du site…</p>
+          <div className="space-y-4 py-4">
+            <div className="rounded-lg border border-border bg-muted/30 p-6 text-center">
+              {launchStatus.phase === "error" ? (
+                <>
+                  <X className="mx-auto mb-3 h-8 w-8 text-destructive" />
+                  <p className="text-sm font-medium text-destructive">
+                    {launchStatus.error ?? "Erreur inattendue"}
+                  </p>
+                </>
+              ) : launchStatus.phase === "done" ? (
+                <>
+                  <Check className="mx-auto mb-3 h-8 w-8 text-emerald-500" />
+                  <p className="text-sm font-medium">{launchStatus.label}</p>
+                </>
+              ) : (
+                <>
+                  <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-primary" />
+                  <p className="text-sm font-medium">
+                    {launchStatus.label || "Initialisation…"}
+                  </p>
+                </>
+              )}
+
+              {launchStatus.total > 0 && (
+                <div className="mx-auto mt-4 h-2 w-full max-w-sm overflow-hidden rounded-full bg-border">
+                  <div
+                    className="h-full bg-primary transition-all"
+                    style={{
+                      width: `${Math.round(
+                        (launchStatus.current / Math.max(launchStatus.total, 1)) *
+                          (launchStatus.phase === "sending" || launchStatus.phase === "done"
+                            ? 100
+                            : 90),
+                      )}%`,
+                    }}
+                  />
+                </div>
+              )}
+              {launchStatus.total > 0 && launchStatus.phase === "generating" && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {launchStatus.current} / {launchStatus.total} pages rédigées
+                </p>
+              )}
+            </div>
+
+            {launchStatus.phase === "error" && (
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={() => setStep(2)}>
+                  <ArrowLeft className="mr-1.5 h-4 w-4" /> Retour à l'arborescence
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </DialogContent>
