@@ -8,8 +8,12 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
-  Folder,
-  FileText,
+  Home,
+  Wrench,
+  Info,
+  Mail,
+  Newspaper,
+  FileText as ArticleIcon,
   ExternalLink,
   TrendingUp,
   Search,
@@ -17,6 +21,7 @@ import {
   Globe,
   Calendar,
 } from "lucide-react";
+import type { ComponentType } from "react";
 
 type Site = {
   id: string;
@@ -32,67 +37,125 @@ interface SiteDetailDialogProps {
   onOpenChange: (v: boolean) => void;
 }
 
-type TreeNode = { name: string; type: "folder" | "file"; children?: TreeNode[] };
-
-const FAKE_TREE: TreeNode = {
-  name: "src/",
-  type: "folder",
-  children: [
-    { name: "index.astro", type: "file" },
-    {
-      name: "pages/",
-      type: "folder",
-      children: [
-        { name: "services.astro", type: "file" },
-        { name: "a-propos.astro", type: "file" },
-        { name: "contact.astro", type: "file" },
-        {
-          name: "blog/",
-          type: "folder",
-          children: [
-            { name: "[slug].astro", type: "file" },
-            { name: "index.astro", type: "file" },
-          ],
-        },
-      ],
-    },
-    {
-      name: "components/",
-      type: "folder",
-      children: [
-        { name: "Header.astro", type: "file" },
-        { name: "Footer.astro", type: "file" },
-        { name: "Hero.astro", type: "file" },
-      ],
-    },
-  ],
+type SitemapNode = {
+  id: string;
+  label: string;
+  path: string;
+  icon: ComponentType<{ className?: string }>;
+  x: number;
+  y: number;
+  accent?: boolean;
 };
 
-function TreeView({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
-  const Icon = node.type === "folder" ? Folder : FileText;
+// Coordinates in a 760 × 440 viewBox. Card size 168 × 64, anchored top-left.
+const CARD_W = 168;
+const CARD_H = 64;
+
+const NODES: SitemapNode[] = [
+  { id: "home", label: "Accueil", path: "/", icon: Home, x: 296, y: 24, accent: true },
+  { id: "services", label: "Services", path: "/services", icon: Wrench, x: 24, y: 188 },
+  { id: "about", label: "À propos", path: "/a-propos", icon: Info, x: 208, y: 188 },
+  { id: "contact", label: "Contact", path: "/contact", icon: Mail, x: 392, y: 188 },
+  { id: "blog", label: "Blog", path: "/blog", icon: Newspaper, x: 576, y: 188 },
+  { id: "article", label: "Article", path: "/blog/:slug", icon: ArticleIcon, x: 576, y: 348 },
+];
+
+const EDGES: Array<[string, string]> = [
+  ["home", "services"],
+  ["home", "about"],
+  ["home", "contact"],
+  ["home", "blog"],
+  ["blog", "article"],
+];
+
+function Sitemap() {
+  const byId = Object.fromEntries(NODES.map((n) => [n.id, n]));
+  const cx = (n: SitemapNode) => n.x + CARD_W / 2;
+  const topY = (n: SitemapNode) => n.y;
+  const bottomY = (n: SitemapNode) => n.y + CARD_H;
+
   return (
-    <div>
-      <div
-        className="flex items-center gap-2 rounded-md py-1 text-sm hover:bg-muted/50"
-        style={{ paddingLeft: `${depth * 16 + 8}px` }}
-      >
-        <Icon
-          className={
-            node.type === "folder"
-              ? "h-4 w-4 text-primary"
-              : "h-4 w-4 text-muted-foreground"
-          }
-        />
-        <span className={node.type === "folder" ? "font-medium" : "text-muted-foreground"}>
-          {node.name}
-        </span>
+    <div className="overflow-x-auto">
+      <div className="relative mx-auto" style={{ width: 760, height: 440 }}>
+        <svg
+          className="absolute inset-0 h-full w-full"
+          viewBox="0 0 760 440"
+          fill="none"
+          aria-hidden
+        >
+          <defs>
+            <marker
+              id="sitemap-dot"
+              markerWidth="6"
+              markerHeight="6"
+              refX="3"
+              refY="3"
+              orient="auto"
+            >
+              <circle cx="3" cy="3" r="2.5" className="fill-primary" />
+            </marker>
+          </defs>
+          {EDGES.map(([from, to]) => {
+            const a = byId[from];
+            const b = byId[to];
+            const x1 = cx(a);
+            const y1 = bottomY(a);
+            const x2 = cx(b);
+            const y2 = topY(b);
+            const midY = (y1 + y2) / 2;
+            const d = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+            return (
+              <path
+                key={`${from}-${to}`}
+                d={d}
+                className="stroke-border"
+                strokeWidth={1.5}
+                strokeDasharray="4 4"
+                markerEnd="url(#sitemap-dot)"
+              />
+            );
+          })}
+        </svg>
+
+        {NODES.map((n) => {
+          const Icon = n.icon;
+          return (
+            <div
+              key={n.id}
+              className={
+                "absolute flex items-center gap-3 rounded-xl border bg-card px-3 py-2.5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md " +
+                (n.accent
+                  ? "border-primary/40 ring-1 ring-primary/20"
+                  : "border-border")
+              }
+              style={{ left: n.x, top: n.y, width: CARD_W, height: CARD_H }}
+            >
+              <div
+                className={
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg " +
+                  (n.accent
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-foreground")
+                }
+              >
+                <Icon className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold leading-tight">
+                  {n.label}
+                </div>
+                <div className="truncate font-mono text-[11px] text-muted-foreground">
+                  {n.path}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
-      {node.children?.map((child, i) => (
-        <TreeView key={`${child.name}-${i}`} node={child} depth={depth + 1} />
-      ))}
     </div>
   );
 }
+
 
 function StatCard({
   icon: Icon,
@@ -127,7 +190,7 @@ export function SiteDetailDialog({ site, open, onOpenChange }: SiteDetailDialogP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <DialogTitle className="text-xl">{site.name}</DialogTitle>
@@ -199,13 +262,19 @@ export function SiteDetailDialog({ site, open, onOpenChange }: SiteDetailDialogP
             </div>
 
             <div className="rounded-lg border border-border bg-card">
-              <div className="border-b border-border px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Arborescence du site
+              <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Sitemap
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  Maillage interne · données de démonstration
+                </span>
               </div>
-              <div className="p-2 font-mono">
-                <TreeView node={FAKE_TREE} />
+              <div className="p-4">
+                <Sitemap />
               </div>
             </div>
+
           </TabsContent>
         </Tabs>
       </DialogContent>
