@@ -198,6 +198,7 @@ async function generateAllPages(input: {
   main_keyword: string;
   secondary_keywords?: string[];
   sitemap: SitemapPage[];
+  brand?: BrandIdentity;
 }): Promise<SiteData> {
   const flat = flattenSitemap(input.sitemap);
   const pages: PageContent[] = [];
@@ -214,6 +215,7 @@ async function generateAllPages(input: {
   }
   return { pages };
 }
+
 
 export const suggestKeywords = createServerFn({ method: "POST" })
   .inputValidator((input) => suggestKeywordsSchema.parse(input))
