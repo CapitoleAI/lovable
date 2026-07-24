@@ -3,16 +3,19 @@ import { useSession } from "@tanstack/react-start/server";
 import { createHmac, randomBytes } from "node:crypto";
 import { z } from "zod";
 import {
+  brandIdentitySchema,
   createSiteSchema,
   generatePageSchema,
   pageContentSchema,
   PALETTES,
   suggestKeywordsSchema,
   suggestSitemapSchema,
+  type BrandIdentity,
   type PageContent,
   type PaletteId,
   type SitemapPage,
 } from "./sites-schema";
+
 
 
 
@@ -94,7 +97,17 @@ async function loadAdmin() {
 
 type SiteData = {
   pages: PageContent[];
+  site_info?: {
+    brand_name?: string;
+    tagline?: string;
+    story?: string;
+    colors?: BrandIdentity["colors"];
+    logo_url?: string;
+    moodboard_url?: string;
+  };
 };
+
+
 
 async function callAiJson<T>(system: string, user: string, fallback: T): Promise<T> {
   const apiKey = process.env.LOVABLE_API_KEY;
@@ -134,6 +147,7 @@ async function generatePageContentServer(input: {
   secondary_keywords?: string[];
   sitemap: SitemapPage[];
   page: { title: string; slug: string };
+  brand?: BrandIdentity;
 }): Promise<PageContent> {
   const normalizedSlug = normalizePageSlug(input.page.slug);
   const navSitemap = flattenSitemap(input.sitemap).map((p) => ({
@@ -145,9 +159,12 @@ async function generatePageContentServer(input: {
     seo_title: `${input.page.title} — ${input.business_name}`,
     html_content: fallbackHtml(input.page.title, input.business_name, input.theme, input.city),
   };
+  const brandBlock = input.brand
+    ? `\nIdentité de marque à respecter STRICTEMENT (utilise ces couleurs via classes Tailwind arbitraires bg-[#XXXXXX] / text-[#XXXXXX] / border-[#XXXXXX]):\n- Nom: ${input.brand.brand_name}\n- Tagline: ${input.brand.tagline}\n- Couleur primaire: ${input.brand.colors.primary}\n- Couleur secondaire: ${input.brand.colors.secondary}\n- Accent: ${input.brand.colors.accent}\n- Neutre: ${input.brand.colors.neutral}\n- Fond: ${input.brand.colors.background}\n- Histoire/valeurs: ${input.brand.story}`
+    : "";
   const parsed = await callAiJson<{ seo_title?: string; html_content?: string }>(
-    "Tu es un développeur frontend et rédacteur SEO expert. Tu génères UNE page complète d'un site vitrine en français, en HTML + Tailwind CSS. RÈGLES STRICTES: (1) N'inclus JAMAIS <html>, <head>, <body>, <title> — uniquement le contenu intérieur du <body>. (2) Design moderne, aéré, responsive : utilise exclusivement des classes Tailwind CSS pour la mise en page, la typographie, les couleurs, les espacements, les grilles. (3) Contenu riche : plusieurs sections avec titres (h1/h2/h3), paragraphes détaillés, listes à puces, cartes, CTA, adaptés à la page demandée. (4) Inclus un header avec la navigation basée sur l'arborescence fournie (les liens pointent vers /slug ou / pour l'accueil = slug 'index'), un hero adapté à la page, plusieurs sections de contenu, et un footer. (5) Contenu orienté SEO local. (6) Réponds UNIQUEMENT en JSON strict {\"seo_title\": string, \"html_content\": string}.",
-    `Entreprise: ${input.business_name}\nThématique: ${input.theme}\nVille: ${input.city}\nMot-clé principal: ${input.main_keyword}\nMots-clés secondaires: ${(input.secondary_keywords ?? []).join(", ")}\nArborescence du site: ${JSON.stringify(navSitemap)}\n\nPAGE À GÉNÉRER: titre="${input.page.title}", slug="${normalizedSlug}"\n\nRéponds au format JSON.`,
+    "Tu es un développeur frontend et rédacteur SEO expert. Tu génères UNE page complète d'un site vitrine en français, en HTML + Tailwind CSS. RÈGLES STRICTES: (1) N'inclus JAMAIS <html>, <head>, <body>, <title> — uniquement le contenu intérieur du <body>. (2) Design moderne, aéré, responsive : utilise exclusivement des classes Tailwind CSS pour la mise en page, la typographie, les couleurs, les espacements, les grilles. Si une identité de marque est fournie, applique ses couleurs partout (backgrounds, titres, boutons, bordures) via les classes arbitraires Tailwind bg-[#hex] / text-[#hex]. (3) Contenu riche : plusieurs sections avec titres (h1/h2/h3), paragraphes détaillés, listes à puces, cartes, CTA, adaptés à la page demandée. (4) Inclus un header avec la navigation basée sur l'arborescence fournie (les liens pointent vers /slug ou / pour l'accueil = slug 'index'), un hero adapté à la page, plusieurs sections de contenu, et un footer. (5) Contenu orienté SEO local. (6) Réponds UNIQUEMENT en JSON strict {\"seo_title\": string, \"html_content\": string}.",
+    `Entreprise: ${input.business_name}\nThématique: ${input.theme}\nVille: ${input.city}\nMot-clé principal: ${input.main_keyword}\nMots-clés secondaires: ${(input.secondary_keywords ?? []).join(", ")}\nArborescence du site: ${JSON.stringify(navSitemap)}${brandBlock}\n\nPAGE À GÉNÉRER: titre="${input.page.title}", slug="${normalizedSlug}"\n\nRéponds au format JSON.`,
     {},
   );
   const seo_title = parsed.seo_title?.trim();
@@ -168,9 +185,11 @@ export const generatePageContent = createServerFn({ method: "POST" })
       secondary_keywords: data.secondary_keywords,
       sitemap: data.sitemap,
       page: data.page,
+      brand: data.brand,
     });
     return { page };
   });
+
 
 async function generateAllPages(input: {
   theme: string;
@@ -179,6 +198,7 @@ async function generateAllPages(input: {
   main_keyword: string;
   secondary_keywords?: string[];
   sitemap: SitemapPage[];
+  brand?: BrandIdentity;
 }): Promise<SiteData> {
   const flat = flattenSitemap(input.sitemap);
   const pages: PageContent[] = [];
@@ -195,6 +215,7 @@ async function generateAllPages(input: {
   }
   return { pages };
 }
+
 
 export const suggestKeywords = createServerFn({ method: "POST" })
   .inputValidator((input) => suggestKeywordsSchema.parse(input))
@@ -240,6 +261,168 @@ export const suggestSitemap = createServerFn({ method: "POST" })
     }));
     return { sitemap: sm.length ? sm : fallback.sitemap };
   });
+
+// ---------------- Brand Studio ----------------
+
+const HEX_RE = /^#([0-9a-fA-F]{6})$/;
+function ensureHex(v: unknown, fallback: string): string {
+  return typeof v === "string" && HEX_RE.test(v.trim()) ? v.trim() : fallback;
+}
+
+const DEFAULT_COLORS: BrandIdentity["colors"] = {
+  primary: "#0f172a",
+  secondary: "#334155",
+  accent: "#38bdf8",
+  neutral: "#e2e8f0",
+  background: "#ffffff",
+};
+
+async function hfGenerateImage(prompt: string): Promise<string> {
+  const key = process.env.HUGGINGFACE_API_KEY;
+  if (!key) throw new Error("HUGGINGFACE_API_KEY manquant");
+  const url = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell";
+  // Cold start retry
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        Accept: "image/png",
+      },
+      body: JSON.stringify({
+        inputs: prompt,
+        parameters: { num_inference_steps: 4, width: 1024, height: 1024 },
+        options: { wait_for_model: true },
+      }),
+    });
+    const ct = res.headers.get("content-type") ?? "";
+    if (res.ok && ct.startsWith("image/")) {
+      const buf = new Uint8Array(await res.arrayBuffer());
+      let bin = "";
+      for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+      const b64 = btoa(bin);
+      return `data:${ct};base64,${b64}`;
+    }
+    if (res.status === 503) {
+      await new Promise((r) => setTimeout(r, 4000));
+      continue;
+    }
+    const body = await res.text().catch(() => "");
+    throw new Error(`Hugging Face ${res.status}: ${body.slice(0, 200)}`);
+  }
+  throw new Error("Hugging Face indisponible (timeout modèle)");
+}
+
+const generateBrandSchema = z.object({
+  brief: z.string().trim().min(1).max(4000),
+  hint_colors: z.array(z.string().trim()).max(6).default([]),
+  business_name: z.string().trim().max(200).optional().default(""),
+  theme: z.string().trim().max(200).optional().default(""),
+  city: z.string().trim().max(120).optional().default(""),
+});
+
+export const generateBrandIdentity = createServerFn({ method: "POST" })
+  .inputValidator((input) => generateBrandSchema.parse(input))
+  .handler(async ({ data }) => {
+    await requireUser();
+    const parsed = await callAiJson<{
+      brand_name?: string;
+      tagline?: string;
+      story?: string;
+      colors?: Partial<BrandIdentity["colors"]>;
+      logo_prompt?: string;
+      moodboard_prompt?: string;
+    }>(
+      "Tu es un directeur artistique. À partir d'un brief, propose une identité de marque cohérente et distinctive. Choisis 5 couleurs en hex (#RRGGBB) — primary, secondary, accent, neutral, background — qui fonctionnent ensemble. Écris un prompt d'image (en anglais, très visuel, style + composition) pour un LOGO minimaliste vectoriel sur fond blanc et un prompt pour un MOODBOARD photographique. Respecte les suggestions de teintes si fournies. Réponds UNIQUEMENT en JSON strict {\"brand_name\": string, \"tagline\": string, \"story\": string, \"colors\": {\"primary\": string, \"secondary\": string, \"accent\": string, \"neutral\": string, \"background\": string}, \"logo_prompt\": string, \"moodboard_prompt\": string}.",
+      `Brief: ${data.brief}\nEntreprise: ${data.business_name}\nThématique: ${data.theme}\nVille: ${data.city}\nSuggestions couleurs: ${data.hint_colors.join(", ") || "aucune"}`,
+      {},
+    );
+    const colors: BrandIdentity["colors"] = {
+      primary: ensureHex(parsed.colors?.primary, DEFAULT_COLORS.primary),
+      secondary: ensureHex(parsed.colors?.secondary, DEFAULT_COLORS.secondary),
+      accent: ensureHex(parsed.colors?.accent, DEFAULT_COLORS.accent),
+      neutral: ensureHex(parsed.colors?.neutral, DEFAULT_COLORS.neutral),
+      background: ensureHex(parsed.colors?.background, DEFAULT_COLORS.background),
+    };
+    const brand_name = (parsed.brand_name ?? "").trim() || data.business_name || "Ma Marque";
+    const tagline = (parsed.tagline ?? "").trim();
+    const story = (parsed.story ?? data.brief).trim();
+    const logo_prompt =
+      (parsed.logo_prompt ?? "").trim() ||
+      `minimal vector logo for "${brand_name}", flat design, on solid white background, iconic, modern`;
+    const moodboard_prompt =
+      (parsed.moodboard_prompt ?? "").trim() ||
+      `elegant photographic moodboard collage representing ${data.theme || brand_name}, cohesive palette, editorial style`;
+    return {
+      brand: { brand_name, tagline, story, colors, logo_url: "", moodboard_url: "" } satisfies BrandIdentity,
+      logo_prompt,
+      moodboard_prompt,
+    };
+  });
+
+const generateImageSchema = z.object({
+  prompt: z.string().trim().min(1).max(1200),
+});
+
+export const generateBrandImage = createServerFn({ method: "POST" })
+  .inputValidator((input) => generateImageSchema.parse(input))
+  .handler(async ({ data }) => {
+    await requireUser();
+    const data_url = await hfGenerateImage(data.prompt);
+    return { data_url };
+  });
+
+const refineBrandSchema = z.object({
+  message: z.string().trim().min(1).max(2000),
+  brand: brandIdentitySchema,
+});
+
+export const refineBrandIdentity = createServerFn({ method: "POST" })
+  .inputValidator((input) => refineBrandSchema.parse(input))
+  .handler(async ({ data }) => {
+    await requireUser();
+    const parsed = await callAiJson<{
+      brand_name?: string;
+      tagline?: string;
+      story?: string;
+      colors?: Partial<BrandIdentity["colors"]>;
+      regenerate_logo?: boolean;
+      regenerate_moodboard?: boolean;
+      logo_prompt?: string;
+      moodboard_prompt?: string;
+      note?: string;
+    }>(
+      "Tu es un directeur artistique qui ajuste une identité de marque existante d'après une demande utilisateur. Renvoie l'identité MISE À JOUR complète (conserve les valeurs actuelles si non concernées) et indique si le logo et/ou le moodboard doivent être régénérés, avec un nouveau prompt (anglais, visuel). Réponds UNIQUEMENT en JSON strict {\"brand_name\": string, \"tagline\": string, \"story\": string, \"colors\": {\"primary\": string, \"secondary\": string, \"accent\": string, \"neutral\": string, \"background\": string}, \"regenerate_logo\": boolean, \"regenerate_moodboard\": boolean, \"logo_prompt\": string, \"moodboard_prompt\": string, \"note\": string}.",
+      `Identité actuelle: ${JSON.stringify({ ...data.brand, logo_url: undefined, moodboard_url: undefined })}\n\nDemande utilisateur: ${data.message}`,
+      {},
+    );
+    const colors: BrandIdentity["colors"] = {
+      primary: ensureHex(parsed.colors?.primary, data.brand.colors.primary),
+      secondary: ensureHex(parsed.colors?.secondary, data.brand.colors.secondary),
+      accent: ensureHex(parsed.colors?.accent, data.brand.colors.accent),
+      neutral: ensureHex(parsed.colors?.neutral, data.brand.colors.neutral),
+      background: ensureHex(parsed.colors?.background, data.brand.colors.background),
+    };
+    const updated: BrandIdentity = {
+      brand_name: (parsed.brand_name ?? "").trim() || data.brand.brand_name,
+      tagline: (parsed.tagline ?? data.brand.tagline).trim(),
+      story: (parsed.story ?? data.brand.story).trim(),
+      colors,
+      logo_url: data.brand.logo_url,
+      moodboard_url: data.brand.moodboard_url,
+    };
+    return {
+      brand: updated,
+      regenerate_logo: Boolean(parsed.regenerate_logo),
+      regenerate_moodboard: Boolean(parsed.regenerate_moodboard),
+      logo_prompt: (parsed.logo_prompt ?? "").trim(),
+      moodboard_prompt: (parsed.moodboard_prompt ?? "").trim(),
+      note: (parsed.note ?? "").trim(),
+    };
+  });
+
+
 
 
 async function triggerRunner(siteId: string, siteName: string) {
@@ -336,7 +519,7 @@ export const createSite = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
-    const siteData: SiteData = data.pages && data.pages.length > 0
+    const basePages: SiteData = data.pages && data.pages.length > 0
       ? { pages: data.pages.map((p) => ({ ...p, slug: normalizePageSlug(p.slug) })) }
       : await generateAllPages({
           theme: data.theme,
@@ -345,9 +528,24 @@ export const createSite = createServerFn({ method: "POST" })
           main_keyword: data.main_keyword,
           sitemap: data.sitemap,
           secondary_keywords: data.secondary_keywords,
+          brand: data.brand,
         });
+    const siteData: SiteData = data.brand
+      ? {
+          ...basePages,
+          site_info: {
+            brand_name: data.brand.brand_name,
+            tagline: data.brand.tagline,
+            story: data.brand.story,
+            colors: data.brand.colors,
+            logo_url: data.brand.logo_url,
+            moodboard_url: data.brand.moodboard_url,
+          },
+        }
+      : basePages;
 
     await supabase.from("sites").update({ site_data: siteData }).eq("id", row.id);
+
     const trig = await triggerRunner(row.id, row.name);
     if (!trig.triggered) {
       await supabase

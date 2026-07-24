@@ -8,6 +8,8 @@ import {
   Check,
   Loader2,
   Plus,
+  RefreshCw,
+  Send,
   Sparkles,
   Trash2,
   X,
@@ -21,17 +23,21 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   createSite,
+  generateBrandIdentity,
+  generateBrandImage,
   generatePageContent,
+  refineBrandIdentity,
   suggestKeywords,
   suggestSitemap,
 } from "@/lib/sites.functions";
-import type { PageContent, SitemapPage } from "@/lib/sites-schema";
+import type { BrandIdentity, PageContent, SitemapPage } from "@/lib/sites-schema";
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2 | 3 | 4 | 5;
 
 interface Props {
   open: boolean;
@@ -40,21 +46,54 @@ interface Props {
 }
 
 const STEP_LABELS = [
-  "Informations & mots-clés",
+  "Brief créatif",
+  "Studio de marque",
+  "SEO & mots-clés",
   "Arborescence",
   "Lancement",
 ] as const;
 
+const DEFAULT_COLORS: BrandIdentity["colors"] = {
+  primary: "#0f172a",
+  secondary: "#334155",
+  accent: "#38bdf8",
+  neutral: "#e2e8f0",
+  background: "#ffffff",
+};
+
+type ChatMsg = { role: "user" | "assistant"; text: string };
+
 export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
   const [step, setStep] = useState<Step>(1);
+
+  // Step 1 — Brief
   const [name, setName] = useState("");
   const [theme, setTheme] = useState("");
   const [city, setCity] = useState("");
+  const [brief, setBrief] = useState("");
+  const [hintColors, setHintColors] = useState<string[]>([]);
+  const [newHint, setNewHint] = useState("#");
+
+  // Step 2 — Brand
+  const [brand, setBrand] = useState<BrandIdentity | null>(null);
+  const [logoPrompt, setLogoPrompt] = useState("");
+  const [moodPrompt, setMoodPrompt] = useState("");
+  const [logoLoading, setLogoLoading] = useState(false);
+  const [moodLoading, setMoodLoading] = useState(false);
+  const [chat, setChat] = useState<ChatMsg[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [refining, setRefining] = useState(false);
+
+  // Step 3 — SEO
   const [mainKeyword, setMainKeyword] = useState("");
   const [keywords, setKeywords] = useState<string[]>([]);
   const [selectedKw, setSelectedKw] = useState<Set<string>>(new Set());
   const [newKw, setNewKw] = useState("");
+
+  // Step 4 — Sitemap
   const [sitemap, setSitemap] = useState<SitemapPage[]>([]);
+
+  // Step 5 — Launch
   const [launchStatus, setLaunchStatus] = useState<{
     phase: "idle" | "generating" | "sending" | "done" | "error";
     current: number;
@@ -63,15 +102,76 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
     error?: string;
   }>({ phase: "idle", current: 0, total: 0, label: "" });
 
+  const genBrand = useServerFn(generateBrandIdentity);
+  const genImage = useServerFn(generateBrandImage);
+  const refineBrand = useServerFn(refineBrandIdentity);
   const suggestKw = useServerFn(suggestKeywords);
   const suggestSm = useServerFn(suggestSitemap);
   const genPage = useServerFn(generatePageContent);
   const createFn = useServerFn(createSite);
   const qc = useQueryClient();
 
+  const brandMutation = useMutation({
+    mutationFn: async () =>
+      genBrand({
+        data: {
+          brief,
+          hint_colors: hintColors,
+          business_name: name,
+          theme,
+          city,
+        },
+      }),
+    onSuccess: async (res) => {
+      setBrand(res.brand);
+      setLogoPrompt(res.logo_prompt);
+      setMoodPrompt(res.moodboard_prompt);
+      setChat([
+        {
+          role: "assistant",
+          text: `Voici une première proposition pour "${res.brand.brand_name}". Demandez-moi des ajustements (couleurs, style du logo, ton…).`,
+        },
+      ]);
+      setStep(2);
+      // Kick off images in parallel
+      void runLogo(res.logo_prompt, res.brand);
+      void runMood(res.moodboard_prompt, res.brand);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  async function runLogo(prompt: string, current: BrandIdentity) {
+    setLogoLoading(true);
+    try {
+      const { data_url } = await genImage({ data: { prompt } });
+      setBrand({ ...current, logo_url: data_url });
+    } catch (e) {
+      toast.error(`Logo: ${(e as Error).message}`);
+    } finally {
+      setLogoLoading(false);
+    }
+  }
+  async function runMood(prompt: string, current: BrandIdentity) {
+    setMoodLoading(true);
+    try {
+      const { data_url } = await genImage({ data: { prompt } });
+      setBrand((prev) => ({ ...(prev ?? current), moodboard_url: data_url }));
+    } catch (e) {
+      toast.error(`Moodboard: ${(e as Error).message}`);
+    } finally {
+      setMoodLoading(false);
+    }
+  }
+
   const kwMutation = useMutation({
     mutationFn: async () =>
-      suggestKw({ data: { theme, city, business_name: name } }),
+      suggestKw({
+        data: {
+          theme: theme || brand?.tagline || "",
+          city,
+          business_name: brand?.brand_name || name,
+        },
+      }),
     onSuccess: (res) => {
       const merged = Array.from(new Set([...keywords, ...res.keywords]));
       setKeywords(merged);
@@ -87,21 +187,45 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
         data: {
           theme,
           city,
-          business_name: name,
+          business_name: brand?.brand_name || name,
           keywords: Array.from(selectedKw),
         },
       }),
-    onSuccess: (res) => {
-      setSitemap(res.sitemap);
-    },
+    onSuccess: (res) => setSitemap(res.sitemap),
     onError: (e: Error) => toast.error(e.message),
   });
 
+  async function sendChat() {
+    const msg = chatInput.trim();
+    if (!msg || !brand) return;
+    setChatInput("");
+    setChat((c) => [...c, { role: "user", text: msg }]);
+    setRefining(true);
+    try {
+      const res = await refineBrand({ data: { message: msg, brand } });
+      setBrand(res.brand);
+      setChat((c) => [
+        ...c,
+        { role: "assistant", text: res.note || "Mise à jour appliquée." },
+      ]);
+      if (res.regenerate_logo && res.logo_prompt) {
+        setLogoPrompt(res.logo_prompt);
+        void runLogo(res.logo_prompt, res.brand);
+      }
+      if (res.regenerate_moodboard && res.moodboard_prompt) {
+        setMoodPrompt(res.moodboard_prompt);
+        void runMood(res.moodboard_prompt, res.brand);
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setRefining(false);
+    }
+  }
+
   function normalizeSlug(input: string): string {
     const raw = (input ?? "").trim();
-    if (!raw || raw === "/" || raw.toLowerCase() === "/index" || raw.toLowerCase() === "index") {
-      return "index";
-    }
+    if (!raw || raw === "/" || raw.toLowerCase() === "/index" || raw.toLowerCase() === "index") return "index";
     return (
       raw
         .replace(/^\/+/, "")
@@ -126,6 +250,7 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
   }
 
   async function launch() {
+    if (!brand) return;
     const flat = flatten(sitemap);
     const seen = new Set<string>();
     const uniquePages = flat
@@ -154,42 +279,34 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
           data: {
             theme,
             city,
-            business_name: name,
+            business_name: brand.brand_name || name,
             main_keyword: mainKeyword || Array.from(selectedKw)[0] || theme,
             secondary_keywords: Array.from(selectedKw),
             sitemap,
             page: p,
+            brand,
           },
         });
         pages.push({ ...res.page, slug: normalizeSlug(res.page.slug) });
       }
 
-      setLaunchStatus({
-        phase: "sending",
-        current: total,
-        total,
-        label: "Envoi du code vers GitHub…",
-      });
+      setLaunchStatus({ phase: "sending", current: total, total, label: "Envoi vers GitHub…" });
 
       const res = await createFn({
         data: {
-          name,
+          name: brand.brand_name || name,
           theme,
           city,
           main_keyword: mainKeyword || Array.from(selectedKw)[0] || theme,
           secondary_keywords: Array.from(selectedKw),
           sitemap,
           pages,
-          business_name: name,
+          business_name: brand.brand_name || name,
+          brand,
         },
       });
 
-      setLaunchStatus({
-        phase: "done",
-        current: total,
-        total,
-        label: "Build lancé, en attente du déploiement Cloudflare…",
-      });
+      setLaunchStatus({ phase: "done", current: total, total, label: "Build lancé…" });
       toast.success("Création lancée");
       qc.invalidateQueries({ queryKey: ["sites"] });
       onLaunched?.(res.site.id);
@@ -207,6 +324,14 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
     setName("");
     setTheme("");
     setCity("");
+    setBrief("");
+    setHintColors([]);
+    setNewHint("#");
+    setBrand(null);
+    setLogoPrompt("");
+    setMoodPrompt("");
+    setChat([]);
+    setChatInput("");
     setMainKeyword("");
     setKeywords([]);
     setSelectedKw(new Set());
@@ -223,7 +348,6 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
       return next;
     });
   }
-
   function addKw() {
     const v = newKw.trim();
     if (!v) return;
@@ -231,7 +355,6 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
     setSelectedKw((p) => new Set(p).add(v));
     setNewKw("");
   }
-
   function removeKw(k: string) {
     setKeywords((p) => p.filter((x) => x !== k));
     setSelectedKw((p) => {
@@ -240,24 +363,38 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
       return n;
     });
   }
-
-  async function goStep2() {
-    if (!name.trim() || !theme.trim() || !city.trim()) {
-      toast.error("Nom, thématique et ville sont requis");
+  function addHint() {
+    const v = newHint.trim();
+    if (!/^#([0-9a-fA-F]{6})$/.test(v)) {
+      toast.error("Format hex #RRGGBB requis");
       return;
     }
-    setStep(2);
-    if (sitemap.length === 0 && !smMutation.isPending) {
-      smMutation.mutate();
-    }
+    if (!hintColors.includes(v)) setHintColors((p) => [...p, v]);
+    setNewHint("#");
   }
 
-  function goStep3() {
+  function goStep1To2() {
+    if (!name.trim() || !theme.trim() || !city.trim() || !brief.trim()) {
+      toast.error("Nom, thématique, ville et brief sont requis");
+      return;
+    }
+    brandMutation.mutate();
+  }
+  function goStep2To3() {
+    if (!brand) return;
+    setStep(3);
+    if (keywords.length === 0 && !kwMutation.isPending) kwMutation.mutate();
+  }
+  function goStep3To4() {
+    setStep(4);
+    if (sitemap.length === 0 && !smMutation.isPending) smMutation.mutate();
+  }
+  function goStep4To5() {
     if (sitemap.length === 0) {
       toast.error("L'arborescence est vide");
       return;
     }
-    setStep(3);
+    setStep(5);
     void launch();
   }
 
@@ -269,11 +406,11 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
         onOpenChange(v);
       }}
     >
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+      <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Créer un nouveau site</DialogTitle>
           <DialogDescription>
-            Un parcours guidé propulsé par l'IA pour lancer votre site en quelques clics.
+            Un studio de création guidé par l'IA, du brief au déploiement.
           </DialogDescription>
         </DialogHeader>
 
@@ -283,64 +420,205 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
           <div className="space-y-5 pt-2">
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Nom de l'entreprise / du site">
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Plombier Express Paris"
-                />
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Atelier Nova" />
               </Field>
               <Field label="Ville / zone">
-                <Input
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  placeholder="Paris"
-                />
+                <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Paris" />
               </Field>
               <Field label="Thématique générale" className="sm:col-span-2">
-                <Input
-                  value={theme}
-                  onChange={(e) => setTheme(e.target.value)}
-                  placeholder="Dépannage plomberie 24/7"
-                />
+                <Input value={theme} onChange={(e) => setTheme(e.target.value)} placeholder="Studio de design graphique" />
               </Field>
-              <Field label="Mot-clé principal (optionnel)" className="sm:col-span-2">
-                <Input
-                  value={mainKeyword}
-                  onChange={(e) => setMainKeyword(e.target.value)}
-                  placeholder="plombier paris urgent"
+              <Field label="Racontez l'histoire de la marque, valeurs, ton, instructions de design" className="sm:col-span-2">
+                <Textarea
+                  value={brief}
+                  onChange={(e) => setBrief(e.target.value)}
+                  className="min-h-[140px]"
+                  placeholder="Ex: Nous voulons une marque premium, minimaliste, inspirée du japonisme, tournée vers l'artisanat local. Ton chaleureux mais épuré, palette naturelle terre / crème / vert forêt."
                 />
               </Field>
             </div>
 
             <div className="rounded-lg border border-border bg-muted/20 p-4">
+              <div className="mb-2 text-sm font-medium">Teintes suggérées (optionnel)</div>
+              <div className="flex flex-wrap gap-2">
+                {hintColors.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setHintColors((p) => p.filter((x) => x !== c))}
+                    className="group flex items-center gap-2 rounded-full border border-border bg-background px-2 py-1 text-xs"
+                  >
+                    <span className="h-4 w-4 rounded-full border" style={{ background: c }} />
+                    <span className="font-mono">{c}</span>
+                    <X className="h-3 w-3 opacity-50 group-hover:opacity-100" />
+                  </button>
+                ))}
+              </div>
+              <div className="mt-3 flex gap-2">
+                <Input
+                  type="color"
+                  value={/^#([0-9a-fA-F]{6})$/.test(newHint) ? newHint : "#38bdf8"}
+                  onChange={(e) => setNewHint(e.target.value)}
+                  className="h-9 w-14 p-1"
+                />
+                <Input
+                  value={newHint}
+                  onChange={(e) => setNewHint(e.target.value)}
+                  className="h-9 font-mono"
+                  placeholder="#38bdf8"
+                />
+                <Button type="button" size="sm" variant="outline" onClick={addHint}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" onClick={() => onOpenChange(false)}>Annuler</Button>
+              <Button onClick={goStep1To2} disabled={brandMutation.isPending}>
+                {brandMutation.isPending ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-1.5 h-4 w-4" />
+                )}
+                Générer l'identité visuelle
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {step === 2 && brand && (
+          <div className="grid gap-4 pt-2 md:grid-cols-2">
+            {/* Left — result */}
+            <div className="space-y-4 rounded-lg border border-border bg-card p-4">
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Nom proposé</div>
+                <Input
+                  value={brand.brand_name}
+                  onChange={(e) => setBrand({ ...brand, brand_name: e.target.value })}
+                  className="mt-1 text-lg font-semibold"
+                />
+                <Input
+                  value={brand.tagline}
+                  onChange={(e) => setBrand({ ...brand, tagline: e.target.value })}
+                  className="mt-2 text-sm"
+                  placeholder="Tagline"
+                />
+              </div>
+              <div>
+                <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground">Palette</div>
+                <div className="grid grid-cols-5 gap-2">
+                  {(Object.keys(brand.colors) as (keyof BrandIdentity["colors"])[]).map((k) => (
+                    <div key={k} className="rounded-md border border-border p-2">
+                      <div className="h-10 w-full rounded" style={{ background: brand.colors[k] }} />
+                      <div className="mt-1 text-[10px] capitalize text-muted-foreground">{k}</div>
+                      <div className="font-mono text-[10px]">{brand.colors[k]}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <ImageCard
+                  title="Logo"
+                  url={brand.logo_url}
+                  loading={logoLoading}
+                  onRegen={() => runLogo(logoPrompt, brand)}
+                />
+                <ImageCard
+                  title="Moodboard"
+                  url={brand.moodboard_url}
+                  loading={moodLoading}
+                  onRegen={() => runMood(moodPrompt, brand)}
+                />
+              </div>
+            </div>
+
+            {/* Right — chat */}
+            <div className="flex min-h-[520px] flex-col rounded-lg border border-border bg-card">
+              <div className="border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Chat direction artistique
+              </div>
+              <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
+                {chat.map((m, i) => (
+                  <div
+                    key={i}
+                    className={
+                      "max-w-[85%] rounded-lg px-3 py-2 " +
+                      (m.role === "user"
+                        ? "ml-auto bg-primary text-primary-foreground"
+                        : "bg-muted text-foreground")
+                    }
+                  >
+                    {m.text}
+                  </div>
+                ))}
+                {refining && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" /> L'IA ajuste…
+                  </div>
+                )}
+              </div>
+              <div className="border-t border-border p-2">
+                <div className="flex gap-2">
+                  <Input
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        void sendChat();
+                      }
+                    }}
+                    placeholder="Ex: rends le logo plus moderne, teintes bleu pastel"
+                    disabled={refining}
+                  />
+                  <Button size="icon" onClick={() => void sendChat()} disabled={refining || !chatInput.trim()}>
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between md:col-span-2">
+              <Button variant="ghost" onClick={() => setStep(1)}>
+                <ArrowLeft className="mr-1.5 h-4 w-4" /> Retour
+              </Button>
+              <Button onClick={goStep2To3} disabled={logoLoading || moodLoading}>
+                Valider l'identité <ArrowRight className="ml-1.5 h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="space-y-5 pt-2">
+            <Field label="Mot-clé principal (optionnel)">
+              <Input value={mainKeyword} onChange={(e) => setMainKeyword(e.target.value)} placeholder="studio design paris" />
+            </Field>
+            <div className="rounded-lg border border-border bg-muted/20 p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-medium">Mots-clés cibles</div>
-                  <p className="text-xs text-muted-foreground">
-                    Suggestions longue traîne par l'IA. Cochez ceux à conserver.
-                  </p>
+                  <p className="text-xs text-muted-foreground">Cochez ceux à conserver.</p>
                 </div>
                 <Button
                   type="button"
                   size="sm"
                   variant="secondary"
                   onClick={() => kwMutation.mutate()}
-                  disabled={
-                    kwMutation.isPending || !theme.trim() || !city.trim()
-                  }
+                  disabled={kwMutation.isPending}
                 >
                   {kwMutation.isPending ? (
                     <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                   ) : (
                     <Sparkles className="mr-1.5 h-3.5 w-3.5" />
                   )}
-                  Rechercher des mots-clés
+                  Régénérer
                 </Button>
               </div>
-
               {keywords.length === 0 ? (
                 <p className="py-6 text-center text-xs text-muted-foreground">
-                  Aucun mot-clé pour l'instant. Lancez la recherche IA ou ajoutez-en manuellement.
+                  Aucun mot-clé. Lancez la suggestion ou ajoutez-en manuellement.
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-2">
@@ -376,7 +654,6 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
                   })}
                 </div>
               )}
-
               <div className="mt-3 flex gap-2">
                 <Input
                   value={newKw}
@@ -387,7 +664,7 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
                       addKw();
                     }
                   }}
-                  placeholder="Ajouter un mot-clé personnalisé"
+                  placeholder="Ajouter un mot-clé"
                   className="h-9"
                 />
                 <Button type="button" size="sm" variant="outline" onClick={addKw}>
@@ -396,25 +673,23 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="ghost" onClick={() => onOpenChange(false)}>
-                Annuler
+            <div className="flex items-center justify-between pt-2">
+              <Button variant="ghost" onClick={() => setStep(2)}>
+                <ArrowLeft className="mr-1.5 h-4 w-4" /> Retour
               </Button>
-              <Button onClick={goStep2}>
+              <Button onClick={goStep3To4}>
                 Continuer <ArrowRight className="ml-1.5 h-4 w-4" />
               </Button>
             </div>
           </div>
         )}
 
-        {step === 2 && (
+        {step === 4 && (
           <div className="space-y-4 pt-2">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-sm font-medium">Proposition d'arborescence</div>
-                <p className="text-xs text-muted-foreground">
-                  Modifiez, ajoutez ou supprimez les pages avant validation.
-                </p>
+                <div className="text-sm font-medium">Arborescence proposée</div>
+                <p className="text-xs text-muted-foreground">Modifiez avant validation.</p>
               </div>
               <Button
                 type="button"
@@ -431,7 +706,6 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
                 Régénérer
               </Button>
             </div>
-
             {smMutation.isPending && sitemap.length === 0 ? (
               <div className="rounded-md border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
                 <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" />
@@ -440,19 +714,18 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
             ) : (
               <SitemapEditor value={sitemap} onChange={setSitemap} />
             )}
-
             <div className="flex items-center justify-between pt-2">
-              <Button variant="ghost" onClick={() => setStep(1)}>
+              <Button variant="ghost" onClick={() => setStep(3)}>
                 <ArrowLeft className="mr-1.5 h-4 w-4" /> Retour
               </Button>
-              <Button onClick={goStep3} disabled={sitemap.length === 0}>
+              <Button onClick={goStep4To5} disabled={sitemap.length === 0}>
                 Lancer la création <ArrowRight className="ml-1.5 h-4 w-4" />
               </Button>
             </div>
           </div>
         )}
 
-        {step === 3 && (
+        {step === 5 && (
           <div className="space-y-4 py-4">
             <div className="rounded-lg border border-border bg-muted/30 p-6 text-center">
               {launchStatus.phase === "error" ? (
@@ -470,12 +743,9 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
               ) : (
                 <>
                   <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-primary" />
-                  <p className="text-sm font-medium">
-                    {launchStatus.label || "Initialisation…"}
-                  </p>
+                  <p className="text-sm font-medium">{launchStatus.label || "Initialisation…"}</p>
                 </>
               )}
-
               {launchStatus.total > 0 && (
                 <div className="mx-auto mt-4 h-2 w-full max-w-sm overflow-hidden rounded-full bg-border">
                   <div
@@ -483,9 +753,7 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
                     style={{
                       width: `${Math.round(
                         (launchStatus.current / Math.max(launchStatus.total, 1)) *
-                          (launchStatus.phase === "sending" || launchStatus.phase === "done"
-                            ? 100
-                            : 90),
+                          (launchStatus.phase === "sending" || launchStatus.phase === "done" ? 100 : 90),
                       )}%`,
                     }}
                   />
@@ -497,10 +765,9 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
                 </p>
               )}
             </div>
-
             {launchStatus.phase === "error" && (
               <div className="flex justify-end">
-                <Button variant="outline" onClick={() => setStep(2)}>
+                <Button variant="outline" onClick={() => setStep(4)}>
                   <ArrowLeft className="mr-1.5 h-4 w-4" /> Retour à l'arborescence
                 </Button>
               </div>
@@ -509,6 +776,45 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ImageCard({
+  title,
+  url,
+  loading,
+  onRegen,
+}: {
+  title: string;
+  url: string;
+  loading: boolean;
+  onRegen: () => void;
+}) {
+  return (
+    <div className="overflow-hidden rounded-md border border-border">
+      <div className="flex items-center justify-between border-b border-border px-2 py-1">
+        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{title}</span>
+        <button
+          type="button"
+          onClick={onRegen}
+          disabled={loading}
+          className="text-muted-foreground hover:text-foreground disabled:opacity-40"
+          title="Régénérer"
+        >
+          <RefreshCw className={"h-3 w-3 " + (loading ? "animate-spin" : "")} />
+        </button>
+      </div>
+      <div className="flex aspect-square w-full items-center justify-center bg-muted">
+        {loading && !url ? (
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        ) : url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt={title} className="h-full w-full object-cover" />
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -535,17 +841,12 @@ function Stepper({ current }: { current: Step }) {
             </div>
             <span
               className={
-                "truncate text-xs " +
-                (active
-                  ? "font-medium text-foreground"
-                  : "text-muted-foreground")
+                "truncate text-xs " + (active ? "font-medium text-foreground" : "text-muted-foreground")
               }
             >
               {label}
             </span>
-            {i < STEP_LABELS.length - 1 && (
-              <div className="ml-1 h-px flex-1 bg-border" />
-            )}
+            {i < STEP_LABELS.length - 1 && <div className="ml-1 h-px flex-1 bg-border" />}
           </li>
         );
       })}
@@ -561,8 +862,7 @@ function SitemapEditor({
   onChange: (v: SitemapPage[]) => void;
 }) {
   function updatePage(idx: number, patch: Partial<SitemapPage>) {
-    const next = value.map((p, i) => (i === idx ? { ...p, ...patch } : p));
-    onChange(next);
+    onChange(value.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
   }
   function removePage(idx: number) {
     onChange(value.filter((_, i) => i !== idx));
@@ -572,40 +872,27 @@ function SitemapEditor({
   }
   function addChild(idx: number) {
     const page = value[idx];
-    const children = [
-      ...(page.children ?? []),
-      { title: "Nouvelle sous-page", slug: "/sous-page" },
-    ];
-    updatePage(idx, { children });
+    updatePage(idx, {
+      children: [...(page.children ?? []), { title: "Nouvelle sous-page", slug: "/sous-page" }],
+    });
   }
-  function updateChild(
-    idx: number,
-    cIdx: number,
-    patch: Partial<SitemapPage>,
-  ) {
+  function updateChild(idx: number, cIdx: number, patch: Partial<SitemapPage>) {
     const page = value[idx];
-    const children = (page.children ?? []).map((c, i) =>
-      i === cIdx ? { ...c, ...patch } : c,
-    );
-    updatePage(idx, { children });
+    updatePage(idx, {
+      children: (page.children ?? []).map((c, i) => (i === cIdx ? { ...c, ...patch } : c)),
+    });
   }
   function removeChild(idx: number, cIdx: number) {
     const page = value[idx];
-    const children = (page.children ?? []).filter((_, i) => i !== cIdx);
-    updatePage(idx, { children });
+    updatePage(idx, { children: (page.children ?? []).filter((_, i) => i !== cIdx) });
   }
 
   return (
     <div className="space-y-2">
       {value.map((page, idx) => (
-        <div
-          key={idx}
-          className="rounded-md border border-border bg-card p-3"
-        >
+        <div key={idx} className="rounded-md border border-border bg-card p-3">
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="shrink-0">
-              {idx + 1}
-            </Badge>
+            <Badge variant="outline" className="shrink-0">{idx + 1}</Badge>
             <Input
               value={page.title}
               onChange={(e) => updatePage(idx, { title: e.target.value })}
@@ -618,50 +905,21 @@ function SitemapEditor({
               className="h-8 w-40 font-mono text-xs"
               placeholder="/slug"
             />
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8 text-muted-foreground"
-              onClick={() => addChild(idx)}
-              title="Ajouter une sous-page"
-            >
+            <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" onClick={() => addChild(idx)} title="Ajouter une sous-page">
               <Plus className="h-3.5 w-3.5" />
             </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8 text-destructive"
-              onClick={() => removePage(idx)}
-            >
+            <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => removePage(idx)}>
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </div>
-
           {page.children && page.children.length > 0 && (
             <ul className="mt-2 space-y-1.5 border-l border-border pl-4">
               {page.children.map((child, cIdx) => (
                 <li key={cIdx} className="flex items-center gap-2">
                   <span className="text-muted-foreground">└</span>
-                  <Input
-                    value={child.title}
-                    onChange={(e) =>
-                      updateChild(idx, cIdx, { title: e.target.value })
-                    }
-                    className="h-7 text-xs"
-                  />
-                  <Input
-                    value={child.slug}
-                    onChange={(e) =>
-                      updateChild(idx, cIdx, { slug: e.target.value })
-                    }
-                    className="h-7 w-36 font-mono text-[11px]"
-                  />
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7 text-destructive"
-                    onClick={() => removeChild(idx, cIdx)}
-                  >
+                  <Input value={child.title} onChange={(e) => updateChild(idx, cIdx, { title: e.target.value })} className="h-7 text-xs" />
+                  <Input value={child.slug} onChange={(e) => updateChild(idx, cIdx, { slug: e.target.value })} className="h-7 w-36 font-mono text-[11px]" />
+                  <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => removeChild(idx, cIdx)}>
                     <X className="h-3 w-3" />
                   </Button>
                 </li>
@@ -670,13 +928,7 @@ function SitemapEditor({
           )}
         </div>
       ))}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={addPage}
-        className="w-full"
-      >
+      <Button type="button" variant="outline" size="sm" onClick={addPage} className="w-full">
         <Plus className="mr-1.5 h-4 w-4" /> Ajouter une page
       </Button>
     </div>
@@ -694,9 +946,7 @@ function Field({
 }) {
   return (
     <div className={className}>
-      <Label className="mb-1.5 block text-xs font-medium text-foreground/80">
-        {label}
-      </Label>
+      <Label className="mb-1.5 block text-xs font-medium text-foreground/80">{label}</Label>
       {children}
     </div>
   );
