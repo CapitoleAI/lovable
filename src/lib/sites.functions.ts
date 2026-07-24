@@ -584,6 +584,29 @@ export const createSite = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
+    // Si des composants Theme Builder sont sélectionnés, on assemble l'ossature réelle
+    // et on l'injecte dans le brand + on remplace le HTML de la page 'index' par cette ossature.
+    const brand = data.brand;
+    let homeHtml = brand?.home_html ?? "";
+    if (brand && (brand.selected_header_id || brand.selected_hero_id || brand.selected_footer_id || (brand.selected_section_ids?.length ?? 0) > 0)) {
+      homeHtml = assembleHomeHtml(
+        {
+          header: brand.selected_header_id || undefined,
+          hero: brand.selected_hero_id || undefined,
+          sections: brand.selected_section_ids ?? [],
+          footer: brand.selected_footer_id || undefined,
+        },
+        {
+          brand_name: brand.brand_name,
+          tagline: brand.tagline,
+          colors: brand.colors,
+          logo_url: brand.logo_url,
+        },
+        brand.component_overrides ?? {},
+      );
+    }
+    const brandForData = brand ? { ...brand, home_html: homeHtml } : undefined;
+
     const basePages: SiteData = data.pages && data.pages.length > 0
       ? { pages: data.pages.map((p) => ({ ...p, slug: normalizePageSlug(p.slug) })) }
       : await generateAllPages({
@@ -593,21 +616,31 @@ export const createSite = createServerFn({ method: "POST" })
           main_keyword: data.main_keyword,
           sitemap: data.sitemap,
           secondary_keywords: data.secondary_keywords,
-          brand: data.brand,
+          brand: brandForData,
         });
-    const siteData: SiteData = data.brand
+    // Remplace la page d'accueil par l'ossature Theme Builder si dispo
+    const finalPages = homeHtml
+      ? basePages.pages.map((p) =>
+          p.slug === "index"
+            ? { ...p, html_content: homeHtml, seo_title: p.seo_title || `${brand?.brand_name ?? businessName} — ${data.theme}` }
+            : p,
+        )
+      : basePages.pages;
+
+    const siteData: SiteData = brandForData
       ? {
-          ...basePages,
+          pages: finalPages,
           site_info: {
-            brand_name: data.brand.brand_name,
-            tagline: data.brand.tagline,
-            story: data.brand.story,
-            colors: data.brand.colors,
-            logo_url: data.brand.logo_url,
-            moodboard_url: data.brand.moodboard_url,
+            brand_name: brandForData.brand_name,
+            tagline: brandForData.tagline,
+            story: brandForData.story,
+            colors: brandForData.colors,
+            logo_url: brandForData.logo_url,
+            moodboard_url: brandForData.moodboard_url,
           },
         }
-      : basePages;
+      : { pages: finalPages };
+
 
     await supabase.from("sites").update({ site_data: siteData }).eq("id", row.id);
 
