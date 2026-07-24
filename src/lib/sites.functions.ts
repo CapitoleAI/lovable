@@ -341,7 +341,7 @@ export const generateBrandImage = createServerFn({ method: "POST" })
   .inputValidator((input) => generateImageSchema.parse(input))
   .handler(async ({ data }) => {
     await requireUser();
-    const data_url = await hfGenerateImage(data.prompt);
+    const data_url = pollinationsImageUrl(data.prompt);
     return { data_url };
   });
 
