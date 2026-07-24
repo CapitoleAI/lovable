@@ -277,10 +277,11 @@ const DEFAULT_COLORS: BrandIdentity["colors"] = {
   background: "#ffffff",
 };
 
-function pollinationsImageUrl(prompt: string, size = 800): string {
+function pollinationsImageUrl(prompt: string, size = 512): string {
   // Génération d'images gratuite via Pollinations.ai — aucune clé API requise.
-  // Le prompt doit déjà être optimisé en anglais par l'IA en amont.
-  const encoded = encodeURIComponent(prompt.trim().slice(0, 1500));
+  // Le prompt doit déjà être optimisé en anglais (≤30 mots) par l'IA en amont.
+  const words = prompt.trim().split(/\s+/).slice(0, 30).join(" ");
+  const encoded = encodeURIComponent(words.slice(0, 400));
   return `https://image.pollinations.ai/prompt/${encoded}?width=${size}&height=${size}&nologo=true`;
 }
 
