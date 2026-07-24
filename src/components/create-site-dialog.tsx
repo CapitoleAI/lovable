@@ -529,6 +529,7 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
                   url={brand.moodboard_url}
                   loading={moodLoading}
                   onRegen={() => runMood(moodPrompt, brand)}
+                  loadDelayMs={3000}
                 />
               </div>
             </div>
