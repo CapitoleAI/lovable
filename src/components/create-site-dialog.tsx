@@ -684,7 +684,7 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
               <Button variant="ghost" onClick={() => setStep(1)}>
                 <ArrowLeft className="mr-1.5 h-4 w-4" /> Retour
               </Button>
-              <Button onClick={goStep2To3} disabled={logoLoading || moodLoading}>
+              <Button onClick={goStep2To3} disabled={logoLoading}>
                 Valider l'identité <ArrowRight className="ml-1.5 h-4 w-4" />
               </Button>
             </div>
