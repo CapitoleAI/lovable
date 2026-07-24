@@ -147,6 +147,7 @@ async function generatePageContentServer(input: {
   secondary_keywords?: string[];
   sitemap: SitemapPage[];
   page: { title: string; slug: string };
+  brand?: BrandIdentity;
 }): Promise<PageContent> {
   const normalizedSlug = normalizePageSlug(input.page.slug);
   const navSitemap = flattenSitemap(input.sitemap).map((p) => ({
@@ -158,9 +159,12 @@ async function generatePageContentServer(input: {
     seo_title: `${input.page.title} — ${input.business_name}`,
     html_content: fallbackHtml(input.page.title, input.business_name, input.theme, input.city),
   };
+  const brandBlock = input.brand
+    ? `\nIdentité de marque à respecter STRICTEMENT (utilise ces couleurs via classes Tailwind arbitraires bg-[#XXXXXX] / text-[#XXXXXX] / border-[#XXXXXX]):\n- Nom: ${input.brand.brand_name}\n- Tagline: ${input.brand.tagline}\n- Couleur primaire: ${input.brand.colors.primary}\n- Couleur secondaire: ${input.brand.colors.secondary}\n- Accent: ${input.brand.colors.accent}\n- Neutre: ${input.brand.colors.neutral}\n- Fond: ${input.brand.colors.background}\n- Histoire/valeurs: ${input.brand.story}`
+    : "";
   const parsed = await callAiJson<{ seo_title?: string; html_content?: string }>(
-    "Tu es un développeur frontend et rédacteur SEO expert. Tu génères UNE page complète d'un site vitrine en français, en HTML + Tailwind CSS. RÈGLES STRICTES: (1) N'inclus JAMAIS <html>, <head>, <body>, <title> — uniquement le contenu intérieur du <body>. (2) Design moderne, aéré, responsive : utilise exclusivement des classes Tailwind CSS pour la mise en page, la typographie, les couleurs, les espacements, les grilles. (3) Contenu riche : plusieurs sections avec titres (h1/h2/h3), paragraphes détaillés, listes à puces, cartes, CTA, adaptés à la page demandée. (4) Inclus un header avec la navigation basée sur l'arborescence fournie (les liens pointent vers /slug ou / pour l'accueil = slug 'index'), un hero adapté à la page, plusieurs sections de contenu, et un footer. (5) Contenu orienté SEO local. (6) Réponds UNIQUEMENT en JSON strict {\"seo_title\": string, \"html_content\": string}.",
-    `Entreprise: ${input.business_name}\nThématique: ${input.theme}\nVille: ${input.city}\nMot-clé principal: ${input.main_keyword}\nMots-clés secondaires: ${(input.secondary_keywords ?? []).join(", ")}\nArborescence du site: ${JSON.stringify(navSitemap)}\n\nPAGE À GÉNÉRER: titre="${input.page.title}", slug="${normalizedSlug}"\n\nRéponds au format JSON.`,
+    "Tu es un développeur frontend et rédacteur SEO expert. Tu génères UNE page complète d'un site vitrine en français, en HTML + Tailwind CSS. RÈGLES STRICTES: (1) N'inclus JAMAIS <html>, <head>, <body>, <title> — uniquement le contenu intérieur du <body>. (2) Design moderne, aéré, responsive : utilise exclusivement des classes Tailwind CSS pour la mise en page, la typographie, les couleurs, les espacements, les grilles. Si une identité de marque est fournie, applique ses couleurs partout (backgrounds, titres, boutons, bordures) via les classes arbitraires Tailwind bg-[#hex] / text-[#hex]. (3) Contenu riche : plusieurs sections avec titres (h1/h2/h3), paragraphes détaillés, listes à puces, cartes, CTA, adaptés à la page demandée. (4) Inclus un header avec la navigation basée sur l'arborescence fournie (les liens pointent vers /slug ou / pour l'accueil = slug 'index'), un hero adapté à la page, plusieurs sections de contenu, et un footer. (5) Contenu orienté SEO local. (6) Réponds UNIQUEMENT en JSON strict {\"seo_title\": string, \"html_content\": string}.",
+    `Entreprise: ${input.business_name}\nThématique: ${input.theme}\nVille: ${input.city}\nMot-clé principal: ${input.main_keyword}\nMots-clés secondaires: ${(input.secondary_keywords ?? []).join(", ")}\nArborescence du site: ${JSON.stringify(navSitemap)}${brandBlock}\n\nPAGE À GÉNÉRER: titre="${input.page.title}", slug="${normalizedSlug}"\n\nRéponds au format JSON.`,
     {},
   );
   const seo_title = parsed.seo_title?.trim();
@@ -181,9 +185,11 @@ export const generatePageContent = createServerFn({ method: "POST" })
       secondary_keywords: data.secondary_keywords,
       sitemap: data.sitemap,
       page: data.page,
+      brand: data.brand,
     });
     return { page };
   });
+
 
 async function generateAllPages(input: {
   theme: string;
