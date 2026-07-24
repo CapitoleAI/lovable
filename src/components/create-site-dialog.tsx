@@ -1010,7 +1010,7 @@ function ComponentPreview({
         <div className="pointer-events-none relative h-[220px] w-full overflow-hidden bg-white">
           <iframe
             title={comp.label}
-            sandbox=""
+            sandbox="allow-scripts"
             srcDoc={doc}
             className="pointer-events-none absolute left-0 top-0 origin-top-left border-0"
             style={{ width: "1280px", height: "800px", transform: "scale(0.32)" }}
