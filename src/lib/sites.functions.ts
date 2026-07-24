@@ -160,10 +160,10 @@ async function generatePageContentServer(input: {
     html_content: fallbackHtml(input.page.title, input.business_name, input.theme, input.city),
   };
   const brandBlock = input.brand
-    ? `\nIdentité de marque à respecter STRICTEMENT (utilise ces couleurs via classes Tailwind arbitraires bg-[#XXXXXX] / text-[#XXXXXX] / border-[#XXXXXX]):\n- Nom: ${input.brand.brand_name}\n- Tagline: ${input.brand.tagline}\n- Couleur primaire: ${input.brand.colors.primary}\n- Couleur secondaire: ${input.brand.colors.secondary}\n- Accent: ${input.brand.colors.accent}\n- Neutre: ${input.brand.colors.neutral}\n- Fond: ${input.brand.colors.background}\n- Histoire/valeurs: ${input.brand.story}`
+    ? `\nIdentité de marque à respecter STRICTEMENT (utilise ces couleurs via classes Tailwind arbitraires bg-[#XXXXXX] / text-[#XXXXXX] / border-[#XXXXXX]):\n- Nom: ${input.brand.brand_name}\n- Tagline: ${input.brand.tagline}\n- Couleur primaire: ${input.brand.colors.primary}\n- Couleur secondaire: ${input.brand.colors.secondary}\n- Accent: ${input.brand.colors.accent}\n- Neutre: ${input.brand.colors.neutral}\n- Fond: ${input.brand.colors.background}\n- Histoire/valeurs: ${input.brand.story}\n\nDIRECTIVES DE WEBDESIGN — À APPLIQUER STRICTEMENT:\n- Style global du site: ${input.brand.design_style} (adapte typographie, densité, arrondis, ombres, ton en conséquence)\n- Header: ${input.brand.header_style === "centre" ? "centré (logo + menu centrés)" : "classique (logo à gauche, menu à droite)"}\n- Footer: ${input.brand.footer_style === "complet" ? "complet avec colonnes et liens" : "simple, une ligne"}\n- Sections à intégrer (choisis celles pertinentes pour cette page): ${(input.brand.sections ?? []).join(", ") || "libre"}`
     : "";
   const parsed = await callAiJson<{ seo_title?: string; html_content?: string }>(
-    "Tu es un développeur frontend et rédacteur SEO expert. Tu génères UNE page complète d'un site vitrine en français, en HTML + Tailwind CSS. RÈGLES STRICTES: (1) N'inclus JAMAIS <html>, <head>, <body>, <title> — uniquement le contenu intérieur du <body>. (2) Design moderne, aéré, responsive : utilise exclusivement des classes Tailwind CSS pour la mise en page, la typographie, les couleurs, les espacements, les grilles. Si une identité de marque est fournie, applique ses couleurs partout (backgrounds, titres, boutons, bordures) via les classes arbitraires Tailwind bg-[#hex] / text-[#hex]. (3) Contenu riche : plusieurs sections avec titres (h1/h2/h3), paragraphes détaillés, listes à puces, cartes, CTA, adaptés à la page demandée. (4) Inclus un header avec la navigation basée sur l'arborescence fournie (les liens pointent vers /slug ou / pour l'accueil = slug 'index'), un hero adapté à la page, plusieurs sections de contenu, et un footer. (5) Contenu orienté SEO local. (6) Réponds UNIQUEMENT en JSON strict {\"seo_title\": string, \"html_content\": string}.",
+    "Tu es un développeur frontend et rédacteur SEO expert. Tu génères UNE page complète d'un site vitrine en français, en HTML + Tailwind CSS. RÈGLES STRICTES: (1) N'inclus JAMAIS <html>, <head>, <body>, <title> — uniquement le contenu intérieur du <body>. (2) Design moderne, aéré, responsive : utilise exclusivement des classes Tailwind CSS pour la mise en page, la typographie, les couleurs, les espacements, les grilles. Si une identité de marque et des directives de webdesign sont fournies, applique-les STRICTEMENT (style global, structure header/footer, sections demandées, couleurs partout via classes arbitraires bg-[#hex] / text-[#hex]). (3) Contenu riche : plusieurs sections avec titres (h1/h2/h3), paragraphes détaillés, listes à puces, cartes, CTA, adaptés à la page demandée. (4) Inclus un header avec la navigation basée sur l'arborescence fournie (les liens pointent vers /slug ou / pour l'accueil = slug 'index'), un hero adapté à la page, plusieurs sections de contenu, et un footer. (5) Contenu orienté SEO local. (6) Réponds UNIQUEMENT en JSON strict {\"seo_title\": string, \"html_content\": string}.",
     `Entreprise: ${input.business_name}\nThématique: ${input.theme}\nVille: ${input.city}\nMot-clé principal: ${input.main_keyword}\nMots-clés secondaires: ${(input.secondary_keywords ?? []).join(", ")}\nArborescence du site: ${JSON.stringify(navSitemap)}${brandBlock}\n\nPAGE À GÉNÉRER: titre="${input.page.title}", slug="${normalizedSlug}"\n\nRéponds au format JSON.`,
     {},
   );
@@ -277,15 +277,43 @@ const DEFAULT_COLORS: BrandIdentity["colors"] = {
   background: "#ffffff",
 };
 
+const DESIGN_STYLES = ["minimaliste", "corporate", "ludique", "sombre", "elegant", "brutaliste"] as const;
+const HEADER_STYLES = ["classique", "centre"] as const;
+const FOOTER_STYLES = ["simple", "complet"] as const;
+const CONTENT_SECTIONS = [
+  "hero_image",
+  "services_grid",
+  "testimonials",
+  "contact_form",
+  "features",
+  "pricing",
+  "faq",
+  "cta_banner",
+  "gallery",
+  "stats",
+] as const;
+
+function ensureIn<T extends readonly string[]>(list: T, v: unknown, fallback: T[number]): T[number] {
+  return typeof v === "string" && (list as readonly string[]).includes(v) ? (v as T[number]) : fallback;
+}
+function ensureSections(v: unknown, fallback: BrandIdentity["sections"]): BrandIdentity["sections"] {
+  if (!Array.isArray(v)) return fallback;
+  const seen = new Set<string>();
+  const out: BrandIdentity["sections"] = [];
+  for (const item of v) {
+    if (typeof item === "string" && (CONTENT_SECTIONS as readonly string[]).includes(item) && !seen.has(item)) {
+      seen.add(item);
+      out.push(item as BrandIdentity["sections"][number]);
+    }
+  }
+  return out;
+}
+
 function pollinationsImageUrl(prompt: string, size = 512): string {
-  // Génération d'images gratuite via Pollinations.ai — aucune clé API requise.
-  // Le prompt doit déjà être optimisé en anglais (≤30 mots) par l'IA en amont.
   const words = prompt.trim().split(/\s+/).slice(0, 30).join(" ");
   const encoded = encodeURIComponent(words.slice(0, 400));
   return `https://image.pollinations.ai/prompt/${encoded}?width=${size}&height=${size}&nologo=true`;
 }
-
-
 
 const generateBrandSchema = z.object({
   brief: z.string().trim().min(1).max(4000),
@@ -305,9 +333,12 @@ export const generateBrandIdentity = createServerFn({ method: "POST" })
       story?: string;
       colors?: Partial<BrandIdentity["colors"]>;
       logo_prompt?: string;
-      moodboard_prompt?: string;
+      design_style?: string;
+      header_style?: string;
+      footer_style?: string;
+      sections?: string[];
     }>(
-      "Tu es un directeur artistique. À partir d'un brief, propose une identité de marque cohérente et distinctive. Choisis 5 couleurs en hex (#RRGGBB) — primary, secondary, accent, neutral, background — qui fonctionnent ensemble. Écris deux prompts d'image EN ANGLAIS, TRÈS CONCIS (MAX 30 MOTS CHACUN, pas de phrases longues, uniquement mots-clés visuels séparés par des virgules) : un LOGO minimaliste vectoriel sur fond blanc et un MOODBOARD photographique. Respecte les suggestions de teintes si fournies. Réponds UNIQUEMENT en JSON strict {\"brand_name\": string, \"tagline\": string, \"story\": string, \"colors\": {\"primary\": string, \"secondary\": string, \"accent\": string, \"neutral\": string, \"background\": string}, \"logo_prompt\": string, \"moodboard_prompt\": string}.",
+      "Tu es un directeur artistique webdesign. À partir d'un brief, propose une identité de marque cohérente et distinctive ET une direction de webdesign. Choisis: (1) 5 couleurs en hex (#RRGGBB) — primary, secondary, accent, neutral, background — qui fonctionnent ensemble. (2) design_style parmi ['minimaliste','corporate','ludique','sombre','elegant','brutaliste']. (3) header_style parmi ['classique','centre']. (4) footer_style parmi ['simple','complet']. (5) sections: 3 à 6 blocs parmi ['hero_image','services_grid','testimonials','contact_form','features','pricing','faq','cta_banner','gallery','stats']. (6) Un prompt LOGO EN ANGLAIS, TRÈS CONCIS (MAX 30 MOTS, mots-clés visuels séparés par des virgules, logo vectoriel minimaliste sur fond blanc). Respecte les suggestions de teintes si fournies. Réponds UNIQUEMENT en JSON strict {\"brand_name\": string, \"tagline\": string, \"story\": string, \"colors\": {...5 clés hex}, \"logo_prompt\": string, \"design_style\": string, \"header_style\": string, \"footer_style\": string, \"sections\": string[]}.",
       `Brief: ${data.brief}\nEntreprise: ${data.business_name}\nThématique: ${data.theme}\nVille: ${data.city}\nSuggestions couleurs: ${data.hint_colors.join(", ") || "aucune"}`,
       {},
     );
@@ -324,13 +355,24 @@ export const generateBrandIdentity = createServerFn({ method: "POST" })
     const logo_prompt =
       (parsed.logo_prompt ?? "").trim() ||
       `minimal vector logo for "${brand_name}", flat design, on solid white background, iconic, modern`;
-    const moodboard_prompt =
-      (parsed.moodboard_prompt ?? "").trim() ||
-      `elegant photographic moodboard collage representing ${data.theme || brand_name}, cohesive palette, editorial style`;
+    const design_style = ensureIn(DESIGN_STYLES, parsed.design_style, "minimaliste");
+    const header_style = ensureIn(HEADER_STYLES, parsed.header_style, "classique");
+    const footer_style = ensureIn(FOOTER_STYLES, parsed.footer_style, "simple");
+    const sections = ensureSections(parsed.sections, ["hero_image", "services_grid", "contact_form"]);
     return {
-      brand: { brand_name, tagline, story, colors, logo_url: "", moodboard_url: "" } satisfies BrandIdentity,
+      brand: {
+        brand_name,
+        tagline,
+        story,
+        colors,
+        logo_url: "",
+        moodboard_url: "",
+        design_style,
+        header_style,
+        footer_style,
+        sections,
+      } satisfies BrandIdentity,
       logo_prompt,
-      moodboard_prompt,
     };
   });
 
@@ -360,13 +402,15 @@ export const refineBrandIdentity = createServerFn({ method: "POST" })
       tagline?: string;
       story?: string;
       colors?: Partial<BrandIdentity["colors"]>;
+      design_style?: string;
+      header_style?: string;
+      footer_style?: string;
+      sections?: string[];
       regenerate_logo?: boolean;
-      regenerate_moodboard?: boolean;
       logo_prompt?: string;
-      moodboard_prompt?: string;
       note?: string;
     }>(
-      "Tu es un directeur artistique qui ajuste une identité de marque existante d'après une demande utilisateur. Renvoie l'identité MISE À JOUR complète (conserve les valeurs actuelles si non concernées) et indique si le logo et/ou le moodboard doivent être régénérés, avec un nouveau prompt EN ANGLAIS, TRÈS CONCIS (MAX 30 MOTS, uniquement mots-clés visuels séparés par des virgules). Réponds UNIQUEMENT en JSON strict {\"brand_name\": string, \"tagline\": string, \"story\": string, \"colors\": {\"primary\": string, \"secondary\": string, \"accent\": string, \"neutral\": string, \"background\": string}, \"regenerate_logo\": boolean, \"regenerate_moodboard\": boolean, \"logo_prompt\": string, \"moodboard_prompt\": string, \"note\": string}.",
+      "Tu es un directeur artistique webdesign qui ajuste une identité de marque et sa direction de design d'après une demande utilisateur. Comprends l'intention (ex: 'passe en dark mode et ajoute des témoignages' => design_style='sombre', couleurs sombres, ajoute 'testimonials' à sections). Renvoie l'identité MISE À JOUR complète (conserve les valeurs actuelles si non concernées). Champs à renvoyer: brand_name, tagline, story, colors (5 hex), design_style parmi ['minimaliste','corporate','ludique','sombre','elegant','brutaliste'], header_style parmi ['classique','centre'], footer_style parmi ['simple','complet'], sections (sous-ensemble de ['hero_image','services_grid','testimonials','contact_form','features','pricing','faq','cta_banner','gallery','stats']). Indique regenerate_logo (bool) et un nouveau logo_prompt EN ANGLAIS TRÈS CONCIS (MAX 30 MOTS, mots-clés séparés par des virgules) si le logo doit changer. Réponds UNIQUEMENT en JSON strict.",
       `Identité actuelle: ${JSON.stringify({ ...data.brand, logo_url: undefined, moodboard_url: undefined })}\n\nDemande utilisateur: ${data.message}`,
       {},
     );
@@ -384,13 +428,15 @@ export const refineBrandIdentity = createServerFn({ method: "POST" })
       colors,
       logo_url: data.brand.logo_url,
       moodboard_url: data.brand.moodboard_url,
+      design_style: ensureIn(DESIGN_STYLES, parsed.design_style, data.brand.design_style),
+      header_style: ensureIn(HEADER_STYLES, parsed.header_style, data.brand.header_style),
+      footer_style: ensureIn(FOOTER_STYLES, parsed.footer_style, data.brand.footer_style),
+      sections: ensureSections(parsed.sections, data.brand.sections),
     };
     return {
       brand: updated,
       regenerate_logo: Boolean(parsed.regenerate_logo),
-      regenerate_moodboard: Boolean(parsed.regenerate_moodboard),
       logo_prompt: (parsed.logo_prompt ?? "").trim(),
-      moodboard_prompt: (parsed.moodboard_prompt ?? "").trim(),
       note: (parsed.note ?? "").trim(),
     };
   });

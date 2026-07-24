@@ -26,6 +26,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   createSite,
   generateBrandIdentity,
@@ -35,7 +43,23 @@ import {
   suggestKeywords,
   suggestSitemap,
 } from "@/lib/sites.functions";
-import type { BrandIdentity, PageContent, SitemapPage } from "@/lib/sites-schema";
+import {
+  CONTENT_SECTIONS,
+  CONTENT_SECTION_LABELS,
+  DESIGN_STYLES,
+  DESIGN_STYLE_LABELS,
+  FOOTER_STYLES,
+  FOOTER_STYLE_LABELS,
+  HEADER_STYLES,
+  HEADER_STYLE_LABELS,
+  type BrandIdentity,
+  type ContentSection,
+  type DesignStyle,
+  type FooterStyle,
+  type HeaderStyle,
+  type PageContent,
+  type SitemapPage,
+} from "@/lib/sites-schema";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -61,6 +85,7 @@ const DEFAULT_COLORS: BrandIdentity["colors"] = {
   background: "#ffffff",
 };
 
+
 type ChatMsg = { role: "user" | "assistant"; text: string };
 
 export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
@@ -77,9 +102,7 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
   // Step 2 — Brand
   const [brand, setBrand] = useState<BrandIdentity | null>(null);
   const [logoPrompt, setLogoPrompt] = useState("");
-  const [moodPrompt, setMoodPrompt] = useState("");
   const [logoLoading, setLogoLoading] = useState(false);
-  const [moodLoading, setMoodLoading] = useState(false);
   const [chat, setChat] = useState<ChatMsg[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [refining, setRefining] = useState(false);
@@ -125,17 +148,14 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
     onSuccess: async (res) => {
       setBrand(res.brand);
       setLogoPrompt(res.logo_prompt);
-      setMoodPrompt(res.moodboard_prompt);
       setChat([
         {
           role: "assistant",
-          text: `Voici une première proposition pour "${res.brand.brand_name}". Demandez-moi des ajustements (couleurs, style du logo, ton…).`,
+          text: `Voici une première proposition pour "${res.brand.brand_name}". Demandez-moi des ajustements (style, couleurs, sections, logo…).`,
         },
       ]);
       setStep(2);
-      // Kick off images in parallel
       void runLogo(res.logo_prompt, res.brand);
-      void runMood(res.moodboard_prompt, res.brand);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -144,24 +164,14 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
     setLogoLoading(true);
     try {
       const { data_url } = await genImage({ data: { prompt } });
-      setBrand({ ...current, logo_url: data_url });
+      setBrand((prev) => ({ ...(prev ?? current), logo_url: data_url }));
     } catch (e) {
       toast.error(`Logo: ${(e as Error).message}`);
     } finally {
       setLogoLoading(false);
     }
   }
-  async function runMood(prompt: string, current: BrandIdentity) {
-    setMoodLoading(true);
-    try {
-      const { data_url } = await genImage({ data: { prompt } });
-      setBrand((prev) => ({ ...(prev ?? current), moodboard_url: data_url }));
-    } catch (e) {
-      toast.error(`Moodboard: ${(e as Error).message}`);
-    } finally {
-      setMoodLoading(false);
-    }
-  }
+
 
   const kwMutation = useMutation({
     mutationFn: async () =>
@@ -211,10 +221,6 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
       if (res.regenerate_logo && res.logo_prompt) {
         setLogoPrompt(res.logo_prompt);
         void runLogo(res.logo_prompt, res.brand);
-      }
-      if (res.regenerate_moodboard && res.moodboard_prompt) {
-        setMoodPrompt(res.moodboard_prompt);
-        void runMood(res.moodboard_prompt, res.brand);
       }
     } catch (e) {
       toast.error((e as Error).message);
@@ -329,7 +335,7 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
     setNewHint("#");
     setBrand(null);
     setLogoPrompt("");
-    setMoodPrompt("");
+    
     setChat([]);
     setChatInput("");
     setMainKeyword("");
@@ -517,22 +523,116 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div>
                 <ImageCard
                   title="Logo"
                   url={brand.logo_url}
                   loading={logoLoading}
                   onRegen={() => runLogo(logoPrompt, brand)}
                 />
-                <ImageCard
-                  title="Moodboard"
-                  url={brand.moodboard_url}
-                  loading={moodLoading}
-                  onRegen={() => runMood(moodPrompt, brand)}
-                  loadDelayMs={3000}
-                />
+              </div>
+
+              <div>
+                <div className="mb-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Style général du site
+                </div>
+                <Select
+                  value={brand.design_style}
+                  onValueChange={(v) => setBrand({ ...brand, design_style: v as DesignStyle })}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DESIGN_STYLES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {DESIGN_STYLE_LABELS[s]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <div className="mb-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Header
+                  </div>
+                  <Select
+                    value={brand.header_style}
+                    onValueChange={(v) => setBrand({ ...brand, header_style: v as HeaderStyle })}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {HEADER_STYLES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {HEADER_STYLE_LABELS[s]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <div className="mb-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Footer
+                  </div>
+                  <Select
+                    value={brand.footer_style}
+                    onValueChange={(v) => setBrand({ ...brand, footer_style: v as FooterStyle })}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FOOTER_STYLES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {FOOTER_STYLE_LABELS[s]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Sections de contenu à intégrer
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {CONTENT_SECTIONS.map((s) => {
+                    const checked = brand.sections.includes(s);
+                    return (
+                      <label
+                        key={s}
+                        className={
+                          "flex cursor-pointer items-center gap-2 rounded-md border p-2 text-xs transition-colors " +
+                          (checked
+                            ? "border-primary bg-primary/5"
+                            : "border-border bg-background hover:bg-accent")
+                        }
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(v) => {
+                            const on = v === true;
+                            setBrand({
+                              ...brand,
+                              sections: on
+                                ? Array.from(new Set([...brand.sections, s])) as ContentSection[]
+                                : brand.sections.filter((x) => x !== s),
+                            });
+                          }}
+                        />
+                        <span>{CONTENT_SECTION_LABELS[s]}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
             </div>
+
 
             {/* Right — chat */}
             <div className="flex min-h-[520px] flex-col rounded-lg border border-border bg-card">
@@ -570,7 +670,7 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
                         void sendChat();
                       }
                     }}
-                    placeholder="Ex: rends le logo plus moderne, teintes bleu pastel"
+                    placeholder="Ex: passe en mode sombre et ajoute une section témoignages"
                     disabled={refining}
                   />
                   <Button size="icon" onClick={() => void sendChat()} disabled={refining || !chatInput.trim()}>
@@ -584,7 +684,7 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
               <Button variant="ghost" onClick={() => setStep(1)}>
                 <ArrowLeft className="mr-1.5 h-4 w-4" /> Retour
               </Button>
-              <Button onClick={goStep2To3} disabled={logoLoading || moodLoading}>
+              <Button onClick={goStep2To3} disabled={logoLoading}>
                 Valider l'identité <ArrowRight className="ml-1.5 h-4 w-4" />
               </Button>
             </div>

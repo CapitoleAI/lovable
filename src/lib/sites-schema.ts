@@ -48,6 +48,68 @@ export const brandColorsSchema = z.object({
 });
 export type BrandColors = z.infer<typeof brandColorsSchema>;
 
+export const DESIGN_STYLES = [
+  "minimaliste",
+  "corporate",
+  "ludique",
+  "sombre",
+  "elegant",
+  "brutaliste",
+] as const;
+export type DesignStyle = (typeof DESIGN_STYLES)[number];
+
+export const HEADER_STYLES = ["classique", "centre"] as const;
+export type HeaderStyle = (typeof HEADER_STYLES)[number];
+
+export const FOOTER_STYLES = ["simple", "complet"] as const;
+export type FooterStyle = (typeof FOOTER_STYLES)[number];
+
+export const CONTENT_SECTIONS = [
+  "hero_image",
+  "services_grid",
+  "testimonials",
+  "contact_form",
+  "features",
+  "pricing",
+  "faq",
+  "cta_banner",
+  "gallery",
+  "stats",
+] as const;
+export type ContentSection = (typeof CONTENT_SECTIONS)[number];
+
+export const DESIGN_STYLE_LABELS: Record<DesignStyle, string> = {
+  minimaliste: "Minimaliste",
+  corporate: "Corporate",
+  ludique: "Ludique",
+  sombre: "Sombre / Dark mode",
+  elegant: "Élégant",
+  brutaliste: "Brutaliste",
+};
+
+export const HEADER_STYLE_LABELS: Record<HeaderStyle, string> = {
+  classique: "Classique (logo à gauche, menu à droite)",
+  centre: "Centré (logo et menu centrés)",
+};
+
+export const FOOTER_STYLE_LABELS: Record<FooterStyle, string> = {
+  simple: "Simple (une ligne)",
+  complet: "Complet (colonnes et liens)",
+};
+
+export const CONTENT_SECTION_LABELS: Record<ContentSection, string> = {
+  hero_image: "Hero avec image",
+  services_grid: "Grille de services",
+  testimonials: "Témoignages",
+  contact_form: "Formulaire de contact",
+  features: "Bloc fonctionnalités",
+  pricing: "Tarifs",
+  faq: "FAQ",
+  cta_banner: "Bannière CTA",
+  gallery: "Galerie",
+  stats: "Chiffres clés",
+};
+
 export const brandIdentitySchema = z.object({
   brand_name: z.string().trim().min(1).max(120),
   tagline: z.string().trim().max(200).default(""),
@@ -55,6 +117,10 @@ export const brandIdentitySchema = z.object({
   colors: brandColorsSchema,
   logo_url: z.string().trim().max(2_000_000).default(""),
   moodboard_url: z.string().trim().max(2_000_000).default(""),
+  design_style: z.enum(DESIGN_STYLES).default("minimaliste"),
+  header_style: z.enum(HEADER_STYLES).default("classique"),
+  footer_style: z.enum(FOOTER_STYLES).default("simple"),
+  sections: z.array(z.enum(CONTENT_SECTIONS)).default([]),
 });
 export type BrandIdentity = z.infer<typeof brandIdentitySchema>;
 
