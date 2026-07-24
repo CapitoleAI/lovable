@@ -411,7 +411,7 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
         onOpenChange(v);
       }}
     >
-      <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto">
+      <DialogContent className="max-h-[95vh] max-w-[95vw] overflow-y-auto lg:max-w-[1400px]">
         <DialogHeader>
           <DialogTitle>Créer un nouveau site</DialogTitle>
           <DialogDescription>
