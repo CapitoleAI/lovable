@@ -670,7 +670,7 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
                         void sendChat();
                       }
                     }}
-                    placeholder="Ex: rends le logo plus moderne, teintes bleu pastel"
+                    placeholder="Ex: passe en mode sombre et ajoute une section témoignages"
                     disabled={refining}
                   />
                   <Button size="icon" onClick={() => void sendChat()} disabled={refining || !chatInput.trim()}>
