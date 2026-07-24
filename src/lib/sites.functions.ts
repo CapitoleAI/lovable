@@ -97,7 +97,17 @@ async function loadAdmin() {
 
 type SiteData = {
   pages: PageContent[];
+  site_info?: {
+    brand_name?: string;
+    tagline?: string;
+    story?: string;
+    colors?: BrandIdentity["colors"];
+    logo_url?: string;
+    moodboard_url?: string;
+  };
 };
+
+
 
 async function callAiJson<T>(system: string, user: string, fallback: T): Promise<T> {
   const apiKey = process.env.LOVABLE_API_KEY;
