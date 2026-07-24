@@ -439,6 +439,12 @@ export const refineBrandIdentity = createServerFn({ method: "POST" })
       header_style: ensureIn(HEADER_STYLES, parsed.header_style, data.brand.header_style),
       footer_style: ensureIn(FOOTER_STYLES, parsed.footer_style, data.brand.footer_style),
       sections: ensureSections(parsed.sections, data.brand.sections),
+      selected_header_id: data.brand.selected_header_id,
+      selected_hero_id: data.brand.selected_hero_id,
+      selected_section_ids: data.brand.selected_section_ids,
+      selected_footer_id: data.brand.selected_footer_id,
+      component_overrides: data.brand.component_overrides,
+      home_html: data.brand.home_html,
     };
     return {
       brand: updated,
@@ -447,6 +453,7 @@ export const refineBrandIdentity = createServerFn({ method: "POST" })
       note: (parsed.note ?? "").trim(),
     };
   });
+
 
 
 
