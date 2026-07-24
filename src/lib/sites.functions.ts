@@ -277,56 +277,13 @@ const DEFAULT_COLORS: BrandIdentity["colors"] = {
   background: "#ffffff",
 };
 
-async function hfGenerateImage(prompt: string): Promise<string> {
-  const key = process.env.HUGGINGFACE_API_KEY;
-  if (!key) throw new Error("HUGGINGFACE_API_KEY manquant");
-  // Nouveau routeur "Inference Providers" (l'ancien api-inference.huggingface.co
-  // pour FLUX renvoie fetch failed / 404 depuis 2025).
-  const endpoints = [
-    "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell",
-    "https://router.huggingface.co/fal-ai/fal-ai/flux/schnell",
-  ];
-  let lastErr = "";
-  for (const url of endpoints) {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      let res: Response;
-      try {
-        res = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${key}`,
-            "Content-Type": "application/json",
-            Accept: "image/png",
-          },
-          body: JSON.stringify({
-            inputs: prompt,
-            parameters: { num_inference_steps: 4, width: 1024, height: 1024 },
-            options: { wait_for_model: true },
-          }),
-        });
-      } catch (e) {
-        lastErr = `network: ${(e as Error).message}`;
-        break; // essayer l'endpoint suivant
-      }
-      const ct = res.headers.get("content-type") ?? "";
-      if (res.ok && ct.startsWith("image/")) {
-        const buf = new Uint8Array(await res.arrayBuffer());
-        let bin = "";
-        for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
-        const b64 = btoa(bin);
-        return `data:${ct};base64,${b64}`;
-      }
-      if (res.status === 503) {
-        await new Promise((r) => setTimeout(r, 4000));
-        continue;
-      }
-      const body = await res.text().catch(() => "");
-      lastErr = `HF ${res.status} @ ${url}: ${body.slice(0, 200)}`;
-      break; // essayer l'endpoint suivant
-    }
-  }
-  throw new Error(`Hugging Face indisponible — ${lastErr || "aucun endpoint n'a répondu"}`);
+function pollinationsImageUrl(prompt: string, size = 800): string {
+  // Génération d'images gratuite via Pollinations.ai — aucune clé API requise.
+  // Le prompt doit déjà être optimisé en anglais par l'IA en amont.
+  const encoded = encodeURIComponent(prompt.trim().slice(0, 1500));
+  return `https://image.pollinations.ai/prompt/${encoded}?width=${size}&height=${size}&nologo=true`;
 }
+
 
 
 const generateBrandSchema = z.object({
@@ -384,7 +341,7 @@ export const generateBrandImage = createServerFn({ method: "POST" })
   .inputValidator((input) => generateImageSchema.parse(input))
   .handler(async ({ data }) => {
     await requireUser();
-    const data_url = await hfGenerateImage(data.prompt);
+    const data_url = pollinationsImageUrl(data.prompt);
     return { data_url };
   });
 
