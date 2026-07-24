@@ -371,10 +371,17 @@ export const generateBrandIdentity = createServerFn({ method: "POST" })
         header_style,
         footer_style,
         sections,
+        selected_header_id: "",
+        selected_hero_id: "",
+        selected_section_ids: [],
+        selected_footer_id: "",
+        component_overrides: {},
+        home_html: "",
       } satisfies BrandIdentity,
       logo_prompt,
     };
   });
+
 
 const generateImageSchema = z.object({
   prompt: z.string().trim().min(1).max(1200),
