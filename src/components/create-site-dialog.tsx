@@ -222,10 +222,6 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
         setLogoPrompt(res.logo_prompt);
         void runLogo(res.logo_prompt, res.brand);
       }
-      if (res.regenerate_moodboard && res.moodboard_prompt) {
-        setMoodPrompt(res.moodboard_prompt);
-        void runMood(res.moodboard_prompt, res.brand);
-      }
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
