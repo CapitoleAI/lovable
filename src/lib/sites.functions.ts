@@ -366,7 +366,7 @@ export const refineBrandIdentity = createServerFn({ method: "POST" })
       moodboard_prompt?: string;
       note?: string;
     }>(
-      "Tu es un directeur artistique qui ajuste une identité de marque existante d'après une demande utilisateur. Renvoie l'identité MISE À JOUR complète (conserve les valeurs actuelles si non concernées) et indique si le logo et/ou le moodboard doivent être régénérés, avec un nouveau prompt (anglais, visuel). Réponds UNIQUEMENT en JSON strict {\"brand_name\": string, \"tagline\": string, \"story\": string, \"colors\": {\"primary\": string, \"secondary\": string, \"accent\": string, \"neutral\": string, \"background\": string}, \"regenerate_logo\": boolean, \"regenerate_moodboard\": boolean, \"logo_prompt\": string, \"moodboard_prompt\": string, \"note\": string}.",
+      "Tu es un directeur artistique qui ajuste une identité de marque existante d'après une demande utilisateur. Renvoie l'identité MISE À JOUR complète (conserve les valeurs actuelles si non concernées) et indique si le logo et/ou le moodboard doivent être régénérés, avec un nouveau prompt EN ANGLAIS, TRÈS CONCIS (MAX 30 MOTS, uniquement mots-clés visuels séparés par des virgules). Réponds UNIQUEMENT en JSON strict {\"brand_name\": string, \"tagline\": string, \"story\": string, \"colors\": {\"primary\": string, \"secondary\": string, \"accent\": string, \"neutral\": string, \"background\": string}, \"regenerate_logo\": boolean, \"regenerate_moodboard\": boolean, \"logo_prompt\": string, \"moodboard_prompt\": string, \"note\": string}.",
       `Identité actuelle: ${JSON.stringify({ ...data.brand, logo_url: undefined, moodboard_url: undefined })}\n\nDemande utilisateur: ${data.message}`,
       {},
     );
