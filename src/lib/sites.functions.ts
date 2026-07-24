@@ -280,39 +280,54 @@ const DEFAULT_COLORS: BrandIdentity["colors"] = {
 async function hfGenerateImage(prompt: string): Promise<string> {
   const key = process.env.HUGGINGFACE_API_KEY;
   if (!key) throw new Error("HUGGINGFACE_API_KEY manquant");
-  const url = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell";
-  // Cold start retry
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-        Accept: "image/png",
-      },
-      body: JSON.stringify({
-        inputs: prompt,
-        parameters: { num_inference_steps: 4, width: 1024, height: 1024 },
-        options: { wait_for_model: true },
-      }),
-    });
-    const ct = res.headers.get("content-type") ?? "";
-    if (res.ok && ct.startsWith("image/")) {
-      const buf = new Uint8Array(await res.arrayBuffer());
-      let bin = "";
-      for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
-      const b64 = btoa(bin);
-      return `data:${ct};base64,${b64}`;
+  // Nouveau routeur "Inference Providers" (l'ancien api-inference.huggingface.co
+  // pour FLUX renvoie fetch failed / 404 depuis 2025).
+  const endpoints = [
+    "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell",
+    "https://router.huggingface.co/fal-ai/fal-ai/flux/schnell",
+  ];
+  let lastErr = "";
+  for (const url of endpoints) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${key}`,
+            "Content-Type": "application/json",
+            Accept: "image/png",
+          },
+          body: JSON.stringify({
+            inputs: prompt,
+            parameters: { num_inference_steps: 4, width: 1024, height: 1024 },
+            options: { wait_for_model: true },
+          }),
+        });
+      } catch (e) {
+        lastErr = `network: ${(e as Error).message}`;
+        break; // essayer l'endpoint suivant
+      }
+      const ct = res.headers.get("content-type") ?? "";
+      if (res.ok && ct.startsWith("image/")) {
+        const buf = new Uint8Array(await res.arrayBuffer());
+        let bin = "";
+        for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+        const b64 = btoa(bin);
+        return `data:${ct};base64,${b64}`;
+      }
+      if (res.status === 503) {
+        await new Promise((r) => setTimeout(r, 4000));
+        continue;
+      }
+      const body = await res.text().catch(() => "");
+      lastErr = `HF ${res.status} @ ${url}: ${body.slice(0, 200)}`;
+      break; // essayer l'endpoint suivant
     }
-    if (res.status === 503) {
-      await new Promise((r) => setTimeout(r, 4000));
-      continue;
-    }
-    const body = await res.text().catch(() => "");
-    throw new Error(`Hugging Face ${res.status}: ${body.slice(0, 200)}`);
   }
-  throw new Error("Hugging Face indisponible (timeout modèle)");
+  throw new Error(`Hugging Face indisponible — ${lastErr || "aucun endpoint n'a répondu"}`);
 }
+
 
 const generateBrandSchema = z.object({
   brief: z.string().trim().min(1).max(4000),
