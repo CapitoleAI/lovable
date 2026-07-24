@@ -39,6 +39,25 @@ export const pageContentSchema = z.object({
 });
 export type PageContent = z.infer<typeof pageContentSchema>;
 
+export const brandColorsSchema = z.object({
+  primary: z.string().trim().regex(/^#([0-9a-fA-F]{6})$/),
+  secondary: z.string().trim().regex(/^#([0-9a-fA-F]{6})$/),
+  accent: z.string().trim().regex(/^#([0-9a-fA-F]{6})$/),
+  neutral: z.string().trim().regex(/^#([0-9a-fA-F]{6})$/),
+  background: z.string().trim().regex(/^#([0-9a-fA-F]{6})$/),
+});
+export type BrandColors = z.infer<typeof brandColorsSchema>;
+
+export const brandIdentitySchema = z.object({
+  brand_name: z.string().trim().min(1).max(120),
+  tagline: z.string().trim().max(200).default(""),
+  story: z.string().trim().max(4000).default(""),
+  colors: brandColorsSchema,
+  logo_url: z.string().trim().max(2_000_000).default(""),
+  moodboard_url: z.string().trim().max(2_000_000).default(""),
+});
+export type BrandIdentity = z.infer<typeof brandIdentitySchema>;
+
 export const createSiteSchema = z.object({
   name: z.string().trim().min(1).max(120),
   theme: z.string().trim().min(1).max(200),
@@ -47,6 +66,7 @@ export const createSiteSchema = z.object({
   secondary_keywords: z.array(z.string().trim().min(1).max(80)).max(30),
   sitemap: z.array(sitemapPageSchema).min(1).max(30),
   pages: z.array(pageContentSchema).min(1).max(60).optional(),
+  brand: brandIdentitySchema.optional(),
   // Optional / defaults
   domain: z.string().trim().max(253).optional().default(""),
   business_name: z.string().trim().max(200).optional().default(""),
@@ -72,7 +92,9 @@ export const generatePageSchema = z.object({
     slug: z.string().trim().min(1).max(120),
   }),
   sitemap: z.array(sitemapPageSchema).min(1).max(30),
+  brand: brandIdentitySchema.optional(),
 });
+
 
 export type CreateSiteInput = z.input<typeof createSiteSchema>;
 export type CreateSiteParsed = z.output<typeof createSiteSchema>;
