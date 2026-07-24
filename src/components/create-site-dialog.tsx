@@ -523,22 +523,116 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div>
                 <ImageCard
                   title="Logo"
                   url={brand.logo_url}
                   loading={logoLoading}
                   onRegen={() => runLogo(logoPrompt, brand)}
                 />
-                <ImageCard
-                  title="Moodboard"
-                  url={brand.moodboard_url}
-                  loading={moodLoading}
-                  onRegen={() => runMood(moodPrompt, brand)}
-                  loadDelayMs={3000}
-                />
+              </div>
+
+              <div>
+                <div className="mb-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Style général du site
+                </div>
+                <Select
+                  value={brand.design_style}
+                  onValueChange={(v) => setBrand({ ...brand, design_style: v as DesignStyle })}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DESIGN_STYLES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {DESIGN_STYLE_LABELS[s]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <div className="mb-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Header
+                  </div>
+                  <Select
+                    value={brand.header_style}
+                    onValueChange={(v) => setBrand({ ...brand, header_style: v as HeaderStyle })}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {HEADER_STYLES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {HEADER_STYLE_LABELS[s]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <div className="mb-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Footer
+                  </div>
+                  <Select
+                    value={brand.footer_style}
+                    onValueChange={(v) => setBrand({ ...brand, footer_style: v as FooterStyle })}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FOOTER_STYLES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {FOOTER_STYLE_LABELS[s]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Sections de contenu à intégrer
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {CONTENT_SECTIONS.map((s) => {
+                    const checked = brand.sections.includes(s);
+                    return (
+                      <label
+                        key={s}
+                        className={
+                          "flex cursor-pointer items-center gap-2 rounded-md border p-2 text-xs transition-colors " +
+                          (checked
+                            ? "border-primary bg-primary/5"
+                            : "border-border bg-background hover:bg-accent")
+                        }
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(v) => {
+                            const on = v === true;
+                            setBrand({
+                              ...brand,
+                              sections: on
+                                ? Array.from(new Set([...brand.sections, s])) as ContentSection[]
+                                : brand.sections.filter((x) => x !== s),
+                            });
+                          }}
+                        />
+                        <span>{CONTENT_SECTION_LABELS[s]}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
             </div>
+
 
             {/* Right — chat */}
             <div className="flex min-h-[520px] flex-col rounded-lg border border-border bg-card">
