@@ -872,13 +872,13 @@ function ImageCard({
                 </span>
               </div>
             )}
-            {hasUrl && (
+            {hasUrl && mounted && (
               <img
                 key={src}
                 src={src}
                 alt={title}
                 onLoad={() => setImgLoaded(true)}
-                onError={() => setImgError(true)}
+                onError={handleError}
                 className={
                   "h-full w-full object-cover transition-opacity duration-300 " +
                   (imgLoaded ? "opacity-100" : "opacity-0")
