@@ -790,6 +790,31 @@ function ImageCard({
   loading: boolean;
   onRegen: () => void;
 }) {
+  const hasUrl = typeof url === "string" && url.length > 0;
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  const [nonce, setNonce] = useState(0);
+
+  // Réinitialise l'état quand l'URL change (nouvelle génération)
+  useEffect(() => {
+    setImgLoaded(false);
+    setImgError(false);
+  }, [url]);
+
+  const busy = loading || (hasUrl && !imgLoaded && !imgError);
+  const src = hasUrl ? (nonce ? `${url}${url.includes("?") ? "&" : "?"}r=${nonce}` : url) : "";
+
+  function handleRegen() {
+    setImgLoaded(false);
+    setImgError(false);
+    if (hasUrl && !loading) {
+      // Retry local en ajoutant un nonce, sans re-solliciter le serveur
+      setNonce((n) => n + 1);
+    } else {
+      onRegen();
+    }
+  }
+
   return (
     <div className="overflow-hidden rounded-md border border-border">
       <div className="flex items-center justify-between border-b border-border px-2 py-1">
@@ -804,14 +829,40 @@ function ImageCard({
           <RefreshCw className={"h-3 w-3 " + (loading ? "animate-spin" : "")} />
         </button>
       </div>
-      <div className="flex aspect-square w-full items-center justify-center bg-muted">
-        {loading && !url ? (
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        ) : url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={url} alt={title} className="h-full w-full object-cover" />
-        ) : (
+      <div className="relative flex aspect-square w-full items-center justify-center bg-muted">
+        {imgError ? (
+          <div className="flex flex-col items-center gap-2 p-3 text-center">
+            <span className="text-xs text-muted-foreground">Échec du chargement</span>
+            <Button size="sm" variant="outline" onClick={handleRegen}>
+              <RefreshCw className="mr-1.5 h-3 w-3" /> Régénérer l'image
+            </Button>
+          </div>
+        ) : !hasUrl && !loading ? (
           <span className="text-xs text-muted-foreground">—</span>
+        ) : (
+          <>
+            {busy && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted animate-pulse">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <span className="px-3 text-center text-[11px] leading-tight text-muted-foreground">
+                  Génération de l'image en cours…<br />(cela peut prendre 15s)
+                </span>
+              </div>
+            )}
+            {hasUrl && (
+              <img
+                key={src}
+                src={src}
+                alt={title}
+                onLoad={() => setImgLoaded(true)}
+                onError={() => setImgError(true)}
+                className={
+                  "h-full w-full object-cover transition-opacity duration-300 " +
+                  (imgLoaded ? "opacity-100" : "opacity-0")
+                }
+              />
+            )}
+          </>
         )}
       </div>
     </div>
