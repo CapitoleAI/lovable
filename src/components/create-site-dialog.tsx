@@ -26,6 +26,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   createSite,
   generateBrandIdentity,
@@ -35,7 +43,23 @@ import {
   suggestKeywords,
   suggestSitemap,
 } from "@/lib/sites.functions";
-import type { BrandIdentity, PageContent, SitemapPage } from "@/lib/sites-schema";
+import {
+  CONTENT_SECTIONS,
+  CONTENT_SECTION_LABELS,
+  DESIGN_STYLES,
+  DESIGN_STYLE_LABELS,
+  FOOTER_STYLES,
+  FOOTER_STYLE_LABELS,
+  HEADER_STYLES,
+  HEADER_STYLE_LABELS,
+  type BrandIdentity,
+  type ContentSection,
+  type DesignStyle,
+  type FooterStyle,
+  type HeaderStyle,
+  type PageContent,
+  type SitemapPage,
+} from "@/lib/sites-schema";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -60,6 +84,7 @@ const DEFAULT_COLORS: BrandIdentity["colors"] = {
   neutral: "#e2e8f0",
   background: "#ffffff",
 };
+
 
 type ChatMsg = { role: "user" | "assistant"; text: string };
 
