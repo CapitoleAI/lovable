@@ -493,202 +493,23 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
         )}
 
         {step === 2 && brand && (
-          <div className="grid gap-4 pt-2 md:grid-cols-2">
-            {/* Left — result */}
-            <div className="space-y-4 rounded-lg border border-border bg-card p-4">
-              <div>
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Nom proposé</div>
-                <Input
-                  value={brand.brand_name}
-                  onChange={(e) => setBrand({ ...brand, brand_name: e.target.value })}
-                  className="mt-1 text-lg font-semibold"
-                />
-                <Input
-                  value={brand.tagline}
-                  onChange={(e) => setBrand({ ...brand, tagline: e.target.value })}
-                  className="mt-2 text-sm"
-                  placeholder="Tagline"
-                />
-              </div>
-              <div>
-                <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground">Palette</div>
-                <div className="grid grid-cols-5 gap-2">
-                  {(Object.keys(brand.colors) as (keyof BrandIdentity["colors"])[]).map((k) => (
-                    <div key={k} className="rounded-md border border-border p-2">
-                      <div className="h-10 w-full rounded" style={{ background: brand.colors[k] }} />
-                      <div className="mt-1 text-[10px] capitalize text-muted-foreground">{k}</div>
-                      <div className="font-mono text-[10px]">{brand.colors[k]}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <ImageCard
-                  title="Logo"
-                  url={brand.logo_url}
-                  loading={logoLoading}
-                  onRegen={() => runLogo(logoPrompt, brand)}
-                />
-              </div>
-
-              <div>
-                <div className="mb-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Style général du site
-                </div>
-                <Select
-                  value={brand.design_style}
-                  onValueChange={(v) => setBrand({ ...brand, design_style: v as DesignStyle })}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DESIGN_STYLES.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {DESIGN_STYLE_LABELS[s]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <div className="mb-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Header
-                  </div>
-                  <Select
-                    value={brand.header_style}
-                    onValueChange={(v) => setBrand({ ...brand, header_style: v as HeaderStyle })}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {HEADER_STYLES.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {HEADER_STYLE_LABELS[s]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <div className="mb-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Footer
-                  </div>
-                  <Select
-                    value={brand.footer_style}
-                    onValueChange={(v) => setBrand({ ...brand, footer_style: v as FooterStyle })}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {FOOTER_STYLES.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {FOOTER_STYLE_LABELS[s]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div>
-                <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Sections de contenu à intégrer
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {CONTENT_SECTIONS.map((s) => {
-                    const checked = brand.sections.includes(s);
-                    return (
-                      <label
-                        key={s}
-                        className={
-                          "flex cursor-pointer items-center gap-2 rounded-md border p-2 text-xs transition-colors " +
-                          (checked
-                            ? "border-primary bg-primary/5"
-                            : "border-border bg-background hover:bg-accent")
-                        }
-                      >
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={(v) => {
-                            const on = v === true;
-                            setBrand({
-                              ...brand,
-                              sections: on
-                                ? Array.from(new Set([...brand.sections, s])) as ContentSection[]
-                                : brand.sections.filter((x) => x !== s),
-                            });
-                          }}
-                        />
-                        <span>{CONTENT_SECTION_LABELS[s]}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-
-            {/* Right — chat */}
-            <div className="flex min-h-[520px] flex-col rounded-lg border border-border bg-card">
-              <div className="border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Chat direction artistique
-              </div>
-              <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
-                {chat.map((m, i) => (
-                  <div
-                    key={i}
-                    className={
-                      "max-w-[85%] rounded-lg px-3 py-2 " +
-                      (m.role === "user"
-                        ? "ml-auto bg-primary text-primary-foreground"
-                        : "bg-muted text-foreground")
-                    }
-                  >
-                    {m.text}
-                  </div>
-                ))}
-                {refining && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Loader2 className="h-3 w-3 animate-spin" /> L'IA ajuste…
-                  </div>
-                )}
-              </div>
-              <div className="border-t border-border p-2">
-                <div className="flex gap-2">
-                  <Input
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        void sendChat();
-                      }
-                    }}
-                    placeholder="Ex: passe en mode sombre et ajoute une section témoignages"
-                    disabled={refining}
-                  />
-                  <Button size="icon" onClick={() => void sendChat()} disabled={refining || !chatInput.trim()}>
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between md:col-span-2">
-              <Button variant="ghost" onClick={() => setStep(1)}>
-                <ArrowLeft className="mr-1.5 h-4 w-4" /> Retour
-              </Button>
-              <Button onClick={goStep2To3} disabled={logoLoading}>
-                Valider l'identité <ArrowRight className="ml-1.5 h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+          <ThemeBuilder
+            brand={brand}
+            setBrand={setBrand}
+            logoLoading={logoLoading}
+            logoPrompt={logoPrompt}
+            onRegenLogo={() => runLogo(logoPrompt, brand)}
+            chat={chat}
+            setChat={setChat}
+            chatInput={chatInput}
+            setChatInput={setChatInput}
+            refining={refining}
+            sendChat={sendChat}
+            onBack={() => setStep(1)}
+            onNext={goStep2To3}
+          />
         )}
+
 
         {step === 3 && (
           <div className="space-y-5 pt-2">
