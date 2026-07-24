@@ -102,9 +102,7 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
   // Step 2 — Brand
   const [brand, setBrand] = useState<BrandIdentity | null>(null);
   const [logoPrompt, setLogoPrompt] = useState("");
-  const [moodPrompt, setMoodPrompt] = useState("");
   const [logoLoading, setLogoLoading] = useState(false);
-  const [moodLoading, setMoodLoading] = useState(false);
   const [chat, setChat] = useState<ChatMsg[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [refining, setRefining] = useState(false);
@@ -150,17 +148,14 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
     onSuccess: async (res) => {
       setBrand(res.brand);
       setLogoPrompt(res.logo_prompt);
-      setMoodPrompt(res.moodboard_prompt);
       setChat([
         {
           role: "assistant",
-          text: `Voici une première proposition pour "${res.brand.brand_name}". Demandez-moi des ajustements (couleurs, style du logo, ton…).`,
+          text: `Voici une première proposition pour "${res.brand.brand_name}". Demandez-moi des ajustements (style, couleurs, sections, logo…).`,
         },
       ]);
       setStep(2);
-      // Kick off images in parallel
       void runLogo(res.logo_prompt, res.brand);
-      void runMood(res.moodboard_prompt, res.brand);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -169,24 +164,14 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
     setLogoLoading(true);
     try {
       const { data_url } = await genImage({ data: { prompt } });
-      setBrand({ ...current, logo_url: data_url });
+      setBrand((prev) => ({ ...(prev ?? current), logo_url: data_url }));
     } catch (e) {
       toast.error(`Logo: ${(e as Error).message}`);
     } finally {
       setLogoLoading(false);
     }
   }
-  async function runMood(prompt: string, current: BrandIdentity) {
-    setMoodLoading(true);
-    try {
-      const { data_url } = await genImage({ data: { prompt } });
-      setBrand((prev) => ({ ...(prev ?? current), moodboard_url: data_url }));
-    } catch (e) {
-      toast.error(`Moodboard: ${(e as Error).message}`);
-    } finally {
-      setMoodLoading(false);
-    }
-  }
+
 
   const kwMutation = useMutation({
     mutationFn: async () =>
