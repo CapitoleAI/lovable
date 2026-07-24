@@ -15,6 +15,8 @@ import {
   type PaletteId,
   type SitemapPage,
 } from "./sites-schema";
+import { assembleHomeHtml, renderComponent } from "./theme-components";
+
 
 
 
