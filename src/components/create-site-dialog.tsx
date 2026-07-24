@@ -40,26 +40,25 @@ import {
   generateBrandImage,
   generatePageContent,
   refineBrandIdentity,
+  refineComponent,
   suggestKeywords,
   suggestSitemap,
 } from "@/lib/sites.functions";
 import {
-  CONTENT_SECTIONS,
-  CONTENT_SECTION_LABELS,
-  DESIGN_STYLES,
-  DESIGN_STYLE_LABELS,
-  FOOTER_STYLES,
-  FOOTER_STYLE_LABELS,
-  HEADER_STYLES,
-  HEADER_STYLE_LABELS,
   type BrandIdentity,
-  type ContentSection,
-  type DesignStyle,
-  type FooterStyle,
-  type HeaderStyle,
   type PageContent,
   type SitemapPage,
 } from "@/lib/sites-schema";
+import {
+  THEME_COMPONENTS,
+  componentsByCategory,
+  renderComponent,
+  wrapPreviewDoc,
+  type ThemeCategory,
+  type ThemeComponent,
+  type BrandCtx,
+} from "@/lib/theme-components";
+
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
