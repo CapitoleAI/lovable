@@ -277,10 +277,11 @@ const DEFAULT_COLORS: BrandIdentity["colors"] = {
   background: "#ffffff",
 };
 
-function pollinationsImageUrl(prompt: string, size = 800): string {
+function pollinationsImageUrl(prompt: string, size = 512): string {
   // Génération d'images gratuite via Pollinations.ai — aucune clé API requise.
-  // Le prompt doit déjà être optimisé en anglais par l'IA en amont.
-  const encoded = encodeURIComponent(prompt.trim().slice(0, 1500));
+  // Le prompt doit déjà être optimisé en anglais (≤30 mots) par l'IA en amont.
+  const words = prompt.trim().split(/\s+/).slice(0, 30).join(" ");
+  const encoded = encodeURIComponent(words.slice(0, 400));
   return `https://image.pollinations.ai/prompt/${encoded}?width=${size}&height=${size}&nologo=true`;
 }
 
@@ -306,7 +307,7 @@ export const generateBrandIdentity = createServerFn({ method: "POST" })
       logo_prompt?: string;
       moodboard_prompt?: string;
     }>(
-      "Tu es un directeur artistique. À partir d'un brief, propose une identité de marque cohérente et distinctive. Choisis 5 couleurs en hex (#RRGGBB) — primary, secondary, accent, neutral, background — qui fonctionnent ensemble. Écris un prompt d'image (en anglais, très visuel, style + composition) pour un LOGO minimaliste vectoriel sur fond blanc et un prompt pour un MOODBOARD photographique. Respecte les suggestions de teintes si fournies. Réponds UNIQUEMENT en JSON strict {\"brand_name\": string, \"tagline\": string, \"story\": string, \"colors\": {\"primary\": string, \"secondary\": string, \"accent\": string, \"neutral\": string, \"background\": string}, \"logo_prompt\": string, \"moodboard_prompt\": string}.",
+      "Tu es un directeur artistique. À partir d'un brief, propose une identité de marque cohérente et distinctive. Choisis 5 couleurs en hex (#RRGGBB) — primary, secondary, accent, neutral, background — qui fonctionnent ensemble. Écris deux prompts d'image EN ANGLAIS, TRÈS CONCIS (MAX 30 MOTS CHACUN, pas de phrases longues, uniquement mots-clés visuels séparés par des virgules) : un LOGO minimaliste vectoriel sur fond blanc et un MOODBOARD photographique. Respecte les suggestions de teintes si fournies. Réponds UNIQUEMENT en JSON strict {\"brand_name\": string, \"tagline\": string, \"story\": string, \"colors\": {\"primary\": string, \"secondary\": string, \"accent\": string, \"neutral\": string, \"background\": string}, \"logo_prompt\": string, \"moodboard_prompt\": string}.",
       `Brief: ${data.brief}\nEntreprise: ${data.business_name}\nThématique: ${data.theme}\nVille: ${data.city}\nSuggestions couleurs: ${data.hint_colors.join(", ") || "aucune"}`,
       {},
     );
@@ -365,7 +366,7 @@ export const refineBrandIdentity = createServerFn({ method: "POST" })
       moodboard_prompt?: string;
       note?: string;
     }>(
-      "Tu es un directeur artistique qui ajuste une identité de marque existante d'après une demande utilisateur. Renvoie l'identité MISE À JOUR complète (conserve les valeurs actuelles si non concernées) et indique si le logo et/ou le moodboard doivent être régénérés, avec un nouveau prompt (anglais, visuel). Réponds UNIQUEMENT en JSON strict {\"brand_name\": string, \"tagline\": string, \"story\": string, \"colors\": {\"primary\": string, \"secondary\": string, \"accent\": string, \"neutral\": string, \"background\": string}, \"regenerate_logo\": boolean, \"regenerate_moodboard\": boolean, \"logo_prompt\": string, \"moodboard_prompt\": string, \"note\": string}.",
+      "Tu es un directeur artistique qui ajuste une identité de marque existante d'après une demande utilisateur. Renvoie l'identité MISE À JOUR complète (conserve les valeurs actuelles si non concernées) et indique si le logo et/ou le moodboard doivent être régénérés, avec un nouveau prompt EN ANGLAIS, TRÈS CONCIS (MAX 30 MOTS, uniquement mots-clés visuels séparés par des virgules). Réponds UNIQUEMENT en JSON strict {\"brand_name\": string, \"tagline\": string, \"story\": string, \"colors\": {\"primary\": string, \"secondary\": string, \"accent\": string, \"neutral\": string, \"background\": string}, \"regenerate_logo\": boolean, \"regenerate_moodboard\": boolean, \"logo_prompt\": string, \"moodboard_prompt\": string, \"note\": string}.",
       `Identité actuelle: ${JSON.stringify({ ...data.brand, logo_url: undefined, moodboard_url: undefined })}\n\nDemande utilisateur: ${data.message}`,
       {},
     );
