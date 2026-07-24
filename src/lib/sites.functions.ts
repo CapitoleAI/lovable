@@ -454,6 +454,30 @@ export const refineBrandIdentity = createServerFn({ method: "POST" })
     };
   });
 
+// ---------- Theme Builder — modification d'un composant via chat IA ----------
+
+const refineComponentSchema = z.object({
+  component_id: z.string().trim().min(1).max(80),
+  current_html: z.string().min(1).max(200_000),
+  message: z.string().trim().min(1).max(2000),
+});
+
+export const refineComponent = createServerFn({ method: "POST" })
+  .inputValidator((input) => refineComponentSchema.parse(input))
+  .handler(async ({ data }) => {
+    await requireUser();
+    const parsed = await callAiJson<{ html?: string; note?: string }>(
+      "Tu es un développeur frontend expert Tailwind CSS. On te fournit le HTML d'UN composant de site vitrine et une demande de modification. Renvoie UNIQUEMENT le HTML complet et modifié de ce composant (uniquement des classes Tailwind pour la mise en page, couleurs via style=\"...\" hex ou classes bg-[#hex]/text-[#hex]). Garde la structure sémantique et la responsivité. Réponds STRICTEMENT en JSON {\"html\": string, \"note\": string (1 phrase)}.",
+      `Demande: ${data.message}\n\nHTML actuel du composant (id=${data.component_id}):\n${data.current_html}`,
+      {},
+    );
+    const html = (parsed.html ?? "").trim();
+    if (!html) throw new Error("L'IA n'a pas retourné de HTML valide");
+    return { html, note: (parsed.note ?? "").trim() || "Composant mis à jour." };
+  });
+
+
+
 
 
 
