@@ -335,7 +335,7 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
     setNewHint("#");
     setBrand(null);
     setLogoPrompt("");
-    setMoodPrompt("");
+    
     setChat([]);
     setChatInput("");
     setMainKeyword("");
