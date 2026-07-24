@@ -121,8 +121,18 @@ export const brandIdentitySchema = z.object({
   header_style: z.enum(HEADER_STYLES).default("classique"),
   footer_style: z.enum(FOOTER_STYLES).default("simple"),
   sections: z.array(z.enum(CONTENT_SECTIONS)).default([]),
+  // ----- Theme Builder (composants visuels sélectionnés) -----
+  selected_header_id: z.string().trim().max(80).default(""),
+  selected_hero_id: z.string().trim().max(80).default(""),
+  selected_section_ids: z.array(z.string().trim().max(80)).max(30).default([]),
+  selected_footer_id: z.string().trim().max(80).default(""),
+  // Overrides HTML par id de composant (modifs faites via chat IA)
+  component_overrides: z.record(z.string(), z.string().max(200_000)).default({}),
+  // HTML final de la home assemblée (ossature exacte)
+  home_html: z.string().max(500_000).default(""),
 });
 export type BrandIdentity = z.infer<typeof brandIdentitySchema>;
+
 
 export const createSiteSchema = z.object({
   name: z.string().trim().min(1).max(120),

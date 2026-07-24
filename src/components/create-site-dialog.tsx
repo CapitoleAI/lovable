@@ -34,32 +34,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+
 import {
   createSite,
   generateBrandIdentity,
   generateBrandImage,
   generatePageContent,
   refineBrandIdentity,
+  refineComponent,
   suggestKeywords,
   suggestSitemap,
 } from "@/lib/sites.functions";
 import {
-  CONTENT_SECTIONS,
-  CONTENT_SECTION_LABELS,
-  DESIGN_STYLES,
-  DESIGN_STYLE_LABELS,
-  FOOTER_STYLES,
-  FOOTER_STYLE_LABELS,
-  HEADER_STYLES,
-  HEADER_STYLE_LABELS,
   type BrandIdentity,
-  type ContentSection,
-  type DesignStyle,
-  type FooterStyle,
-  type HeaderStyle,
   type PageContent,
   type SitemapPage,
 } from "@/lib/sites-schema";
+import {
+  THEME_COMPONENTS,
+  componentsByCategory,
+  renderComponent,
+  wrapPreviewDoc,
+  type ThemeCategory,
+  type ThemeComponent,
+  type BrandCtx,
+} from "@/lib/theme-components";
+
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -412,7 +413,7 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
         onOpenChange(v);
       }}
     >
-      <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto">
+      <DialogContent className="max-h-[95vh] max-w-[95vw] overflow-y-auto lg:max-w-[1400px]">
         <DialogHeader>
           <DialogTitle>Créer un nouveau site</DialogTitle>
           <DialogDescription>
@@ -494,202 +495,23 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
         )}
 
         {step === 2 && brand && (
-          <div className="grid gap-4 pt-2 md:grid-cols-2">
-            {/* Left — result */}
-            <div className="space-y-4 rounded-lg border border-border bg-card p-4">
-              <div>
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Nom proposé</div>
-                <Input
-                  value={brand.brand_name}
-                  onChange={(e) => setBrand({ ...brand, brand_name: e.target.value })}
-                  className="mt-1 text-lg font-semibold"
-                />
-                <Input
-                  value={brand.tagline}
-                  onChange={(e) => setBrand({ ...brand, tagline: e.target.value })}
-                  className="mt-2 text-sm"
-                  placeholder="Tagline"
-                />
-              </div>
-              <div>
-                <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground">Palette</div>
-                <div className="grid grid-cols-5 gap-2">
-                  {(Object.keys(brand.colors) as (keyof BrandIdentity["colors"])[]).map((k) => (
-                    <div key={k} className="rounded-md border border-border p-2">
-                      <div className="h-10 w-full rounded" style={{ background: brand.colors[k] }} />
-                      <div className="mt-1 text-[10px] capitalize text-muted-foreground">{k}</div>
-                      <div className="font-mono text-[10px]">{brand.colors[k]}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <ImageCard
-                  title="Logo"
-                  url={brand.logo_url}
-                  loading={logoLoading}
-                  onRegen={() => runLogo(logoPrompt, brand)}
-                />
-              </div>
-
-              <div>
-                <div className="mb-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Style général du site
-                </div>
-                <Select
-                  value={brand.design_style}
-                  onValueChange={(v) => setBrand({ ...brand, design_style: v as DesignStyle })}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DESIGN_STYLES.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {DESIGN_STYLE_LABELS[s]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <div className="mb-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Header
-                  </div>
-                  <Select
-                    value={brand.header_style}
-                    onValueChange={(v) => setBrand({ ...brand, header_style: v as HeaderStyle })}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {HEADER_STYLES.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {HEADER_STYLE_LABELS[s]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <div className="mb-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Footer
-                  </div>
-                  <Select
-                    value={brand.footer_style}
-                    onValueChange={(v) => setBrand({ ...brand, footer_style: v as FooterStyle })}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {FOOTER_STYLES.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {FOOTER_STYLE_LABELS[s]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div>
-                <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Sections de contenu à intégrer
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {CONTENT_SECTIONS.map((s) => {
-                    const checked = brand.sections.includes(s);
-                    return (
-                      <label
-                        key={s}
-                        className={
-                          "flex cursor-pointer items-center gap-2 rounded-md border p-2 text-xs transition-colors " +
-                          (checked
-                            ? "border-primary bg-primary/5"
-                            : "border-border bg-background hover:bg-accent")
-                        }
-                      >
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={(v) => {
-                            const on = v === true;
-                            setBrand({
-                              ...brand,
-                              sections: on
-                                ? Array.from(new Set([...brand.sections, s])) as ContentSection[]
-                                : brand.sections.filter((x) => x !== s),
-                            });
-                          }}
-                        />
-                        <span>{CONTENT_SECTION_LABELS[s]}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-
-            {/* Right — chat */}
-            <div className="flex min-h-[520px] flex-col rounded-lg border border-border bg-card">
-              <div className="border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Chat direction artistique
-              </div>
-              <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
-                {chat.map((m, i) => (
-                  <div
-                    key={i}
-                    className={
-                      "max-w-[85%] rounded-lg px-3 py-2 " +
-                      (m.role === "user"
-                        ? "ml-auto bg-primary text-primary-foreground"
-                        : "bg-muted text-foreground")
-                    }
-                  >
-                    {m.text}
-                  </div>
-                ))}
-                {refining && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Loader2 className="h-3 w-3 animate-spin" /> L'IA ajuste…
-                  </div>
-                )}
-              </div>
-              <div className="border-t border-border p-2">
-                <div className="flex gap-2">
-                  <Input
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        void sendChat();
-                      }
-                    }}
-                    placeholder="Ex: passe en mode sombre et ajoute une section témoignages"
-                    disabled={refining}
-                  />
-                  <Button size="icon" onClick={() => void sendChat()} disabled={refining || !chatInput.trim()}>
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between md:col-span-2">
-              <Button variant="ghost" onClick={() => setStep(1)}>
-                <ArrowLeft className="mr-1.5 h-4 w-4" /> Retour
-              </Button>
-              <Button onClick={goStep2To3} disabled={logoLoading}>
-                Valider l'identité <ArrowRight className="ml-1.5 h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+          <ThemeBuilder
+            brand={brand}
+            setBrand={setBrand}
+            logoLoading={logoLoading}
+            logoPrompt={logoPrompt}
+            onRegenLogo={() => runLogo(logoPrompt, brand)}
+            chat={chat}
+            setChat={setChat}
+            chatInput={chatInput}
+            setChatInput={setChatInput}
+            refining={refining}
+            sendChat={sendChat}
+            onBack={() => setStep(1)}
+            onNext={goStep2To3}
+          />
         )}
+
 
         {step === 3 && (
           <div className="space-y-5 pt-2">
@@ -1126,3 +948,361 @@ function Field({
     </div>
   );
 }
+
+// ============================================================================
+// Theme Builder — Étape 2 (galerie visuelle de composants Tailwind)
+// ============================================================================
+
+function brandCtx(brand: BrandIdentity): BrandCtx {
+  return {
+    brand_name: brand.brand_name || "Marque",
+    tagline: brand.tagline || "",
+    colors: brand.colors,
+    logo_url: brand.logo_url || "",
+  };
+}
+
+function ComponentPreview({
+  comp,
+  brand,
+  overrideHtml,
+  selected,
+  onSelect,
+  onRefine,
+}: {
+  comp: ThemeComponent;
+  brand: BrandIdentity;
+  overrideHtml?: string;
+  selected: boolean;
+  onSelect: () => void;
+  onRefine: (prompt: string) => Promise<void>;
+}) {
+  const [prompt, setPrompt] = useState("");
+  const [busy, setBusy] = useState(false);
+  const html = overrideHtml ?? comp.render(brandCtx(brand));
+  const doc = wrapPreviewDoc(html, brand.colors.background);
+
+  async function submitRefine() {
+    const p = prompt.trim();
+    if (!p) return;
+    setBusy(true);
+    try {
+      await onRefine(p);
+      setPrompt("");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      className={
+        "group relative overflow-hidden rounded-lg border-2 bg-card transition-all " +
+        (selected ? "border-primary ring-2 ring-primary/40" : "border-border hover:border-primary/50")
+      }
+    >
+      <button
+        type="button"
+        onClick={onSelect}
+        className="block w-full cursor-pointer"
+        title={selected ? "Sélectionné" : "Cliquer pour sélectionner"}
+      >
+        <div className="pointer-events-none relative h-[220px] w-full overflow-hidden bg-white">
+          <iframe
+            title={comp.label}
+            sandbox=""
+            srcDoc={doc}
+            className="pointer-events-none absolute left-0 top-0 origin-top-left border-0"
+            style={{ width: "1280px", height: "800px", transform: "scale(0.32)" }}
+          />
+        </div>
+        {selected && (
+          <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md">
+            <Check className="h-3.5 w-3.5" />
+          </div>
+        )}
+      </button>
+      <div className="flex items-center justify-between border-t border-border bg-muted/40 px-3 py-2">
+        <span className="truncate text-xs font-medium">{comp.label}</span>
+        {overrideHtml && (
+          <Badge variant="outline" className="text-[9px]">
+            IA
+          </Badge>
+        )}
+      </div>
+      <div className="border-t border-border p-2">
+        <div className="flex gap-1.5">
+          <Input
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="Modifier avec l'IA…"
+            className="h-7 text-xs"
+            disabled={busy}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void submitRefine();
+              }
+            }}
+          />
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            disabled={busy || !prompt.trim()}
+            onClick={() => void submitRefine()}
+          >
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ThemeBuilder({
+  brand,
+  setBrand,
+  logoLoading,
+  logoPrompt,
+  onRegenLogo,
+  chat,
+  setChat,
+  chatInput,
+  setChatInput,
+  refining,
+  sendChat,
+  onBack,
+  onNext,
+}: {
+  brand: BrandIdentity;
+  setBrand: (b: BrandIdentity) => void;
+  logoLoading: boolean;
+  logoPrompt: string;
+  onRegenLogo: () => void;
+  chat: { role: "user" | "assistant"; text: string }[];
+  setChat: React.Dispatch<React.SetStateAction<{ role: "user" | "assistant"; text: string }[]>>;
+  chatInput: string;
+  setChatInput: (v: string) => void;
+  refining: boolean;
+  sendChat: () => Promise<void>;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  const refineComp = useServerFn(refineComponent);
+  const overrides = brand.component_overrides ?? {};
+
+  const selectHeader = (id: string) =>
+    setBrand({ ...brand, selected_header_id: brand.selected_header_id === id ? "" : id });
+  const selectHero = (id: string) =>
+    setBrand({ ...brand, selected_hero_id: brand.selected_hero_id === id ? "" : id });
+  const selectFooter = (id: string) =>
+    setBrand({ ...brand, selected_footer_id: brand.selected_footer_id === id ? "" : id });
+  const toggleSection = (id: string) => {
+    const cur = brand.selected_section_ids ?? [];
+    setBrand({
+      ...brand,
+      selected_section_ids: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id],
+    });
+  };
+
+  async function refineOne(comp: ThemeComponent, message: string) {
+    try {
+      const currentHtml = overrides[comp.id] ?? comp.render(brandCtx(brand));
+      const { html } = await refineComp({
+        data: {
+          component_id: comp.id,
+          category: comp.category,
+          current_html: currentHtml,
+          message,
+          brand: brandCtx(brand),
+        },
+      });
+      setBrand({
+        ...brand,
+        component_overrides: { ...overrides, [comp.id]: html },
+      });
+      toast.success("Composant modifié");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  const headers = componentsByCategory("header");
+  const heroes = componentsByCategory("hero");
+  const sections = componentsByCategory("section");
+  const footers = componentsByCategory("footer");
+
+  const selectedCount =
+    (brand.selected_header_id ? 1 : 0) +
+    (brand.selected_hero_id ? 1 : 0) +
+    (brand.selected_section_ids?.length ?? 0) +
+    (brand.selected_footer_id ? 1 : 0);
+
+  return (
+    <div className="grid gap-4 pt-2 lg:grid-cols-[1fr_360px]">
+      {/* LEFT — Gallery */}
+      <div className="space-y-4">
+        {/* Brand summary */}
+        <div className="rounded-lg border border-border bg-card p-3">
+          <div className="flex items-center gap-3">
+            {brand.logo_url ? (
+              <img src={brand.logo_url} alt="" className="h-12 w-12 rounded object-contain" />
+            ) : (
+              <div
+                className="flex h-12 w-12 items-center justify-center rounded font-bold text-white"
+                style={{ background: brand.colors.primary }}
+              >
+                {(brand.brand_name?.[0] ?? "L").toUpperCase()}
+              </div>
+            )}
+            <div className="flex-1">
+              <Input
+                value={brand.brand_name}
+                onChange={(e) => setBrand({ ...brand, brand_name: e.target.value })}
+                className="h-8 text-sm font-semibold"
+              />
+              <Input
+                value={brand.tagline}
+                onChange={(e) => setBrand({ ...brand, tagline: e.target.value })}
+                className="mt-1 h-7 text-xs"
+                placeholder="Tagline"
+              />
+            </div>
+            <div className="flex gap-1">
+              {(Object.keys(brand.colors) as (keyof BrandIdentity["colors"])[]).map((k) => (
+                <div
+                  key={k}
+                  className="h-8 w-8 rounded border border-border"
+                  style={{ background: brand.colors[k] }}
+                  title={`${k}: ${brand.colors[k]}`}
+                />
+              ))}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onRegenLogo}
+              disabled={logoLoading}
+            >
+              {logoLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              <span className="ml-1.5 text-xs">Logo</span>
+            </Button>
+          </div>
+        </div>
+
+        <Tabs defaultValue="header" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="header">
+              Header {brand.selected_header_id && <Check className="ml-1 h-3 w-3" />}
+            </TabsTrigger>
+            <TabsTrigger value="hero">
+              Hero {brand.selected_hero_id && <Check className="ml-1 h-3 w-3" />}
+            </TabsTrigger>
+            <TabsTrigger value="section">
+              Sections ({brand.selected_section_ids?.length ?? 0})
+            </TabsTrigger>
+            <TabsTrigger value="footer">
+              Footer {brand.selected_footer_id && <Check className="ml-1 h-3 w-3" />}
+            </TabsTrigger>
+          </TabsList>
+
+          {[
+            { key: "header", list: headers, onSel: selectHeader, isSel: (id: string) => brand.selected_header_id === id, hint: "Choisis 1 header" },
+            { key: "hero", list: heroes, onSel: selectHero, isSel: (id: string) => brand.selected_hero_id === id, hint: "Choisis 1 hero" },
+            { key: "section", list: sections, onSel: toggleSection, isSel: (id: string) => (brand.selected_section_ids ?? []).includes(id), hint: "Choisis plusieurs sections (dans l'ordre de clic)" },
+            { key: "footer", list: footers, onSel: selectFooter, isSel: (id: string) => brand.selected_footer_id === id, hint: "Choisis 1 footer" },
+          ].map((cat) => (
+            <TabsContent key={cat.key} value={cat.key} className="mt-3">
+              <div className="mb-2 text-xs text-muted-foreground">{cat.hint}</div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {cat.list.map((c) => (
+                  <ComponentPreview
+                    key={c.id}
+                    comp={c}
+                    brand={brand}
+                    overrideHtml={overrides[c.id]}
+                    selected={cat.isSel(c.id)}
+                    onSelect={() => cat.onSel(c.id)}
+                    onRefine={(msg) => refineOne(c, msg)}
+                  />
+                ))}
+              </div>
+            </TabsContent>
+          ))}
+        </Tabs>
+      </div>
+
+      {/* RIGHT — chat + summary */}
+      <div className="flex flex-col gap-3">
+        <div className="rounded-lg border border-border bg-card p-3 text-xs">
+          <div className="mb-1 font-semibold uppercase tracking-wide text-muted-foreground">
+            Sélection ({selectedCount})
+          </div>
+          <div>Header: {brand.selected_header_id || "—"}</div>
+          <div>Hero: {brand.selected_hero_id || "—"}</div>
+          <div>Sections: {(brand.selected_section_ids ?? []).join(", ") || "—"}</div>
+          <div>Footer: {brand.selected_footer_id || "—"}</div>
+        </div>
+        <div className="flex min-h-[440px] flex-1 flex-col rounded-lg border border-border bg-card">
+          <div className="border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Chat direction artistique
+          </div>
+          <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
+            {chat.map((m, i) => (
+              <div
+                key={i}
+                className={
+                  "max-w-[85%] rounded-lg px-3 py-2 " +
+                  (m.role === "user"
+                    ? "ml-auto bg-primary text-primary-foreground"
+                    : "bg-muted text-foreground")
+                }
+              >
+                {m.text}
+              </div>
+            ))}
+            {refining && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" /> L'IA ajuste…
+              </div>
+            )}
+          </div>
+          <div className="border-t border-border p-2">
+            <div className="flex gap-2">
+              <Input
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    void sendChat();
+                  }
+                }}
+                placeholder="Ajuste la marque (couleurs, ton…)"
+                disabled={refining}
+              />
+              <Button size="icon" onClick={() => void sendChat()} disabled={refining || !chatInput.trim()}>
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="mt-1.5 text-[10px] text-muted-foreground">
+              Pour modifier un composant précis, utilise l'input « Modifier avec l'IA » sur la carte.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center justify-between">
+          <Button variant="ghost" onClick={onBack}>
+            <ArrowLeft className="mr-1.5 h-4 w-4" /> Retour
+          </Button>
+          <Button onClick={onNext} disabled={logoLoading || selectedCount === 0}>
+            Valider le thème <ArrowRight className="ml-1.5 h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+

@@ -15,6 +15,8 @@ import {
   type PaletteId,
   type SitemapPage,
 } from "./sites-schema";
+import { assembleHomeHtml, renderComponent } from "./theme-components";
+
 
 
 
@@ -160,11 +162,16 @@ async function generatePageContentServer(input: {
     html_content: fallbackHtml(input.page.title, input.business_name, input.theme, input.city),
   };
   const brandBlock = input.brand
-    ? `\nIdentité de marque à respecter STRICTEMENT (utilise ces couleurs via classes Tailwind arbitraires bg-[#XXXXXX] / text-[#XXXXXX] / border-[#XXXXXX]):\n- Nom: ${input.brand.brand_name}\n- Tagline: ${input.brand.tagline}\n- Couleur primaire: ${input.brand.colors.primary}\n- Couleur secondaire: ${input.brand.colors.secondary}\n- Accent: ${input.brand.colors.accent}\n- Neutre: ${input.brand.colors.neutral}\n- Fond: ${input.brand.colors.background}\n- Histoire/valeurs: ${input.brand.story}\n\nDIRECTIVES DE WEBDESIGN — À APPLIQUER STRICTEMENT:\n- Style global du site: ${input.brand.design_style} (adapte typographie, densité, arrondis, ombres, ton en conséquence)\n- Header: ${input.brand.header_style === "centre" ? "centré (logo + menu centrés)" : "classique (logo à gauche, menu à droite)"}\n- Footer: ${input.brand.footer_style === "complet" ? "complet avec colonnes et liens" : "simple, une ligne"}\n- Sections à intégrer (choisis celles pertinentes pour cette page): ${(input.brand.sections ?? []).join(", ") || "libre"}`
+    ? `\nIdentité de marque à respecter STRICTEMENT (utilise ces couleurs via classes Tailwind arbitraires bg-[#XXXXXX] / text-[#XXXXXX] / border-[#XXXXXX] OU style="background:#XXXXXX;color:#XXXXXX"):\n- Nom: ${input.brand.brand_name}\n- Tagline: ${input.brand.tagline}\n- Couleur primaire: ${input.brand.colors.primary}\n- Couleur secondaire: ${input.brand.colors.secondary}\n- Accent: ${input.brand.colors.accent}\n- Neutre: ${input.brand.colors.neutral}\n- Fond: ${input.brand.colors.background}\n- Histoire/valeurs: ${input.brand.story}\n- Style global: ${input.brand.design_style}`
+    : "";
+  // Ossature Theme Builder — sert de design-system pour toutes les pages
+  const homeOssature = input.brand?.home_html?.trim();
+  const ossatureBlock = homeOssature
+    ? `\n\nDESIGN SYSTEM DE RÉFÉRENCE (ossature exacte de la home, sélectionnée visuellement par l'utilisateur — INSPIRE-TOI STRICTEMENT de ce style, cette typographie, ces composants, ces couleurs et cette structure pour rester COHÉRENT sur cette page):\n\`\`\`html\n${homeOssature.slice(0, 30_000)}\n\`\`\`\nRègles: reprends le même header et le même footer à l'identique en haut/bas de cette nouvelle page. Réutilise le vocabulaire visuel (arrondis, ombres, espacements, style de boutons, palette) des sections ci-dessus.`
     : "";
   const parsed = await callAiJson<{ seo_title?: string; html_content?: string }>(
-    "Tu es un développeur frontend et rédacteur SEO expert. Tu génères UNE page complète d'un site vitrine en français, en HTML + Tailwind CSS. RÈGLES STRICTES: (1) N'inclus JAMAIS <html>, <head>, <body>, <title> — uniquement le contenu intérieur du <body>. (2) Design moderne, aéré, responsive : utilise exclusivement des classes Tailwind CSS pour la mise en page, la typographie, les couleurs, les espacements, les grilles. Si une identité de marque et des directives de webdesign sont fournies, applique-les STRICTEMENT (style global, structure header/footer, sections demandées, couleurs partout via classes arbitraires bg-[#hex] / text-[#hex]). (3) Contenu riche : plusieurs sections avec titres (h1/h2/h3), paragraphes détaillés, listes à puces, cartes, CTA, adaptés à la page demandée. (4) Inclus un header avec la navigation basée sur l'arborescence fournie (les liens pointent vers /slug ou / pour l'accueil = slug 'index'), un hero adapté à la page, plusieurs sections de contenu, et un footer. (5) Contenu orienté SEO local. (6) Réponds UNIQUEMENT en JSON strict {\"seo_title\": string, \"html_content\": string}.",
-    `Entreprise: ${input.business_name}\nThématique: ${input.theme}\nVille: ${input.city}\nMot-clé principal: ${input.main_keyword}\nMots-clés secondaires: ${(input.secondary_keywords ?? []).join(", ")}\nArborescence du site: ${JSON.stringify(navSitemap)}${brandBlock}\n\nPAGE À GÉNÉRER: titre="${input.page.title}", slug="${normalizedSlug}"\n\nRéponds au format JSON.`,
+    "Tu es un développeur frontend et rédacteur SEO expert. Tu génères UNE page complète d'un site vitrine en français, en HTML + Tailwind CSS. RÈGLES STRICTES: (1) N'inclus JAMAIS <html>, <head>, <body>, <title> — uniquement le contenu intérieur du <body>. (2) Design moderne, aéré, responsive : utilise exclusivement des classes Tailwind CSS pour la mise en page, la typographie, les espacements, les grilles ; pour les couleurs utilise style=\"background:#hex;color:#hex\" ou classes bg-[#hex]/text-[#hex]. Si un DESIGN SYSTEM DE RÉFÉRENCE est fourni, respecte-le STRICTEMENT et reprends le header/footer exacts. (3) Contenu riche : plusieurs sections avec titres (h1/h2/h3), paragraphes détaillés, listes, cartes, CTA, adaptés à la page demandée. (4) Inclus un header avec navigation basée sur l'arborescence fournie (liens vers /slug, ou / pour l'accueil = slug 'index'), un hero adapté, plusieurs sections, et un footer. (5) Contenu orienté SEO local. (6) Réponds UNIQUEMENT en JSON strict {\"seo_title\": string, \"html_content\": string}.",
+    `Entreprise: ${input.business_name}\nThématique: ${input.theme}\nVille: ${input.city}\nMot-clé principal: ${input.main_keyword}\nMots-clés secondaires: ${(input.secondary_keywords ?? []).join(", ")}\nArborescence: ${JSON.stringify(navSitemap)}${brandBlock}${ossatureBlock}\n\nPAGE À GÉNÉRER: titre="${input.page.title}", slug="${normalizedSlug}"\n\nRéponds au format JSON.`,
     {},
   );
   const seo_title = parsed.seo_title?.trim();
@@ -172,6 +179,7 @@ async function generatePageContentServer(input: {
   if (!seo_title || !html_content) return fallback;
   return { slug: normalizedSlug, seo_title, html_content };
 }
+
 
 export const generatePageContent = createServerFn({ method: "POST" })
   .inputValidator((input) => generatePageSchema.parse(input))
@@ -371,10 +379,17 @@ export const generateBrandIdentity = createServerFn({ method: "POST" })
         header_style,
         footer_style,
         sections,
+        selected_header_id: "",
+        selected_hero_id: "",
+        selected_section_ids: [],
+        selected_footer_id: "",
+        component_overrides: {},
+        home_html: "",
       } satisfies BrandIdentity,
       logo_prompt,
     };
   });
+
 
 const generateImageSchema = z.object({
   prompt: z.string().trim().min(1).max(1200),
@@ -432,6 +447,12 @@ export const refineBrandIdentity = createServerFn({ method: "POST" })
       header_style: ensureIn(HEADER_STYLES, parsed.header_style, data.brand.header_style),
       footer_style: ensureIn(FOOTER_STYLES, parsed.footer_style, data.brand.footer_style),
       sections: ensureSections(parsed.sections, data.brand.sections),
+      selected_header_id: data.brand.selected_header_id,
+      selected_hero_id: data.brand.selected_hero_id,
+      selected_section_ids: data.brand.selected_section_ids,
+      selected_footer_id: data.brand.selected_footer_id,
+      component_overrides: data.brand.component_overrides,
+      home_html: data.brand.home_html,
     };
     return {
       brand: updated,
@@ -440,6 +461,31 @@ export const refineBrandIdentity = createServerFn({ method: "POST" })
       note: (parsed.note ?? "").trim(),
     };
   });
+
+// ---------- Theme Builder — modification d'un composant via chat IA ----------
+
+const refineComponentSchema = z.object({
+  component_id: z.string().trim().min(1).max(80),
+  current_html: z.string().min(1).max(200_000),
+  message: z.string().trim().min(1).max(2000),
+});
+
+export const refineComponent = createServerFn({ method: "POST" })
+  .inputValidator((input) => refineComponentSchema.parse(input))
+  .handler(async ({ data }) => {
+    await requireUser();
+    const parsed = await callAiJson<{ html?: string; note?: string }>(
+      "Tu es un développeur frontend expert Tailwind CSS. On te fournit le HTML d'UN composant de site vitrine et une demande de modification. Renvoie UNIQUEMENT le HTML complet et modifié de ce composant (uniquement des classes Tailwind pour la mise en page, couleurs via style=\"...\" hex ou classes bg-[#hex]/text-[#hex]). Garde la structure sémantique et la responsivité. Réponds STRICTEMENT en JSON {\"html\": string, \"note\": string (1 phrase)}.",
+      `Demande: ${data.message}\n\nHTML actuel du composant (id=${data.component_id}):\n${data.current_html}`,
+      {},
+    );
+    const html = (parsed.html ?? "").trim();
+    if (!html) throw new Error("L'IA n'a pas retourné de HTML valide");
+    return { html, note: (parsed.note ?? "").trim() || "Composant mis à jour." };
+  });
+
+
+
 
 
 
@@ -538,6 +584,29 @@ export const createSite = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
+    // Si des composants Theme Builder sont sélectionnés, on assemble l'ossature réelle
+    // et on l'injecte dans le brand + on remplace le HTML de la page 'index' par cette ossature.
+    const brand = data.brand;
+    let homeHtml = brand?.home_html ?? "";
+    if (brand && (brand.selected_header_id || brand.selected_hero_id || brand.selected_footer_id || (brand.selected_section_ids?.length ?? 0) > 0)) {
+      homeHtml = assembleHomeHtml(
+        {
+          header: brand.selected_header_id || undefined,
+          hero: brand.selected_hero_id || undefined,
+          sections: brand.selected_section_ids ?? [],
+          footer: brand.selected_footer_id || undefined,
+        },
+        {
+          brand_name: brand.brand_name,
+          tagline: brand.tagline,
+          colors: brand.colors,
+          logo_url: brand.logo_url,
+        },
+        brand.component_overrides ?? {},
+      );
+    }
+    const brandForData = brand ? { ...brand, home_html: homeHtml } : undefined;
+
     const basePages: SiteData = data.pages && data.pages.length > 0
       ? { pages: data.pages.map((p) => ({ ...p, slug: normalizePageSlug(p.slug) })) }
       : await generateAllPages({
@@ -547,21 +616,31 @@ export const createSite = createServerFn({ method: "POST" })
           main_keyword: data.main_keyword,
           sitemap: data.sitemap,
           secondary_keywords: data.secondary_keywords,
-          brand: data.brand,
+          brand: brandForData,
         });
-    const siteData: SiteData = data.brand
+    // Remplace la page d'accueil par l'ossature Theme Builder si dispo
+    const finalPages = homeHtml
+      ? basePages.pages.map((p) =>
+          p.slug === "index"
+            ? { ...p, html_content: homeHtml, seo_title: p.seo_title || `${brand?.brand_name ?? businessName} — ${data.theme}` }
+            : p,
+        )
+      : basePages.pages;
+
+    const siteData: SiteData = brandForData
       ? {
-          ...basePages,
+          pages: finalPages,
           site_info: {
-            brand_name: data.brand.brand_name,
-            tagline: data.brand.tagline,
-            story: data.brand.story,
-            colors: data.brand.colors,
-            logo_url: data.brand.logo_url,
-            moodboard_url: data.brand.moodboard_url,
+            brand_name: brandForData.brand_name,
+            tagline: brandForData.tagline,
+            story: brandForData.story,
+            colors: brandForData.colors,
+            logo_url: brandForData.logo_url,
+            moodboard_url: brandForData.moodboard_url,
           },
         }
-      : basePages;
+      : { pages: finalPages };
+
 
     await supabase.from("sites").update({ site_data: siteData }).eq("id", row.id);
 
