@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -529,6 +529,7 @@ export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
                   url={brand.moodboard_url}
                   loading={moodLoading}
                   onRegen={() => runMood(moodPrompt, brand)}
+                  loadDelayMs={3000}
                 />
               </div>
             </div>
@@ -784,22 +785,33 @@ function ImageCard({
   url,
   loading,
   onRegen,
+  loadDelayMs = 0,
 }: {
   title: string;
   url: string;
   loading: boolean;
   onRegen: () => void;
+  loadDelayMs?: number;
 }) {
   const hasUrl = typeof url === "string" && url.length > 0;
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [nonce, setNonce] = useState(0);
+  const [mounted, setMounted] = useState(loadDelayMs === 0);
+  const retriesRef = useRef(0);
 
   // Réinitialise l'état quand l'URL change (nouvelle génération)
   useEffect(() => {
     setImgLoaded(false);
     setImgError(false);
-  }, [url]);
+    retriesRef.current = 0;
+    if (loadDelayMs > 0 && hasUrl) {
+      setMounted(false);
+      const t = setTimeout(() => setMounted(true), loadDelayMs);
+      return () => clearTimeout(t);
+    }
+    setMounted(true);
+  }, [url, loadDelayMs, hasUrl]);
 
   const busy = loading || (hasUrl && !imgLoaded && !imgError);
   const src = hasUrl ? (nonce ? `${url}${url.includes("?") ? "&" : "?"}r=${nonce}` : url) : "";
@@ -807,11 +819,23 @@ function ImageCard({
   function handleRegen() {
     setImgLoaded(false);
     setImgError(false);
+    retriesRef.current = 0;
     if (hasUrl && !loading) {
-      // Retry local en ajoutant un nonce, sans re-solliciter le serveur
       setNonce((n) => n + 1);
     } else {
       onRegen();
+    }
+  }
+
+  function handleError() {
+    // Auto-retry avec backoff (Pollinations renvoie 429 quand saturé)
+    if (retriesRef.current < 4) {
+      const attempt = retriesRef.current + 1;
+      retriesRef.current = attempt;
+      const delay = 2000 * Math.pow(2, attempt - 1) + Math.random() * 1000;
+      setTimeout(() => setNonce((n) => n + 1), delay);
+    } else {
+      setImgError(true);
     }
   }
 
@@ -849,13 +873,13 @@ function ImageCard({
                 </span>
               </div>
             )}
-            {hasUrl && (
+            {hasUrl && mounted && (
               <img
                 key={src}
                 src={src}
                 alt={title}
                 onLoad={() => setImgLoaded(true)}
-                onError={() => setImgError(true)}
+                onError={handleError}
                 className={
                   "h-full w-full object-cover transition-opacity duration-300 " +
                   (imgLoaded ? "opacity-100" : "opacity-0")
