@@ -517,7 +517,7 @@ export const createSite = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
-    const siteData: SiteData = data.pages && data.pages.length > 0
+    const basePages: SiteData = data.pages && data.pages.length > 0
       ? { pages: data.pages.map((p) => ({ ...p, slug: normalizePageSlug(p.slug) })) }
       : await generateAllPages({
           theme: data.theme,
@@ -526,9 +526,24 @@ export const createSite = createServerFn({ method: "POST" })
           main_keyword: data.main_keyword,
           sitemap: data.sitemap,
           secondary_keywords: data.secondary_keywords,
+          brand: data.brand,
         });
+    const siteData: SiteData = data.brand
+      ? {
+          ...basePages,
+          site_info: {
+            brand_name: data.brand.brand_name,
+            tagline: data.brand.tagline,
+            story: data.brand.story,
+            colors: data.brand.colors,
+            logo_url: data.brand.logo_url,
+            moodboard_url: data.brand.moodboard_url,
+          },
+        }
+      : basePages;
 
     await supabase.from("sites").update({ site_data: siteData }).eq("id", row.id);
+
     const trig = await triggerRunner(row.id, row.name);
     if (!trig.triggered) {
       await supabase
