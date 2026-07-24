@@ -3,16 +3,19 @@ import { useSession } from "@tanstack/react-start/server";
 import { createHmac, randomBytes } from "node:crypto";
 import { z } from "zod";
 import {
+  brandIdentitySchema,
   createSiteSchema,
   generatePageSchema,
   pageContentSchema,
   PALETTES,
   suggestKeywordsSchema,
   suggestSitemapSchema,
+  type BrandIdentity,
   type PageContent,
   type PaletteId,
   type SitemapPage,
 } from "./sites-schema";
+
 
 
 
