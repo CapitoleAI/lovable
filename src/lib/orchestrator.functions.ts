@@ -2,63 +2,19 @@ import { createServerFn } from "@tanstack/react-start";
 import { useSession } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { brandIdentitySchema, pageContentSchema, sitemapPageSchema } from "./sites-schema";
+import { getPromptContent, PROMPT_DEFAULTS, type PromptKey } from "./prompts.functions";
 
-// -------------------- Default system prompts (exported) --------------------
-
-export const DEFAULT_SYSTEM_EDIT = `Tu es un assistant IA intégré à un éditeur de sites web. L'utilisateur discute avec toi pour MODIFIER son site actif. Tu peux répondre en langage naturel ET/OU appeler des actions structurées.
-
-Actions disponibles (mode ÉDITION):
-- update_colors({ colors: { primary?, secondary?, accent?, neutral?, background? } }) — met à jour la palette (hex #RRGGBB)
-- update_page_content({ slug, seo_title?, instruction }) — régénère le contenu HTML d'une page ; slug obligatoire
-- add_page({ title, slug?, instruction? }) — ajoute une nouvelle page ; slug déduit du titre si absent
-- remove_page({ slug }) — supprime la page (jamais 'index')
-
-Tu appelles ces outils via function calling quand une action est nécessaire, et tu réponds en français court et clair dans le message pour confirmer ce que tu fais. Plusieurs outils peuvent être appelés dans le même tour.`;
-
-export const DEFAULT_SYSTEM_EMPTY = `Tu es un assistant IA d'un éditeur de sites web. Aucun site n'est actif. Guide l'utilisateur pour créer son premier site. Utilise l'outil open_create_wizard() pour ouvrir l'assistant de création quand il est prêt. Réponds en français court.`;
-
-export const DEFAULT_SYSTEM_CREATE = `Tu es DIRECTEUR D'AGENCE dans un studio de création de sites web. Tu interviewes l'utilisateur pour concevoir son site étape par étape et tu pilotes l'interface via des OUTILS (function calling).
-
-Étapes:
-1 = Brief créatif (nom, thème, ville, brief, couleurs indices)
-2 = Studio de marque (logo + palette + composants)
-3 = SEO & mots-clés
-4 = Arborescence (sitemap)
-5 = Lancement / build
-
-Actions disponibles (mode CRÉATION):
-- update_creation_brief({ name?, theme?, city?, brief?, hint_colors? }) — remplit ou MODIFIE un ou plusieurs champs du brief à l'étape 1 SANS changer d'étape. Inclus uniquement les champs concernés.
-- advance_to_brand_studio({ name?, theme?, city?, brief?, hint_colors? }) — passe à l'étape 2 et génère la marque + le logo. À n'utiliser QUE quand tu as (nom + thème + brief) ET que l'utilisateur confirme.
-- update_creation_theme({ colors?, selected_header_id?, selected_hero_id?, selected_footer_id?, selected_section_ids?, design_style?, brand_name?, tagline? }) — ajuste le Theme Builder (couleurs en hex #RRGGBB).
-- regenerate_logo({ prompt }) — régénère le logo à l'étape 2 avec un nouveau prompt d'image détaillé.
-- generate_seo_and_tree({ main_keyword?, keywords?, sitemap? }) — passe aux étapes 3 puis 4.
-- finalize_and_build() — clôture la création et lance le build.
-
-Règles STRICTES pour update_creation_brief:
-- N'INVENTE JAMAIS un nom de marque. Si l'utilisateur n'a pas donné de nom explicite, laisse "name" vide et POSE la question. "Un maraîcher à Lyon" NE donne PAS un nom — ce n'est ni "Maraîcher Identité" ni "Identité Maraîcher".
-- "theme" = activité/métier réel en 1–3 mots (ex: "Maraîchage bio", "Plombier", "Cabinet dentaire"), pas un mot-valise.
-- "city" = uniquement si une ville est explicitement mentionnée.
-- "brief" = reformulation courte et fidèle de ce que dit l'utilisateur, sans broder.
-- Si un champ n'est pas donné clairement → ne l'inclus PAS dans le tool call, pose la question dans reply.
-
-Règles générales:
-- INTERVIEW : pose UNE question courte à la fois pour compléter l'étape en cours. NE fais PAS avancer d'étape tant que l'utilisateur ne l'a pas confirmé.
-- Dès que l'utilisateur DONNE une info claire, appelle update_creation_brief avec uniquement ces champs, puis pose la prochaine question.
-- À l'étape 2, tout changement de nom affiché, description courte, slogan ou tagline DOIT appeler update_creation_theme({ brand_name?, tagline? }) — n'utilise PAS update_creation_brief pour ces modifications visibles dans le Studio de marque.
-- À l'étape 2, tout changement de logo DOIT appeler regenerate_logo({ prompt }) avec un prompt image précis.
-- À l'étape 2, propose spontanément des ajustements de couleurs, style ou logo.
-- Ne réclame pas d'infos déjà présentes dans le CONTEXTE CRÉATION.
-- Réponses courtes, en français, ton pro et chaleureux.
-
-Ton message texte = confirmation courte + question suivante. Les outils sont appelés en parallèle du message. N'invente jamais de champ non listé.`;
-
+// Backwards-compatible export used by old chat clients before the DB-backed
+// editor landed. Now serves as a quick fallback to defaults.
 export const getSystemPrompts = createServerFn({ method: "GET" }).handler(async () => {
   return {
-    edit: DEFAULT_SYSTEM_EDIT,
-    empty: DEFAULT_SYSTEM_EMPTY,
-    create: DEFAULT_SYSTEM_CREATE,
+    edit: PROMPT_DEFAULTS["orchestrator.edit"].content,
+    empty: PROMPT_DEFAULTS["orchestrator.empty"].content,
+    create: PROMPT_DEFAULTS["orchestrator.create.step1"].content,
   };
 });
+
+
 
 
 type AuthSession = { authenticated?: boolean; email?: string };
@@ -356,7 +312,7 @@ const orchestrateSchema = z.object({
     })
     .optional(),
   creation_context: creationContextSchema.optional(),
-  system_override: z.string().trim().max(8000).optional(),
+  
 });
 
 
@@ -591,13 +547,16 @@ export const orchestrateChat = createServerFn({ method: "POST" })
       ? `\nCONTEXTE CRÉATION (étape ${cctx.step ?? 1}/5):\n- Nom brief: ${cctx.name || "-"}\n- Thème: ${cctx.theme || "-"}\n- Ville: ${cctx.city || "-"}\n- Brief: ${cctx.brief || "-"}\n- Couleurs indices: ${(cctx.hint_colors ?? []).join(", ") || "-"}\n- Marque affichée: ${cctx.brand ? JSON.stringify({ brand_name: cctx.brand.brand_name, tagline: cctx.brand.tagline, colors: cctx.brand.colors, design_style: cctx.brand.design_style, logo_url: cctx.brand.logo_url ? "présent" : "absent" }) : "-"}\n- Mot-clé principal: ${cctx.main_keyword || "-"}\n- Mots-clés: ${(cctx.keywords ?? []).join(", ") || "-"}\n- Sitemap: ${(cctx.sitemap ?? []).map((p) => p.title).join(", ") || "-"}`
       : "";
 
-    const systemEdit = data.system_override?.trim() || DEFAULT_SYSTEM_EDIT;
-    const systemEmpty = data.system_override?.trim() || DEFAULT_SYSTEM_EMPTY;
-    const systemCreate = data.system_override?.trim() || DEFAULT_SYSTEM_CREATE;
-
-
-    const system =
-      data.mode === "edit" ? systemEdit : data.mode === "create" ? systemCreate : systemEmpty;
+    let promptKey: PromptKey;
+    if (data.mode === "edit") {
+      promptKey = "orchestrator.edit";
+    } else if (data.mode === "create") {
+      const step = Math.min(5, Math.max(1, cctx?.step ?? 1));
+      promptKey = `orchestrator.create.step${step}` as PromptKey;
+    } else {
+      promptKey = "orchestrator.empty";
+    }
+    const system = await getPromptContent(promptKey);
     const tools =
       data.mode === "edit" ? editTools : data.mode === "create" ? createTools : emptyTools;
 
@@ -666,8 +625,9 @@ export const regeneratePageContent = createServerFn({ method: "POST" })
           design_style: data.brand.design_style,
         })}`
       : "";
+    const systemPrompt = await getPromptContent("orchestrator.regen_page");
     const parsed = await callAiJson<{ html_content?: string; seo_title?: string }>(
-      "Tu es un développeur frontend et rédacteur SEO expert. Tu modifies UNE page d'un site vitrine (HTML + Tailwind CSS). Réponds STRICTEMENT en JSON {\"seo_title\": string, \"html_content\": string}. Le html_content ne contient AUCUN <html>/<head>/<body> — uniquement le contenu du body. RÈGLE COULEURS IMPÉRATIVE : n'utilise JAMAIS de classes Tailwind de couleur figées (bg-blue-600, text-emerald-500, bg-slate-900, etc.) ni de couleurs hex arbitraires. Utilise EXCLUSIVEMENT la palette de marque via les classes custom `bg-brand`, `text-brand`, `border-brand`, `ring-brand`, `bg-brand-primary`, `bg-brand-secondary`, `bg-brand-accent`, `bg-brand-neutral`, `bg-brand-background` (et leurs équivalents text-/border-/ring-/from-/to-/via-). Le noir/blanc et les nuances neutres purement structurelles (text-white, bg-white, text-black) restent autorisés. Conserve la structure sémantique et les liens existants sauf si l'instruction dit le contraire.",
+      systemPrompt,
       `Page: "${data.page_title}" (slug=${data.slug})${brandBlock}\n\nINSTRUCTION UTILISATEUR: ${data.instruction}\n\nHTML ACTUEL:\n${data.current_html.slice(0, 40_000)}`,
       {},
     );
@@ -707,8 +667,9 @@ export const generateNewPage = createServerFn({ method: "POST" })
       : "";
     const nav = data.site_context?.pages ?? [];
     const navBlock = `\nNavigation existante: ${JSON.stringify(nav)}`;
+    const systemPrompt = await getPromptContent("orchestrator.new_page");
     const parsed = await callAiJson<{ html_content?: string; seo_title?: string }>(
-      "Tu es un développeur frontend et rédacteur SEO expert. Génère UNE nouvelle page (HTML + Tailwind CSS). Réponds STRICTEMENT en JSON {\"seo_title\": string, \"html_content\": string}. Pas de <html>/<head>/<body>. RÈGLE COULEURS IMPÉRATIVE : n'utilise JAMAIS de classes Tailwind de couleur figées (bg-blue-600, text-emerald-500, bg-slate-900, etc.) ni de couleurs hex arbitraires. Utilise EXCLUSIVEMENT la palette de marque via les classes custom `bg-brand`, `text-brand`, `border-brand`, `ring-brand`, `bg-brand-primary`, `bg-brand-secondary`, `bg-brand-accent`, `bg-brand-neutral`, `bg-brand-background` (et leurs équivalents text-/border-/ring-/from-/to-/via-). Le noir/blanc et les nuances neutres purement structurelles (text-white, bg-white, text-black) restent autorisés. Inclus un header cohérent (avec les liens de la navigation existante) et un footer. Contenu riche et adapté au titre demandé.",
+      systemPrompt,
       `Page à créer: "${data.title}" (slug=${data.slug})${brandBlock}${navBlock}\n\nINSTRUCTION: ${data.instruction || `Génère une page "${data.title}" moderne, riche et professionnelle.`}`,
       {},
     );

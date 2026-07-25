@@ -1,20 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, RotateCcw, Send, Settings2, Sparkles } from "lucide-react";
+import { Loader2, Send, Settings2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { PromptsManager } from "@/components/prompts-manager";
 import {
   orchestrateChat,
-  getSystemPrompts,
   type OrchestratorAction,
 } from "@/lib/orchestrator.functions";
 import type { BrandIdentity, PageContent } from "@/lib/sites-schema";
@@ -31,10 +23,6 @@ interface Props {
   onCreateWizard?: () => void;
 }
 
-function storageKey(mode: Props["mode"]) {
-  return `orchestrator_system_prompt_${mode}`;
-}
-
 export function WorkspaceChat({
   mode,
   siteName,
@@ -47,12 +35,8 @@ export function WorkspaceChat({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [promptOpen, setPromptOpen] = useState(false);
-  const [defaultPrompt, setDefaultPrompt] = useState<string>("");
-  const [promptDraft, setPromptDraft] = useState<string>("");
-  const [systemOverride, setSystemOverride] = useState<string | undefined>(undefined);
+  const [promptsOpen, setPromptsOpen] = useState(false);
   const orchestrate = useServerFn(orchestrateChat);
-  const fetchPrompts = useServerFn(getSystemPrompts);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -60,13 +44,6 @@ export function WorkspaceChat({
     setMessages([]);
     setInput("");
     inputRef.current?.focus();
-    // Load saved override for this mode
-    try {
-      const saved = window.localStorage.getItem(storageKey(mode));
-      setSystemOverride(saved ?? undefined);
-    } catch {
-      setSystemOverride(undefined);
-    }
   }, [mode, siteName]);
 
   useEffect(() => {
@@ -75,40 +52,6 @@ export function WorkspaceChat({
       behavior: "smooth",
     });
   }, [messages, busy]);
-
-  async function openPromptEditor() {
-    try {
-      const prompts = await fetchPrompts();
-      const def = prompts[mode] ?? "";
-      setDefaultPrompt(def);
-      setPromptDraft(systemOverride ?? def);
-      setPromptOpen(true);
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
-  }
-
-  function savePrompt() {
-    const value = promptDraft.trim();
-    try {
-      if (!value || value === defaultPrompt.trim()) {
-        window.localStorage.removeItem(storageKey(mode));
-        setSystemOverride(undefined);
-        toast.success("Prompt système réinitialisé");
-      } else {
-        window.localStorage.setItem(storageKey(mode), value);
-        setSystemOverride(value);
-        toast.success("Prompt système enregistré");
-      }
-      setPromptOpen(false);
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
-  }
-
-  function resetPrompt() {
-    setPromptDraft(defaultPrompt);
-  }
 
   async function send() {
     const text = input.trim();
@@ -132,7 +75,6 @@ export function WorkspaceChat({
                 }
               : undefined,
           creation_context: mode === "create" ? (creationContext as any) : undefined,
-          system_override: systemOverride,
         },
       });
 
@@ -162,7 +104,6 @@ export function WorkspaceChat({
       : mode === "create"
         ? "Directeur d'agence à l'écoute. Décrivez votre projet : nom, thème, ville, ambiance…"
         : "Bienvenue. Décrivez le site que vous voulez créer, ou cliquez sur « + Nouveau site » à droite.";
-
 
   return (
     <div className="flex h-full flex-col">
@@ -225,12 +166,10 @@ export function WorkspaceChat({
               size="icon"
               variant="ghost"
               className="h-8 w-8"
-              onClick={openPromptEditor}
-              title={systemOverride ? "Prompt système personnalisé" : "Modifier le prompt système"}
+              onClick={() => setPromptsOpen(true)}
+              title="Gérer les prompts système"
             >
-              <Settings2
-                className={`h-4 w-4 ${systemOverride ? "text-primary" : ""}`}
-              />
+              <Settings2 className="h-4 w-4" />
             </Button>
             <Button
               size="icon"
@@ -242,43 +181,9 @@ export function WorkspaceChat({
             </Button>
           </div>
         </div>
-        {systemOverride && (
-          <p className="mt-1.5 text-[11px] text-muted-foreground">
-            Prompt système personnalisé actif ({mode}).
-          </p>
-        )}
       </div>
 
-      <Dialog open={promptOpen} onOpenChange={setPromptOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Prompt système — mode {mode}</DialogTitle>
-            <DialogDescription>
-              Ce texte pilote le comportement de l'assistant dans ce mode. Il est enregistré
-              localement dans ce navigateur. Videz-le pour revenir au prompt par défaut.
-            </DialogDescription>
-          </DialogHeader>
-          <Textarea
-            value={promptDraft}
-            onChange={(e) => setPromptDraft(e.target.value)}
-            className="min-h-[360px] font-mono text-xs"
-          />
-          <DialogFooter className="gap-2 sm:justify-between">
-            <Button variant="outline" onClick={resetPrompt} type="button">
-              <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-              Restaurer le défaut
-            </Button>
-            <div className="flex gap-2">
-              <Button variant="ghost" onClick={() => setPromptOpen(false)} type="button">
-                Annuler
-              </Button>
-              <Button onClick={savePrompt} type="button">
-                Enregistrer
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PromptsManager open={promptsOpen} onOpenChange={setPromptsOpen} />
     </div>
   );
 }
