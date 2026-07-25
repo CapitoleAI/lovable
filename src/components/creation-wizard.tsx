@@ -354,9 +354,9 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
       setLaunchStatus({ phase: "done", current: total, total, label: "Build lancé…" });
       toast.success("Création lancée");
       qc.invalidateQueries({ queryKey: ["sites"] });
-      onLaunched?.(res.site.id);
+      onFinalized?.(res.site.id);
       reset();
-      onOpenChange(false);
+
     } catch (e) {
       const msg = (e as Error).message;
       setLaunchStatus((s) => ({ ...s, phase: "error", error: msg, label: msg }));
@@ -443,23 +443,142 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
     void launch();
   }
 
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        if (!v) reset();
-        onOpenChange(v);
-      }}
-    >
-      <DialogContent className="max-h-[95vh] max-w-[95vw] overflow-y-auto lg:max-w-[1400px]">
-        <DialogHeader>
-          <DialogTitle>Créer un nouveau site</DialogTitle>
-          <DialogDescription>
-            Un studio de création guidé par l'IA, du brief au déploiement.
-          </DialogDescription>
-        </DialogHeader>
+  // ---------- Snapshot to parent (for chat context) ----------
+  const selectedKwArr = Array.from(selectedKw);
+  useEffect(() => {
+    onSnapshotChange?.({
+      step,
+      name,
+      theme,
+      city,
+      brief,
+      hint_colors: hintColors,
+      brand,
+      main_keyword: mainKeyword,
+      keywords,
+      selected_keywords: selectedKwArr,
+      sitemap,
+      launch_phase: launchStatus.phase,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, name, theme, city, brief, hintColors, brand, mainKeyword, keywords, selectedKwArr.join("|"), sitemap, launchStatus.phase]);
 
-        <Stepper current={step} />
+  // ---------- Imperative API (used by the chat orchestrator) ----------
+  useImperativeHandle(
+    ref,
+    () => ({
+      async advanceToBrandStudio(input) {
+        if (input.name !== undefined) setName(input.name);
+        if (input.theme !== undefined) setTheme(input.theme);
+        if (input.city !== undefined) setCity(input.city);
+        if (input.brief !== undefined) setBrief(input.brief);
+        if (input.hint_colors !== undefined) setHintColors(input.hint_colors);
+        const n = (input.name ?? name).trim();
+        const th = (input.theme ?? theme).trim();
+        const ci = (input.city ?? city).trim();
+        const br = (input.brief ?? brief).trim();
+        if (!n || !th || !ci || !br) {
+          toast.info("Précise nom, thématique, ville et brief pour lancer le studio.");
+          return;
+        }
+        try {
+          const res = await genBrand({
+            data: { brief: br, hint_colors: input.hint_colors ?? hintColors, business_name: n, theme: th, city: ci },
+          });
+          setBrand(res.brand);
+          setLogoPrompt(res.logo_prompt);
+          setStep(2);
+          void runLogo(res.logo_prompt, res.brand);
+        } catch (e) {
+          toast.error((e as Error).message);
+        }
+      },
+      updateTheme(patch) {
+        if (!brand) return;
+        setBrand({ ...brand, ...patch, colors: { ...brand.colors, ...(patch.colors ?? {}) } });
+      },
+      async generateSeoAndTree(input) {
+        if (input.main_keyword !== undefined) setMainKeyword(input.main_keyword);
+        setStep(3);
+        let kws = keywords;
+        if (input.keywords && input.keywords.length > 0) {
+          kws = Array.from(new Set([...keywords, ...input.keywords]));
+          setKeywords(kws);
+          setSelectedKw(new Set(kws));
+        } else if (keywords.length === 0) {
+          try {
+            const res = await suggestKw({
+              data: {
+                theme: theme || brand?.tagline || "",
+                city,
+                business_name: brand?.brand_name || name,
+              },
+            });
+            kws = Array.from(new Set([...keywords, ...res.keywords]));
+            setKeywords(kws);
+            setSelectedKw(new Set(kws));
+          } catch (e) {
+            toast.error((e as Error).message);
+          }
+        }
+        setStep(4);
+        if (input.sitemap && input.sitemap.length > 0) {
+          setSitemap(input.sitemap);
+        } else if (sitemap.length === 0) {
+          try {
+            const res = await suggestSm({
+              data: {
+                theme,
+                city,
+                business_name: brand?.brand_name || name,
+                keywords: kws,
+              },
+            });
+            setSitemap(res.sitemap);
+          } catch (e) {
+            toast.error((e as Error).message);
+          }
+        }
+      },
+      async finalizeAndBuild() {
+        if (!brand) {
+          toast.error("Identité de marque manquante");
+          return;
+        }
+        if (sitemap.length === 0) {
+          toast.error("Arborescence vide");
+          return;
+        }
+        setStep(5);
+        await launch();
+      },
+      goToStep(s) {
+        setStep(s);
+      },
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [name, theme, city, brief, hintColors, brand, keywords, sitemap],
+  );
+
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto bg-background">
+      <div className="mx-auto w-full max-w-6xl px-6 py-5">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-semibold">Créer un nouveau site</h1>
+            <p className="text-xs text-muted-foreground">
+              Discute avec l'IA à gauche ou remplis directement les étapes ci-dessous.
+            </p>
+          </div>
+          {onExit && (
+            <Button variant="ghost" size="sm" onClick={onExit}>
+              <X className="mr-1.5 h-4 w-4" /> Fermer
+            </Button>
+          )}
+        </div>
+
+        <Stepper current={step} onNavigate={(s) => setStep(s)} maxReached={step} />
+
 
         {step === 1 && (
           <div className="space-y-5 pt-2">
@@ -519,7 +638,7 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="ghost" onClick={() => onOpenChange(false)}>Annuler</Button>
+              <Button variant="ghost" onClick={onExit}>Annuler</Button>
               <Button onClick={goStep1To2} disabled={brandMutation.isPending}>
                 {brandMutation.isPending ? (
                   <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
