@@ -115,6 +115,14 @@ const actionSchema = z.discriminatedUnion("type", [
     hint_colors: z.array(z.string()).max(6).optional(),
   }),
   z.object({
+    type: z.literal("update_creation_brief"),
+    name: z.string().optional(),
+    theme: z.string().optional(),
+    city: z.string().optional(),
+    brief: z.string().optional(),
+    hint_colors: z.array(z.string()).max(6).optional(),
+  }),
+  z.object({
     type: z.literal("update_creation_theme"),
     colors: z.object({
       primary: z.string().optional(),
