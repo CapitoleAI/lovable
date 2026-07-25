@@ -312,7 +312,7 @@ const orchestrateSchema = z.object({
     })
     .optional(),
   creation_context: creationContextSchema.optional(),
-  system_override: z.string().trim().max(8000).optional(),
+  
 });
 
 
