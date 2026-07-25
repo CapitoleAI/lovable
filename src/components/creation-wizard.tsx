@@ -1313,22 +1313,36 @@ function ThemeBuilder({
   async function loadCategory(category: Category, count = 3) {
     setLoadingCat((s) => ({ ...s, [category]: true }));
     try {
-      const { variants: vs } = await genVariants({
-        data: {
-          category,
-          count,
-          brand: {
-            brand_name: brand.brand_name,
-            tagline: brand.tagline,
-            logo_url: brand.logo_url,
-            design_style: brand.design_style,
-            colors: brand.colors,
-          },
-          theme,
-          city,
-          brief,
-        },
-      });
+      // Server limit is 10 per call — batch large counts in parallel.
+      const CHUNK = 10;
+      const chunks: number[] = [];
+      let remaining = count;
+      while (remaining > 0) {
+        const take = Math.min(CHUNK, remaining);
+        chunks.push(take);
+        remaining -= take;
+      }
+      const results = await Promise.all(
+        chunks.map((n) =>
+          genVariants({
+            data: {
+              category,
+              count: n,
+              brand: {
+                brand_name: brand.brand_name,
+                tagline: brand.tagline,
+                logo_url: brand.logo_url,
+                design_style: brand.design_style,
+                colors: brand.colors,
+              },
+              theme,
+              city,
+              brief,
+            },
+          }),
+        ),
+      );
+      const vs = results.flatMap((r) => r.variants);
       setVariants((s) => ({
         ...s,
         [category]: vs.map((v) => ({ ...v, category })),
@@ -1348,7 +1362,7 @@ function ThemeBuilder({
     void Promise.all([
       loadCategory("header", 3),
       loadCategory("hero", 3),
-      loadCategory("section", 4),
+      loadCategory("section", 20),
       loadCategory("footer", 3),
     ]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1428,7 +1442,7 @@ function ThemeBuilder({
   }[] = [
     { key: "header", label: "Header", hint: "Choisis 1 header", count: 3, multi: false },
     { key: "hero", label: "Hero", hint: "Choisis 1 hero", count: 3, multi: false },
-    { key: "section", label: "Sections", hint: "Choisis plusieurs sections (dans l'ordre de clic)", count: 4, multi: true },
+    { key: "section", label: "Sections", hint: "Choisis plusieurs sections (dans l'ordre de clic)", count: 20, multi: true },
     { key: "footer", label: "Footer", hint: "Choisis 1 footer", count: 3, multi: false },
   ];
 

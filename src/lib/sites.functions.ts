@@ -489,7 +489,7 @@ export const refineComponent = createServerFn({ method: "POST" })
 
 const generateThemeVariantsSchema = z.object({
   category: z.enum(["header", "hero", "section", "footer"]),
-  count: z.number().int().min(1).max(6).default(3),
+  count: z.number().int().min(1).max(10).default(3),
   brand: z.object({
     brand_name: z.string().trim().max(200).default(""),
     tagline: z.string().trim().max(300).default(""),
@@ -510,15 +510,16 @@ export const generateThemeVariants = createServerFn({ method: "POST" })
       data as z.output<typeof generateThemeVariantsSchema>;
 
     const categoryBrief: Record<typeof category, string> = {
-      header: "un HEADER de site : logo à gauche ou centré, navigation (Accueil, Services, À propos, Contact), un CTA optionnel. Responsive.",
+      header: "un HEADER de site : LE LOGO EST OBLIGATOIRE et visible (à gauche ou centré selon la variante), navigation (Accueil, Services, À propos, Contact), un CTA optionnel. Responsive.",
       hero: "une section HERO en pleine largeur : gros titre H1 percutant reprenant l'activité et la ville, sous-titre explicatif, 1 à 2 CTA, éventuellement un visuel décoratif (formes, dégradé, illustration SVG inline). Impact visuel fort.",
-      section: "une SECTION intermédiaire pertinente pour cette activité (au choix parmi services, valeurs, témoignages, chiffres, tarifs, FAQ, galerie, CTA, contact, processus, équipe…). Contenu riche et adapté au métier.",
-      footer: "un FOOTER : identité, liens de navigation, coordonnées, mentions, éventuellement newsletter.",
+      section: "une SECTION intermédiaire pertinente pour cette activité (au choix parmi services, valeurs, témoignages, chiffres, tarifs, FAQ, galerie, CTA, contact, processus, équipe, avantages, garanties, étapes, partenaires, réalisations, zones d'intervention, blog, newsletter…). Contenu riche et adapté au métier. Chaque variante DOIT proposer un type de bloc différent.",
+      footer: "un FOOTER : LE LOGO EST OBLIGATOIRE et visible en tête du footer, puis identité, liens de navigation, coordonnées, mentions, éventuellement newsletter.",
     };
 
+    const needsLogo = category === "header" || category === "footer";
     const logoInstruction = brand.logo_url
-      ? `Le logo est disponible : intègre-le via <img src="${brand.logo_url}" alt="${brand.brand_name}" class="h-10 w-auto" /> aux endroits pertinents.`
-      : `Pas de logo image : utilise un badge textuel avec l'initiale sur fond bg-[var(--brand-primary)].`;
+      ? `Le logo est disponible et ${needsLogo ? "DOIT ABSOLUMENT être présent" : "peut être intégré"} via <img src="${brand.logo_url}" alt="${brand.brand_name}" class="h-10 w-auto" /> (ajuste la hauteur selon le contexte).`
+      : `Pas de logo image disponible : ${needsLogo ? "affiche IMPÉRATIVEMENT" : "utilise"} un badge textuel avec l'initiale de la marque sur fond bg-[var(--brand-primary)] text-white rounded, suivi du nom "${brand.brand_name}".`;
 
     const system = `Tu es un directeur artistique web + développeur frontend expert Tailwind CSS. Tu génères ${count} variantes VISUELLEMENT DIFFÉRENTES de ${categoryBrief[category]} pour un projet spécifique.
 
