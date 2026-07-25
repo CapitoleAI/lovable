@@ -1442,7 +1442,7 @@ function ThemeBuilder({
   }[] = [
     { key: "header", label: "Header", hint: "Choisis 1 header", count: 3, multi: false },
     { key: "hero", label: "Hero", hint: "Choisis 1 hero", count: 3, multi: false },
-    { key: "section", label: "Sections", hint: "Choisis plusieurs sections (dans l'ordre de clic)", count: 4, multi: true },
+    { key: "section", label: "Sections", hint: "Choisis plusieurs sections (dans l'ordre de clic)", count: 20, multi: true },
     { key: "footer", label: "Footer", hint: "Choisis 1 footer", count: 3, multi: false },
   ];
 
