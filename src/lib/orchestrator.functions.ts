@@ -138,8 +138,13 @@ const actionSchema = z.discriminatedUnion("type", [
     sitemap: z.array(sitemapPageSchema).max(30).optional(),
   }),
   z.object({
+    type: z.literal("regenerate_logo"),
+    prompt: z.string().min(1).max(500),
+  }),
+  z.object({
     type: z.literal("finalize_and_build"),
   }),
+
 ]);
 export type OrchestratorAction = z.infer<typeof actionSchema>;
 
@@ -211,9 +216,9 @@ Actions disponibles (mode ÉDITION):
 
 Renvoie STRICTEMENT le JSON {"reply": string, "actions": Action[]}. reply = ta réponse humaine courte en français. actions = liste (souvent vide) d'actions à appliquer. Toujours confirmer ce que tu vas faire dans reply.`;
 
-    const systemEmpty = `Tu es un assistant IA d'un éditeur de sites web. Aucun site n'est actif. Guide l'utilisateur pour créer son premier site. Action disponible: open_create_wizard() pour ouvrir l'assistant de création. Renvoie STRICTEMENT {"reply": string, "actions": Action[]}.`;
+    const systemEmpty = `Tu es un assistant IA d'un éditeur de sites web. Aucun site n'est actif. Guide l'utilisateur pour créer son premier site. Action disponible: open_create_wizard() pour ouvrir l'assistant de création. Réponds toujours en JSON strict au format {"reply": string, "actions": Action[]}.`;
 
-    const systemCreate = `Tu es DIRECTEUR D'AGENCE dans un studio de création de sites web. Tu interviewes l'utilisateur pour concevoir son site étape par étape et tu pilotes l'interface via des actions structurées.
+    const systemCreate = `Tu es DIRECTEUR D'AGENCE dans un studio de création de sites web. Tu interviewes l'utilisateur pour concevoir son site étape par étape et tu pilotes l'interface via des actions structurées. Toutes tes réponses sont retournées en JSON.
 
 Étapes:
 1 = Brief créatif (nom, thème, ville, brief, couleurs indices)
@@ -224,18 +229,20 @@ Renvoie STRICTEMENT le JSON {"reply": string, "actions": Action[]}. reply = ta r
 
 Actions disponibles (mode CRÉATION):
 - advance_to_brand_studio({ name?, theme?, city?, brief?, hint_colors? }) — remplit les champs manquants du brief PUIS passe à l'étape 2 et génère automatiquement la marque + le logo
-- update_creation_theme({ colors?, selected_header_id?, selected_hero_id?, selected_footer_id?, selected_section_ids?, design_style?, brand_name?, tagline? }) — ajuste les choix du Theme Builder à l'étape 2
+- update_creation_theme({ colors?, selected_header_id?, selected_hero_id?, selected_footer_id?, selected_section_ids?, design_style?, brand_name?, tagline? }) — ajuste les choix du Theme Builder à l'étape 2 (couleurs en hex #RRGGBB)
+- regenerate_logo({ prompt }) — régénère le logo à l'étape 2 avec un nouveau prompt d'image (ex: "logo minimaliste en forme de casquette bleue sur fond blanc"). Utilise cette action dès que l'utilisateur demande de changer, modifier ou refaire le logo.
 - generate_seo_and_tree({ main_keyword?, keywords?, sitemap? }) — passe aux étapes 3 puis 4 ; si vides, l'app suggère automatiquement
 - finalize_and_build() — clôture la création et lance le build
 
 Règles:
 - Pose UNE seule question courte à la fois pour compléter les infos manquantes.
 - Dès que tu as (nom + thème + ville + brief), appelle advance_to_brand_studio.
-- À l'étape 2, propose spontanément des ajustements de couleurs ou de style.
+- À l'étape 2, propose spontanément des ajustements de couleurs, de style ou de logo.
 - Ne réclame pas au user des infos déjà présentes dans le CONTEXTE CRÉATION.
 - Réponses courtes, en français, ton pro et chaleureux.
 
-Renvoie STRICTEMENT {"reply": string, "actions": Action[]}.`;
+Renvoie STRICTEMENT un objet JSON valide au format {"reply": string, "actions": Action[]}. reply = message humain court. actions = liste (souvent vide) des actions à appliquer.`;
+
 
     const system =
       data.mode === "edit" ? systemEdit : data.mode === "create" ? systemCreate : systemEmpty;

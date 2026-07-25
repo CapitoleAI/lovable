@@ -92,9 +92,12 @@ export type CreationWizardHandle = {
   }) => Promise<void>;
   /** Launch the site build. */
   finalizeAndBuild: () => Promise<void>;
+  /** Regenerate the brand logo from a new image prompt (step 2). */
+  regenerateLogo: (prompt: string) => Promise<void>;
   /** Manually navigate to a step (from stepper clicks). */
   goToStep: (step: Step) => void;
 };
+
 
 interface Props {
   onFinalized?: (siteId: string) => void;
@@ -512,9 +515,20 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
         setStep(5);
         await launch();
       },
+      async regenerateLogo(prompt) {
+        const p = prompt.trim();
+        if (!p) return;
+        setLogoPrompt(p);
+        if (brand) {
+          await runLogo(p, brand);
+        } else {
+          toast.info("Génère d'abord la marque avant de refaire le logo.");
+        }
+      },
       goToStep(s) {
         setStep(s);
       },
+
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [name, theme, city, brief, hintColors, brand, keywords, sitemap],
