@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -14,13 +20,6 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -52,11 +51,8 @@ import {
   type SitemapPage,
 } from "@/lib/sites-schema";
 import {
-  THEME_COMPONENTS,
   componentsByCategory,
-  renderComponent,
   wrapPreviewDoc,
-  type ThemeCategory,
   type ThemeComponent,
   type BrandCtx,
 } from "@/lib/theme-components";
@@ -64,10 +60,48 @@ import {
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
+export type CreationSnapshot = {
+  step: Step;
+  name: string;
+  theme: string;
+  city: string;
+  brief: string;
+  hint_colors: string[];
+  brand: BrandIdentity | null;
+  main_keyword: string;
+  keywords: string[];
+  selected_keywords: string[];
+  sitemap: SitemapPage[];
+  launch_phase: "idle" | "generating" | "sending" | "done" | "error";
+};
+
+export type CreationWizardHandle = {
+  /** Fill brief fields (any subset) and, if enough is present, generate brand + advance to step 2. */
+  advanceToBrandStudio: (input: {
+    name?: string;
+    theme?: string;
+    city?: string;
+    brief?: string;
+    hint_colors?: string[];
+  }) => Promise<void>;
+  /** Patch the theme/brand at step 2. */
+  updateTheme: (patch: Partial<BrandIdentity>) => void;
+  /** Move to SEO + Sitemap (step 3-4), optionally seed values and auto-suggest missing ones. */
+  generateSeoAndTree: (input: {
+    main_keyword?: string;
+    keywords?: string[];
+    sitemap?: SitemapPage[];
+  }) => Promise<void>;
+  /** Launch the site build. */
+  finalizeAndBuild: () => Promise<void>;
+  /** Manually navigate to a step (from stepper clicks). */
+  goToStep: (step: Step) => void;
+};
+
 interface Props {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  onLaunched?: (siteId: string) => void;
+  onFinalized?: (siteId: string) => void;
+  onSnapshotChange?: (snap: CreationSnapshot) => void;
+  onExit?: () => void;
 }
 
 const STEP_LABELS = [
@@ -89,8 +123,12 @@ const DEFAULT_COLORS: BrandIdentity["colors"] = {
 
 type ChatMsg = { role: "user" | "assistant"; text: string };
 
-export function CreateSiteDialog({ open, onOpenChange, onLaunched }: Props) {
+export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function CreationWizard(
+  { onFinalized, onSnapshotChange, onExit },
+  ref,
+) {
   const [step, setStep] = useState<Step>(1);
+
 
   // Step 1 — Brief
   const [name, setName] = useState("");
