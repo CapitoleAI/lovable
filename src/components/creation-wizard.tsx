@@ -230,29 +230,6 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
     onError: (e: Error) => toast.error(e.message),
   });
 
-  async function sendChat() {
-    const msg = chatInput.trim();
-    if (!msg || !brand) return;
-    setChatInput("");
-    setChat((c) => [...c, { role: "user", text: msg }]);
-    setRefining(true);
-    try {
-      const res = await refineBrand({ data: { message: msg, brand } });
-      setBrand(res.brand);
-      setChat((c) => [
-        ...c,
-        { role: "assistant", text: res.note || "Mise à jour appliquée." },
-      ]);
-      if (res.regenerate_logo && res.logo_prompt) {
-        setLogoPrompt(res.logo_prompt);
-        void runLogo(res.logo_prompt, res.brand);
-      }
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setRefining(false);
-    }
-  }
 
   function normalizeSlug(input: string): string {
     const raw = (input ?? "").trim();
