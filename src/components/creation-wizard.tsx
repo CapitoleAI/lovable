@@ -119,8 +119,6 @@ const DEFAULT_COLORS: BrandIdentity["colors"] = {
 };
 
 
-type ChatMsg = { role: "user" | "assistant"; text: string };
-
 export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function CreationWizard(
   { onFinalized, onSnapshotChange, onExit },
   ref,
@@ -140,9 +138,6 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
   const [brand, setBrand] = useState<BrandIdentity | null>(null);
   const [logoPrompt, setLogoPrompt] = useState("");
   const [logoLoading, setLogoLoading] = useState(false);
-  const [chat, setChat] = useState<ChatMsg[]>([]);
-  const [chatInput, setChatInput] = useState("");
-  const [refining, setRefining] = useState(false);
 
   // Step 3 — SEO
   const [mainKeyword, setMainKeyword] = useState("");
