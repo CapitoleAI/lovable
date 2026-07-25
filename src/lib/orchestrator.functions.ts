@@ -128,7 +128,7 @@ async function callAiWithTools(
     }>;
   };
   const msg = json.choices?.[0]?.message;
-  const reply = (msg?.content ?? "").trim();
+  let reply = (msg?.content ?? "").trim();
   const rawCalls: Array<{ name: string; arguments: unknown }> = [];
   for (const c of msg?.tool_calls ?? []) {
     const name = c.function?.name;
@@ -141,8 +141,43 @@ async function callAiWithTools(
     }
     rawCalls.push({ name, arguments: args });
   }
+  // gpt-4o-mini often returns empty content when it fires tool_calls.
+  // Do a lightweight follow-up (no tools) to get a natural French reply
+  // that reflects what was just decided/asked.
+  if (!reply) {
+    try {
+      const followupMessages = [
+        { role: "system", content: system },
+        { role: "user", content: user },
+        {
+          role: "assistant",
+          content:
+            rawCalls.length > 0
+              ? `J'ai décidé d'appliquer ces actions: ${JSON.stringify(rawCalls)}`
+              : "(pas d'action)",
+        },
+        {
+          role: "user",
+          content:
+            "Réponds maintenant en français, 1 à 3 phrases max, en confirmant ce que tu viens de faire ET en posant la prochaine question utile pour avancer. Ne répète pas juste 'OK'.",
+        },
+      ];
+      const r2 = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: "gpt-4o-mini", messages: followupMessages }),
+      });
+      if (r2.ok) {
+        const j2 = (await r2.json()) as { choices?: Array<{ message?: { content?: string } }> };
+        reply = (j2.choices?.[0]?.message?.content ?? "").trim();
+      }
+    } catch {
+      /* keep reply empty; caller falls back */
+    }
+  }
   return { reply, rawCalls };
 }
+
 
 
 // -------------------- Chat Orchestrator --------------------
