@@ -141,7 +141,7 @@ export function WorkspaceChat({
       </div>
 
       <div className="p-3">
-        <div className="relative rounded-2xl border border-[#272726] bg-[#272726] focus-within:border-[#3a3a38]">
+        <div className="flex flex-col gap-2 rounded-3xl border border-[#272726] bg-[#272726] p-2 focus-within:border-[#3a3a38]">
           <Textarea
             ref={inputRef}
             value={input}
@@ -152,33 +152,51 @@ export function WorkspaceChat({
                 send();
               }
             }}
-            placeholder={
-              mode === "edit"
-                ? "Modifier ce site avec l'IA…"
-                : "Poser une question ou décrire un site…"
-            }
-            className="min-h-[60px] resize-none border-0 bg-transparent pr-24 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:ring-0 focus-visible:ring-offset-0"
+            placeholder="Demandez à CapitoleAI…"
+            className="min-h-[28px] resize-none border-0 bg-transparent px-2 py-1 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:ring-0 focus-visible:ring-offset-0"
             disabled={busy}
           />
-          <div className="absolute bottom-2 right-2 flex items-center gap-1.5">
+          <div className="flex items-center justify-between">
             <Button
               type="button"
               size="icon"
               variant="ghost"
-              className="h-8 w-8 text-neutral-400 hover:bg-[#272726] hover:text-neutral-100"
+              className="h-8 w-8 rounded-full text-neutral-400 hover:bg-[#3a3a38] hover:text-neutral-100"
               onClick={() => setPromptsOpen(true)}
               title="Gérer les prompts système"
             >
-              <Settings2 className="h-4 w-4" />
+              <Plus className="h-4 w-4" />
             </Button>
-            <Button
-              size="icon"
-              className="h-8 w-8 bg-neutral-100 text-neutral-900 hover:bg-white"
-              onClick={send}
-              disabled={busy || !input.trim()}
-            >
-              <Send className="h-4 w-4" />
-            </Button>
+
+            <div className="flex items-center gap-1.5">
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-8 gap-1 rounded-full px-2.5 text-sm font-normal text-neutral-100 hover:bg-[#3a3a38]"
+                onClick={() => onCreateWizard?.()}
+              >
+                Créer
+                <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 rounded-full text-neutral-400 hover:bg-[#3a3a38] hover:text-neutral-100"
+                title="Microphone (bientôt)"
+              >
+                <Mic className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                className="h-9 w-9 rounded-full bg-neutral-500 text-white hover:bg-neutral-400 disabled:opacity-50"
+                onClick={send}
+                disabled={busy || !input.trim()}
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
