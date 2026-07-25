@@ -527,197 +527,277 @@ function DashboardPage() {
   const previewBg = draftBrand?.colors?.background;
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background">
-      {/* ================ LEFT: Chat ================ */}
-      <aside className="flex w-96 shrink-0 flex-col border-r border-border bg-white">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <img src={logoAsset.url} alt="CapitoleAI" className="h-7" />
-          <Button variant="ghost" size="sm" onClick={handleLogout}>
-            <LogOut className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="min-h-0 flex-1">
-          <WorkspaceChat
-            mode={mode}
-            siteName={activeSite?.name}
-            brand={draftBrand ?? undefined}
-            pages={draftPages ?? undefined}
-            creationContext={mode === "create" ? creationSnapshot ?? undefined : undefined}
-            onAction={handleAction}
-            onCreateWizard={openCreate}
-          />
-
-        </div>
-      </aside>
-
-      {/* ================ RIGHT: Workspace ================ */}
-      <main className="flex min-w-0 flex-1 flex-col bg-muted/30">
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-white px-4">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-2 font-medium">
-                {activeSite ? activeSite.name : "Aucun site sélectionné"}
-                <ChevronDown className="h-4 w-4 opacity-60" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-[240px]">
-              <DropdownMenuLabel>Vos sites</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {sites.length === 0 && (
-                <div className="px-2 py-3 text-xs text-muted-foreground">
-                  Aucun site pour l'instant.
-                </div>
-              )}
-              {sites.map((s) => (
-                <DropdownMenuItem
-                  key={s.id}
-                  onClick={() => setActiveId(s.id)}
-                  className="flex items-center gap-2"
-                >
-                  {s.id === activeId ? (
-                    <Check className="h-3.5 w-3.5" />
-                  ) : (
-                    <span className="w-3.5" />
-                  )}
-                  <span className="flex-1 truncate">{s.name}</span>
-                  <span
-                    className={
-                      "text-[10px] " +
-                      (s.status === "deployed"
-                        ? "text-emerald-600"
-                        : s.status === "failed"
-                          ? "text-red-600"
-                          : "text-muted-foreground")
-                    }
-                  >
-                    {STATUS_LABEL[s.status]}
-                  </span>
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={openCreate}>
-                <Plus className="mr-2 h-3.5 w-3.5" /> Nouveau site
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {activeSite && (
-            <div className="flex items-center gap-2">
-              {activeSite.status === "deployed" ? (
-                <StatusDot up title="En ligne" />
-              ) : activeSite.status === "failed" ? (
-                <StatusDot up={false} title="Hors ligne" />
-              ) : (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-              )}
-              <span className="text-xs text-muted-foreground">
-                {STATUS_LABEL[activeSite.status]}
-              </span>
-            </div>
-          )}
-
-          <div className="ml-auto flex items-center gap-2">
-            {activeSite?.deploy_url && (
-              <Button size="sm" variant="ghost" asChild>
-                <a href={activeSite.deploy_url} target="_blank" rel="noreferrer">
-                  <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                  Ouvrir
-                </a>
-              </Button>
-            )}
-            {activeSite && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-destructive hover:text-destructive"
-                onClick={() => handleDelete(activeSite.id)}
-                title="Supprimer le site"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
-            <Button
-              size="sm"
-              onClick={handlePublish}
-              disabled={!activeSite || !isDirty || publishing}
+    <div className="flex h-screen w-full flex-col overflow-hidden bg-background">
+      {/* ================ TOP APP BAR ================ */}
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-white px-3">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-accent"
+              title="Menu"
             >
-              {publishing ? (
-                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-              ) : (
-                <Upload className="mr-1.5 h-4 w-4" />
-              )}
-              Publier
-            </Button>
-          </div>
-        </header>
+              <img src={logoAsset.url} alt="CapitoleAI" className="h-7 w-7 object-contain" />
+              <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-[260px]">
+            <DropdownMenuItem
+              onClick={() => {
+                setActiveId(null);
+                setMode("empty");
+              }}
+            >
+              <LayoutDashboard className="mr-2 h-3.5 w-3.5" /> Dashboard
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Vos sites</DropdownMenuLabel>
+            {sites.length === 0 && (
+              <div className="px-2 py-2 text-xs text-muted-foreground">
+                Aucun site pour l'instant.
+              </div>
+            )}
+            {sites.map((s) => (
+              <DropdownMenuItem
+                key={s.id}
+                onClick={() => {
+                  setActiveId(s.id);
+                  setMode("edit");
+                }}
+                className="flex items-center gap-2"
+              >
+                {s.id === activeId ? (
+                  <Check className="h-3.5 w-3.5" />
+                ) : (
+                  <span className="w-3.5" />
+                )}
+                <span className="flex-1 truncate">{s.name}</span>
+                <span
+                  className={
+                    "text-[10px] " +
+                    (s.status === "deployed"
+                      ? "text-emerald-600"
+                      : s.status === "failed"
+                        ? "text-red-600"
+                        : "text-muted-foreground")
+                  }
+                >
+                  {STATUS_LABEL[s.status]}
+                </span>
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={openCreate}>
+              <Plus className="mr-2 h-3.5 w-3.5" /> Nouveau site
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout}>
+              <LogOut className="mr-2 h-3.5 w-3.5" /> Se déconnecter
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
-        {/* Body */}
-        {mode === "create" ? (
-          <CreationWizard
-            ref={wizardRef}
-            onSnapshotChange={setCreationSnapshot}
-            onExit={exitCreate}
-            onFinalized={(id) => {
-              setActiveId(id);
-              setMode("edit");
-              setCreationSnapshot(null);
-              sitesQuery.refetch();
-            }}
-          />
-        ) : !activeSite ? (
-          <EmptyWorkspace onCreate={openCreate} />
-        ) : ["pending", "generating", "building", "deploying"].includes(activeSite.status) &&
-          !draftPages?.length ? (
-          <div className="flex flex-1 items-center justify-center p-6">
-            <div className="w-full max-w-md rounded-lg border border-border bg-card p-6">
-              <p className="mb-3 text-sm font-medium">Build en cours</p>
-              <SiteBuildProgress siteId={activeSite.id} active />
-            </div>
+        {activeSite ? (
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold">{activeSite.name}</span>
+            {activeSite.status === "deployed" ? (
+              <StatusDot up title="En ligne" />
+            ) : activeSite.status === "failed" ? (
+              <StatusDot up={false} title="Hors ligne" />
+            ) : (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+            )}
+            <span className="text-xs text-muted-foreground">
+              {STATUS_LABEL[activeSite.status]}
+            </span>
           </div>
         ) : (
-          <Tabs defaultValue="preview" className="flex min-h-0 flex-1 flex-col">
-            <div className="border-b border-border bg-white px-4">
-              <TabsList className="h-10 bg-transparent p-0">
-                <TabsTrigger
-                  value="preview"
-                  className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none h-10"
-                >
-                  Live Preview
-                </TabsTrigger>
-                <TabsTrigger
-                  value="sitemap"
-                  className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none h-10"
-                >
-                  Arborescence
-                </TabsTrigger>
-                <TabsTrigger
-                  value="analytics"
-                  className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none h-10"
-                >
-                  Analytics
-                </TabsTrigger>
-              </TabsList>
-            </div>
-
-            <TabsContent value="preview" className="min-h-0 flex-1 mt-0" style={previewBg ? { backgroundColor: previewBg } : undefined}>
-              <WorkspacePreview pages={draftPages ?? []} brand={draftBrand ?? undefined} />
-            </TabsContent>
-
-            <TabsContent value="sitemap" className="min-h-0 flex-1 mt-0">
-              <WorkspaceSitemap
-                siteName={activeSite.name}
-                brand={draftBrand ?? undefined}
-                pages={draftPages ?? []}
-                onChange={(p) => setDraftPages(p)}
-              />
-            </TabsContent>
-
-            <TabsContent value="analytics" className="min-h-0 flex-1 mt-0">
-              <WorkspaceAnalytics siteId={activeSite.id} />
-            </TabsContent>
-          </Tabs>
+          <span className="text-sm text-muted-foreground">
+            {mode === "create" ? "Nouveau site" : "Dashboard"}
+          </span>
         )}
-      </main>
+
+        <div className="ml-auto flex items-center gap-2">
+          {activeSite && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button size="sm">
+                  <Upload className="mr-1.5 h-4 w-4" />
+                  Publier
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-80 p-4">
+                <div className="mb-3">
+                  <p className="text-sm font-semibold">Publier</p>
+                  <p className="text-xs text-muted-foreground">
+                    {isDirty
+                      ? "Modifications non publiées."
+                      : "Aucune modification en attente."}
+                  </p>
+                </div>
+                {activeSite.deploy_url && (
+                  <div className="mb-3">
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      URL du site
+                    </p>
+                    <div className="mt-1 flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-1.5">
+                      <span className="flex-1 truncate text-xs">
+                        {activeSite.deploy_url.replace(/^https?:\/\//, "")}
+                      </span>
+                      <button
+                        type="button"
+                        className="rounded p-1 hover:bg-accent"
+                        title="Copier"
+                        onClick={() => {
+                          navigator.clipboard.writeText(activeSite.deploy_url!);
+                          toast.success("URL copiée");
+                        }}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  {activeSite.deploy_url && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start"
+                      asChild
+                    >
+                      <a href={activeSite.deploy_url} target="_blank" rel="noreferrer">
+                        <ExternalLink className="mr-2 h-3.5 w-3.5" />
+                        Ouvrir le site
+                      </a>
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start text-destructive hover:text-destructive"
+                    onClick={() => handleDelete(activeSite.id)}
+                  >
+                    <Trash2 className="mr-2 h-3.5 w-3.5" />
+                    Supprimer le site
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    onClick={handlePublish}
+                    disabled={!isDirty || publishing}
+                  >
+                    {publishing ? (
+                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="mr-1.5 h-4 w-4" />
+                    )}
+                    Publier les modifications
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
+      </header>
+
+      {/* ================ SPLIT BODY ================ */}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {/* LEFT: Chat */}
+        <aside className="flex w-96 shrink-0 flex-col border-r border-border bg-white">
+          <div className="min-h-0 flex-1">
+            <WorkspaceChat
+              mode={mode}
+              siteName={activeSite?.name}
+              brand={draftBrand ?? undefined}
+              pages={draftPages ?? undefined}
+              creationContext={mode === "create" ? creationSnapshot ?? undefined : undefined}
+              onAction={handleAction}
+              onCreateWizard={openCreate}
+            />
+          </div>
+        </aside>
+
+        {/* RIGHT: Workspace */}
+        <main className="flex min-w-0 flex-1 flex-col bg-muted/30">
+          {mode === "create" ? (
+            <CreationWizard
+              ref={wizardRef}
+              onSnapshotChange={setCreationSnapshot}
+              onExit={exitCreate}
+              onFinalized={(id) => {
+                setActiveId(id);
+                setMode("edit");
+                setCreationSnapshot(null);
+                sitesQuery.refetch();
+              }}
+            />
+          ) : !activeSite ? (
+            <EmptyWorkspace onCreate={openCreate} />
+          ) : ["pending", "generating", "building", "deploying"].includes(activeSite.status) &&
+            !draftPages?.length ? (
+            <div className="flex flex-1 items-center justify-center p-6">
+              <div className="w-full max-w-md rounded-lg border border-border bg-card p-6">
+                <p className="mb-3 text-sm font-medium">Build en cours</p>
+                <SiteBuildProgress siteId={activeSite.id} active />
+              </div>
+            </div>
+          ) : (
+            <Tabs defaultValue="preview" className="flex min-h-0 flex-1 flex-col">
+              <div className="border-b border-border bg-white px-4">
+                <TabsList className="h-10 bg-transparent p-0">
+                  {[
+                    { value: "preview", label: "Aperçu" },
+                    { value: "code", label: "Code" },
+                    { value: "sitemap", label: "Arborescence" },
+                    { value: "analytics", label: "Analytics" },
+                  ].map((t) => (
+                    <TabsTrigger
+                      key={t.value}
+                      value={t.value}
+                      className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none h-10"
+                    >
+                      {t.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
+
+              <TabsContent
+                value="preview"
+                className="min-h-0 flex-1 mt-0"
+                style={previewBg ? { backgroundColor: previewBg } : undefined}
+              >
+                <WorkspacePreview pages={draftPages ?? []} brand={draftBrand ?? undefined} />
+              </TabsContent>
+
+              <TabsContent value="code" className="min-h-0 flex-1 mt-0">
+                <WorkspaceCode
+                  pages={draftPages ?? []}
+                  brand={draftBrand}
+                  onChange={({ pages, brand }) => {
+                    setDraftPages(pages);
+                    if (brand !== undefined) setDraftBrand(brand);
+                  }}
+                />
+              </TabsContent>
+
+              <TabsContent value="sitemap" className="min-h-0 flex-1 mt-0">
+                <WorkspaceSitemap
+                  siteName={activeSite.name}
+                  brand={draftBrand ?? undefined}
+                  pages={draftPages ?? []}
+                  onChange={(p) => setDraftPages(p)}
+                />
+              </TabsContent>
+
+              <TabsContent value="analytics" className="min-h-0 flex-1 mt-0">
+                <WorkspaceAnalytics siteId={activeSite.id} />
+              </TabsContent>
+            </Tabs>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
