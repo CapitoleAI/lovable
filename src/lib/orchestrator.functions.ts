@@ -47,15 +47,14 @@ async function loadAdmin() {
 }
 
 async function callAiJson<T>(system: string, user: string, fallback: T): Promise<T> {
-  const apiKey = process.env.LOVABLE_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return fallback;
   try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: "openai/gpt-5.5",
-        reasoning_effort: "none",
+        model: "gpt-4o-mini",
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: system },
@@ -71,6 +70,7 @@ async function callAiJson<T>(system: string, user: string, fallback: T): Promise
     return fallback;
   }
 }
+
 
 type OpenAiTool = {
   type: "function";
