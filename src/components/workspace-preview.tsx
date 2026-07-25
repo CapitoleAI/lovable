@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { Monitor, RefreshCw, Smartphone, Tablet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { BrandIdentity, PageContent } from "@/lib/sites-schema";
 
@@ -16,11 +16,15 @@ const DEFAULT_COLORS = {
   background: "#ffffff",
 };
 
+type Device = "desktop" | "tablet" | "mobile";
+
+const DEVICE_WIDTHS: Record<Device, number | null> = {
+  desktop: null,
+  tablet: 820,
+  mobile: 390,
+};
+
 function buildDoc(html: string, colors: typeof DEFAULT_COLORS): string {
-  // Tailwind Play CDN config MUST be set after the CDN script loads.
-  // We register a `brand` color palette (DEFAULT + variants) so templates
-  // can use `bg-brand`, `text-brand`, `ring-brand`, `bg-brand-accent`, etc.,
-  // and the Live Preview reflects palette changes instantly.
   const config = {
     theme: {
       extend: {
@@ -44,6 +48,7 @@ function buildDoc(html: string, colors: typeof DEFAULT_COLORS): string {
 export function WorkspacePreview({ pages, brand }: Props) {
   const [activeSlug, setActiveSlug] = useState<string>(pages[0]?.slug ?? "index");
   const [nonce, setNonce] = useState(0);
+  const [device, setDevice] = useState<Device>("desktop");
 
   const active = useMemo(
     () => pages.find((p) => p.slug === activeSlug) ?? pages[0],
@@ -52,6 +57,7 @@ export function WorkspacePreview({ pages, brand }: Props) {
 
   const colors = { ...DEFAULT_COLORS, ...(brand?.colors ?? {}) };
   const colorKey = `${colors.primary}|${colors.secondary}|${colors.accent}|${colors.neutral}|${colors.background}`;
+  const deviceWidth = DEVICE_WIDTHS[device];
 
   return (
     <div className="flex h-full flex-col">
@@ -70,7 +76,26 @@ export function WorkspacePreview({ pages, brand }: Props) {
             {p.slug === "index" ? "/" : `/${p.slug}`}
           </button>
         ))}
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-1">
+          <div className="mr-1 flex items-center rounded-md border border-border bg-background p-0.5">
+            {(["desktop", "tablet", "mobile"] as Device[]).map((d) => {
+              const Icon = d === "desktop" ? Monitor : d === "tablet" ? Tablet : Smartphone;
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setDevice(d)}
+                  title={d === "desktop" ? "Bureau" : d === "tablet" ? "Tablette" : "Mobile"}
+                  className={
+                    "flex h-7 w-7 items-center justify-center rounded-sm transition-colors " +
+                    (device === d ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground")
+                  }
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                </button>
+              );
+            })}
+          </div>
           <Button
             variant="ghost"
             size="sm"
@@ -81,15 +106,20 @@ export function WorkspacePreview({ pages, brand }: Props) {
           </Button>
         </div>
       </div>
-      <div className="min-h-0 flex-1 bg-muted p-4">
+      <div className="min-h-0 flex-1 overflow-auto bg-muted p-4">
         {active ? (
-          <iframe
-            key={`${active.slug}-${colorKey}-${nonce}`}
-            title={`Aperçu ${active.slug}`}
-            sandbox="allow-scripts"
-            srcDoc={buildDoc(active.html_content, colors)}
-            className="h-full w-full rounded-lg border border-border bg-white shadow-sm"
-          />
+          <div
+            className="mx-auto h-full transition-all"
+            style={deviceWidth ? { maxWidth: deviceWidth } : undefined}
+          >
+            <iframe
+              key={`${active.slug}-${colorKey}-${nonce}-${device}`}
+              title={`Aperçu ${active.slug}`}
+              sandbox="allow-scripts"
+              srcDoc={buildDoc(active.html_content, colors)}
+              className="h-full w-full rounded-lg border border-border bg-white shadow-sm"
+            />
+          </div>
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             Aucune page.
