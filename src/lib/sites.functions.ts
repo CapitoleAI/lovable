@@ -776,6 +776,7 @@ export const syncCloudflareStatus = createServerFn({ method: "POST" })
 const updateSiteSchema = z.object({
   id: z.string().uuid(),
   pages: z.array(pageContentSchema).min(1).max(60),
+  brand: brandIdentitySchema.optional(),
 });
 
 export const updateSite = createServerFn({ method: "POST" })
@@ -785,14 +786,13 @@ export const updateSite = createServerFn({ method: "POST" })
     const supabase = await loadAdmin();
     const { data: row, error } = await supabase
       .from("sites")
-      .select("id, owner_email, name, random_seed")
+      .select("id, owner_email, name, random_seed, site_data")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!row || row.owner_email !== email) throw new Error("Not found");
 
     const pages = data.pages.map((p) => ({ ...p, slug: normalizePageSlug(p.slug) }));
-    // Rebuild sitemap from pages (flat), keep 'index' first
     const sitemap: SitemapPage[] = pages.map((p) => ({
       title: p.seo_title.split("—")[0].trim() || p.slug,
       slug: p.slug === "index" ? "/" : `/${p.slug}`,
@@ -800,10 +800,25 @@ export const updateSite = createServerFn({ method: "POST" })
     const seed = (row.random_seed ?? {}) as Record<string, unknown>;
     const newSeed = { ...seed, sitemap };
 
+    const prevData = (row.site_data ?? {}) as SiteData;
+    const nextData: SiteData = { pages };
+    if (data.brand) {
+      nextData.site_info = {
+        brand_name: data.brand.brand_name,
+        tagline: data.brand.tagline,
+        story: data.brand.story,
+        colors: data.brand.colors,
+        logo_url: data.brand.logo_url,
+        moodboard_url: data.brand.moodboard_url,
+      };
+    } else if (prevData.site_info) {
+      nextData.site_info = prevData.site_info;
+    }
+
     await supabase
       .from("sites")
       .update({
-        site_data: { pages },
+        site_data: nextData,
         random_seed: newSeed,
         status: "pending",
         last_error: null,
