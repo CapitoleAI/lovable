@@ -642,7 +642,7 @@ function DashboardPage() {
         <div className="flex min-w-0 flex-1 items-center gap-2 px-3">
         {activeSite && mode === "edit" && (
           <div className="flex flex-1 items-center gap-2">
-            <div className="flex items-center rounded-full bg-slate-100 p-0.5">
+            <div className="flex items-center rounded-full bg-zinc-800 p-0.5">
               {[
                 { value: "preview" as const, label: "Aperçu", icon: Globe },
                 { value: "code" as const, label: "Code", icon: FileCode2 },
@@ -660,8 +660,8 @@ function DashboardPage() {
                     className={cn(
                       "flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors",
                       active
-                        ? "bg-white text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground",
+                        ? "bg-zinc-700 text-white shadow-sm"
+                        : "text-zinc-400 hover:text-zinc-100",
                     )}
                   >
                     <Icon className="h-3.5 w-3.5" />
