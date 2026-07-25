@@ -1,7 +1,8 @@
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, queryOptions } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
 import {
   Check,
   ChevronDown,
@@ -36,13 +37,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { CreateSiteDialog } from "@/components/create-site-dialog";
-import { BuildProgressDialog } from "@/components/build-progress-dialog";
+import {
+  CreationWizard,
+  type CreationSnapshot,
+  type CreationWizardHandle,
+} from "@/components/creation-wizard";
 import { WorkspaceChat } from "@/components/workspace-chat";
 import { WorkspacePreview } from "@/components/workspace-preview";
 import { WorkspaceSitemap } from "@/components/workspace-sitemap";
 import { WorkspaceAnalytics } from "@/components/workspace-analytics";
 import { SiteBuildProgress } from "@/components/site-build-progress";
+
 
 // ---------------- Route ----------------
 
