@@ -342,7 +342,7 @@ function DashboardPage() {
 
   // ---------- Chat action handler ----------
   async function handleAction(action: OrchestratorAction) {
-  async function handleAction(action: OrchestratorAction) {
+
     // Create-mode actions target the wizard imperatively
     if (action.type === "advance_to_brand_studio") {
       await wizardRef.current?.advanceToBrandStudio({
