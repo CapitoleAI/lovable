@@ -619,7 +619,7 @@ function DashboardPage() {
 
         {activeSite ? (
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold">{activeSite.name}</span>
+            <span className="text-xs font-medium">{activeSite.name}</span>
             {activeSite.status === "deployed" ? (
               <StatusDot up title="En ligne" />
             ) : activeSite.status === "failed" ? (
