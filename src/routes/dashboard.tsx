@@ -354,6 +354,16 @@ function DashboardPage() {
       });
       return;
     }
+    if (action.type === "update_creation_brief") {
+      wizardRef.current?.updateBrief({
+        name: action.name,
+        theme: action.theme,
+        city: action.city,
+        brief: action.brief,
+        hint_colors: action.hint_colors,
+      });
+      return;
+    }
     if (action.type === "update_creation_theme") {
       wizardRef.current?.updateTheme({
         ...(action.brand_name ? { brand_name: action.brand_name } : {}),

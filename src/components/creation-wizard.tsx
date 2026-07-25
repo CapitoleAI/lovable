@@ -82,6 +82,14 @@ export type CreationWizardHandle = {
     brief?: string;
     hint_colors?: string[];
   }) => Promise<void>;
+  /** Update step-1 brief fields without changing the current step. */
+  updateBrief: (input: {
+    name?: string;
+    theme?: string;
+    city?: string;
+    brief?: string;
+    hint_colors?: string[];
+  }) => void;
   /** Patch the theme/brand at step 2. */
   updateTheme: (patch: Partial<BrandIdentity>) => void;
   /** Move to SEO + Sitemap (step 3-4), optionally seed values and auto-suggest missing ones. */
@@ -507,6 +515,13 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
         } catch (e) {
           toast.error((e as Error).message);
         }
+      },
+      updateBrief(input) {
+        if (input.name !== undefined) setName(input.name);
+        if (input.theme !== undefined) setTheme(input.theme);
+        if (input.city !== undefined) setCity(input.city);
+        if (input.brief !== undefined) setBrief(input.brief);
+        if (input.hint_colors !== undefined) setHintColors(input.hint_colors);
       },
       updateTheme(patch) {
         applyBrandPatch(patch);
