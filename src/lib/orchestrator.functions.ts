@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { useSession } from "@tanstack/react-start/server";
 import { z } from "zod";
-import { brandIdentitySchema, pageContentSchema } from "./sites-schema";
+import { brandIdentitySchema, pageContentSchema, sitemapPageSchema } from "./sites-schema";
 
 type AuthSession = { authenticated?: boolean; email?: string };
 
@@ -75,6 +75,7 @@ async function callAiJson<T>(system: string, user: string, fallback: T): Promise
 // -------------------- Chat Orchestrator --------------------
 
 const actionSchema = z.discriminatedUnion("type", [
+  // Edit-mode actions
   z.object({
     type: z.literal("update_colors"),
     colors: z.object({
@@ -104,8 +105,59 @@ const actionSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("open_create_wizard"),
   }),
+  // Create-mode actions
+  z.object({
+    type: z.literal("advance_to_brand_studio"),
+    name: z.string().optional(),
+    theme: z.string().optional(),
+    city: z.string().optional(),
+    brief: z.string().optional(),
+    hint_colors: z.array(z.string()).max(6).optional(),
+  }),
+  z.object({
+    type: z.literal("update_creation_theme"),
+    colors: z.object({
+      primary: z.string().optional(),
+      secondary: z.string().optional(),
+      accent: z.string().optional(),
+      neutral: z.string().optional(),
+      background: z.string().optional(),
+    }).optional(),
+    selected_header_id: z.string().optional(),
+    selected_hero_id: z.string().optional(),
+    selected_footer_id: z.string().optional(),
+    selected_section_ids: z.array(z.string()).optional(),
+    design_style: z.string().optional(),
+    brand_name: z.string().optional(),
+    tagline: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal("generate_seo_and_tree"),
+    main_keyword: z.string().optional(),
+    keywords: z.array(z.string()).max(30).optional(),
+    sitemap: z.array(sitemapPageSchema).max(30).optional(),
+  }),
+  z.object({
+    type: z.literal("finalize_and_build"),
+  }),
 ]);
 export type OrchestratorAction = z.infer<typeof actionSchema>;
+
+const creationContextSchema = z
+  .object({
+    step: z.number().int().min(1).max(5).optional(),
+    name: z.string().optional(),
+    theme: z.string().optional(),
+    city: z.string().optional(),
+    brief: z.string().optional(),
+    hint_colors: z.array(z.string()).optional(),
+    brand: brandIdentitySchema.partial().nullable().optional(),
+    main_keyword: z.string().optional(),
+    keywords: z.array(z.string()).optional(),
+    sitemap: z.array(z.object({ title: z.string(), slug: z.string() })).optional(),
+  })
+  .partial();
+
 
 const orchestrateSchema = z.object({
   mode: z.enum(["edit", "empty"]),
