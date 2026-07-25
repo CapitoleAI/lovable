@@ -24,6 +24,7 @@ import {
   syncCloudflareStatus,
 } from "@/lib/sites.functions";
 import { regeneratePageContent, generateNewPage } from "@/lib/orchestrator.functions";
+import { getSiteBuildProgress } from "@/lib/github-runs.functions";
 import type { OrchestratorAction } from "@/lib/orchestrator.functions";
 import type { BrandIdentity, PageContent } from "@/lib/sites-schema";
 
