@@ -637,8 +637,11 @@ function DashboardPage() {
           </span>
         )}
 
+        </div>
+
+        <div className="flex min-w-0 flex-1 items-center gap-2 px-3">
         {activeSite && mode === "edit" && (
-          <div className="ml-4 flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <div className="flex items-center rounded-full border border-border bg-white p-0.5 shadow-sm">
               {[
                 { value: "preview" as const, label: "Aperçu", icon: Globe },
