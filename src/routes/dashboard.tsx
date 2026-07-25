@@ -760,7 +760,7 @@ function DashboardPage() {
           {activeSite && (
             <Popover>
               <PopoverTrigger asChild>
-                <Button size="sm">
+                <Button size="sm" className="bg-[#3B6DF5] text-white hover:bg-[#3361de]">
                   <Upload className="mr-1.5 h-4 w-4" />
                   Publier
                 </Button>
