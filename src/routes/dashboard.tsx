@@ -204,14 +204,36 @@ function DashboardPage() {
     }
   }, [activeSite?.id]);
 
-  // Auto-select first site on first load if none selected
+  // Auto-select first site on first load if none selected AND not creating
   useEffect(() => {
-    if (!activeId && sites.length > 0) {
+    if (!activeId && mode !== "create" && sites.length > 0) {
       const firstDeployed = sites.find((s) => s.status === "deployed") ?? sites[0];
       setActiveId(firstDeployed.id);
+      setMode("edit");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sites.length]);
+
+  // Keep mode in sync with active site
+  useEffect(() => {
+    if (mode === "create") return;
+    setMode(activeId ? "edit" : "empty");
+  }, [activeId, mode]);
+
+  function openCreate() {
+    setActiveId(null);
+    setMode("create");
+    setCreationSnapshot(null);
+  }
+
+  function exitCreate() {
+    setMode(sites.length > 0 ? "edit" : "empty");
+    if (sites.length > 0 && !activeId) {
+      setActiveId(sites[0].id);
+    }
+    setCreationSnapshot(null);
+  }
+
 
   // Background Cloudflare sync every 60s for deployed/failed sites
   useEffect(() => {
