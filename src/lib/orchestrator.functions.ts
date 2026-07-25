@@ -245,7 +245,7 @@ function inferCreationIntent(data: z.infer<typeof orchestrateSchema>) {
   const joined = userTexts.join(". ");
 
   const cityMatch = firstProjectText.match(
-    /(?:\bà\b|\ba\b|\bsur\b|près de|proche de|dans)\s+([A-ZÀ-Ÿ][A-Za-zÀ-ÿ' -]{1,38}?)(?=\s+(?:premium|haut|luxe|minimal|moderne|urgent|pas\s+cher|corporate|élégant|elegant)|[,.!?;]|$)/i,
+    /(?:\bà\b|\ba\b|\bsur\b|près de|proche de|dans|situé[e]?\s+à)\s+([A-ZÀ-Ÿ][A-Za-zÀ-ÿ' -]{1,38}?)(?=\s+(?:premium|haut|luxe|minimal|moderne|urgent|pas\s+cher|corporate|élégant|elegant|pour|avec|qui|afin|dans|autour|centre|nord|sud|est|ouest)|[,.!?;]|$)/i,
   );
   const city = (cctx?.city || cityMatch?.[1] || "").trim();
 
