@@ -243,6 +243,10 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
 
   async function runLogo(prompt: string, current: BrandIdentity) {
     setLogoLoading(true);
+    const previousLogo = current.logo_url;
+    const withoutLogo = { ...current, logo_url: "" };
+    brandRef.current = withoutLogo;
+    setBrand(withoutLogo);
     const t = toast.loading("Génération du nouveau logo…");
     try {
       const { data_url } = await genImage({ data: { prompt } });
@@ -253,6 +257,11 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
       });
       toast.success("Logo mis à jour", { id: t });
     } catch (e) {
+      if (previousLogo) {
+        const restored = { ...(brandRef.current ?? current), logo_url: previousLogo };
+        brandRef.current = restored;
+        setBrand(restored);
+      }
       toast.error(`Logo: ${(e as Error).message}`, { id: t });
     } finally {
       setLogoLoading(false);
@@ -522,8 +531,12 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
         if (input.city !== undefined) setCity(input.city);
         if (input.brief !== undefined) setBrief(input.brief);
         if (input.hint_colors !== undefined) setHintColors(input.hint_colors);
+        if (input.name !== undefined && (brandRef.current ?? brand)) {
+          applyBrandPatch({ brand_name: input.name });
+        }
       },
       updateTheme(patch) {
+        if (patch.brand_name !== undefined) setName(patch.brand_name);
         applyBrandPatch(patch);
         setStep(2);
       },
@@ -1329,7 +1342,11 @@ function ThemeBuilder({
       <div className="rounded-lg border border-border bg-card p-3">
         <div className="flex items-center gap-3">
           <div className="relative h-12 w-12 shrink-0">
-            {brand.logo_url ? (
+            {logoLoading ? (
+              <div className="flex h-12 w-12 items-center justify-center rounded bg-muted">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : brand.logo_url ? (
               <img src={brand.logo_url} alt="" className="h-12 w-12 rounded object-contain" />
             ) : (
               <div
@@ -1337,11 +1354,6 @@ function ThemeBuilder({
                 style={{ background: brand.colors.primary }}
               >
                 {(brand.brand_name?.[0] ?? "L").toUpperCase()}
-              </div>
-            )}
-            {logoLoading && (
-              <div className="absolute inset-0 flex items-center justify-center rounded bg-background/70 backdrop-blur-sm">
-                <Loader2 className="h-5 w-5 animate-spin text-foreground" />
               </div>
             )}
           </div>

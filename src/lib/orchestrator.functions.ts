@@ -27,7 +27,7 @@ export const DEFAULT_SYSTEM_CREATE = `Tu es DIRECTEUR D'AGENCE dans un studio de
 5 = Lancement / build
 
 Actions disponibles (mode CRÉATION):
-- update_creation_brief({ name?, theme?, city?, brief?, hint_colors? }) — remplit ou MODIFIE un ou plusieurs champs de l'étape 1 SANS changer d'étape. Inclus uniquement les champs concernés.
+- update_creation_brief({ name?, theme?, city?, brief?, hint_colors? }) — remplit ou MODIFIE un ou plusieurs champs du brief à l'étape 1 SANS changer d'étape. Inclus uniquement les champs concernés.
 - advance_to_brand_studio({ name?, theme?, city?, brief?, hint_colors? }) — passe à l'étape 2 et génère la marque + le logo. À n'utiliser QUE quand tu as (nom + thème + brief) ET que l'utilisateur confirme.
 - update_creation_theme({ colors?, selected_header_id?, selected_hero_id?, selected_footer_id?, selected_section_ids?, design_style?, brand_name?, tagline? }) — ajuste le Theme Builder (couleurs en hex #RRGGBB).
 - regenerate_logo({ prompt }) — régénère le logo à l'étape 2 avec un nouveau prompt d'image détaillé.
@@ -44,6 +44,8 @@ Règles STRICTES pour update_creation_brief:
 Règles générales:
 - INTERVIEW : pose UNE question courte à la fois pour compléter l'étape en cours. NE fais PAS avancer d'étape tant que l'utilisateur ne l'a pas confirmé.
 - Dès que l'utilisateur DONNE une info claire, appelle update_creation_brief avec uniquement ces champs, puis pose la prochaine question.
+- À l'étape 2, tout changement de nom affiché, description courte, slogan ou tagline DOIT appeler update_creation_theme({ brand_name?, tagline? }) — n'utilise PAS update_creation_brief pour ces modifications visibles dans le Studio de marque.
+- À l'étape 2, tout changement de logo DOIT appeler regenerate_logo({ prompt }) avec un prompt image précis.
 - À l'étape 2, propose spontanément des ajustements de couleurs, style ou logo.
 - Ne réclame pas d'infos déjà présentes dans le CONTEXTE CRÉATION.
 - Réponses courtes, en français, ton pro et chaleureux.
@@ -472,7 +474,7 @@ const createTools: OpenAiTool[] = [
     function: {
       name: "update_creation_brief",
       description:
-        "Remplit ou MODIFIE un ou plusieurs champs de l'étape 1 (brief) SANS changer d'étape. À utiliser à chaque fois que l'utilisateur donne ou corrige une info de brief.",
+        "Remplit ou MODIFIE un ou plusieurs champs de l'étape 1 (brief) SANS changer d'étape. À utiliser seulement pour le brief, pas pour changer le nom/tagline affichés dans le Studio de marque à l'étape 2.",
       parameters: {
         type: "object",
         properties: {
@@ -508,7 +510,7 @@ const createTools: OpenAiTool[] = [
     function: {
       name: "update_creation_theme",
       description:
-        "Ajuste à l'étape 2 : couleurs, sélection Header/Hero/Sections/Footer, style de design, nom de marque, tagline. N'inclus que les champs à changer.",
+        "Ajuste à l'étape 2 : couleurs, sélection Header/Hero/Sections/Footer, style de design, nom de marque affiché, tagline/description courte. Utilise cet outil pour tout changement de nom ou description demandé dans le Studio de marque. N'inclus que les champs à changer.",
       parameters: {
         type: "object",
         properties: {
@@ -586,7 +588,7 @@ export const orchestrateChat = createServerFn({ method: "POST" })
 
     const cctx = data.creation_context;
     const creationBlock = cctx
-      ? `\nCONTEXTE CRÉATION (étape ${cctx.step ?? 1}/5):\n- Nom: ${cctx.name || "-"}\n- Thème: ${cctx.theme || "-"}\n- Ville: ${cctx.city || "-"}\n- Brief: ${cctx.brief || "-"}\n- Couleurs indices: ${(cctx.hint_colors ?? []).join(", ") || "-"}\n- Marque: ${cctx.brand ? JSON.stringify({ brand_name: cctx.brand.brand_name, colors: cctx.brand.colors, design_style: cctx.brand.design_style }) : "-"}\n- Mot-clé principal: ${cctx.main_keyword || "-"}\n- Mots-clés: ${(cctx.keywords ?? []).join(", ") || "-"}\n- Sitemap: ${(cctx.sitemap ?? []).map((p) => p.title).join(", ") || "-"}`
+      ? `\nCONTEXTE CRÉATION (étape ${cctx.step ?? 1}/5):\n- Nom brief: ${cctx.name || "-"}\n- Thème: ${cctx.theme || "-"}\n- Ville: ${cctx.city || "-"}\n- Brief: ${cctx.brief || "-"}\n- Couleurs indices: ${(cctx.hint_colors ?? []).join(", ") || "-"}\n- Marque affichée: ${cctx.brand ? JSON.stringify({ brand_name: cctx.brand.brand_name, tagline: cctx.brand.tagline, colors: cctx.brand.colors, design_style: cctx.brand.design_style, logo_url: cctx.brand.logo_url ? "présent" : "absent" }) : "-"}\n- Mot-clé principal: ${cctx.main_keyword || "-"}\n- Mots-clés: ${(cctx.keywords ?? []).join(", ") || "-"}\n- Sitemap: ${(cctx.sitemap ?? []).map((p) => p.title).join(", ") || "-"}`
       : "";
 
     const systemEdit = data.system_override?.trim() || DEFAULT_SYSTEM_EDIT;
