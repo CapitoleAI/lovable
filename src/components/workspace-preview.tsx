@@ -56,7 +56,7 @@ export function WorkspacePreview({ pages, brand, activeSlug, device, nonce }: Pr
   const deviceWidth = DEVICE_WIDTHS[device];
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto bg-muted p-4 h-full">
+    <div className="min-h-0 flex-1 overflow-auto bg-slate-100 p-4 h-full">
       {active ? (
         <div
           className="mx-auto h-full transition-all"
@@ -67,7 +67,7 @@ export function WorkspacePreview({ pages, brand, activeSlug, device, nonce }: Pr
             title={`Aperçu ${active.slug}`}
             sandbox="allow-scripts"
             srcDoc={buildDoc(active.html_content, colors)}
-            className="h-full w-full rounded-lg border border-border bg-white shadow-sm"
+            className="h-full w-full rounded-2xl border border-slate-200 bg-white shadow-lg"
           />
         </div>
       ) : (
