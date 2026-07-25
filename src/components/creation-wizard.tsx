@@ -489,8 +489,8 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
         const th = (input.theme ?? theme).trim();
         const ci = (input.city ?? city).trim();
         const br = (input.brief ?? brief).trim();
-        if (!n || !th || !ci || !br) {
-          toast.info("Précise nom, thématique, ville et brief pour lancer le studio.");
+        if (!n || !th || !br) {
+          toast.info("Précise au moins le nom, la thématique et un brief pour lancer le studio.");
           return;
         }
         try {
