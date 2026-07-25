@@ -268,32 +268,6 @@ const orchestrateSchema = z.object({
 
 const HEX_RE = /^#([0-9a-fA-F]{6})$/;
 
-const AUTONOMY_RE =
-  /\b(peu importe|peut importe|n['’]?importe|toi[-\s]?même|tout toi|comme tu veux|choisis|propose|carte blanche|fais au mieux|crée?r? tout)\b/i;
-
-const COLOR_WORDS: Record<string, string> = {
-  bleu: "#1d4ed8",
-  marine: "#0f172a",
-  rouge: "#dc2626",
-  vert: "#16a34a",
-  jaune: "#f59e0b",
-  orange: "#ea580c",
-  rose: "#db2777",
-  violet: "#7c3aed",
-  noir: "#111827",
-  blanc: "#ffffff",
-  sombre: "#111827",
-  premium: "#0f172a",
-};
-
-function toTitleCase(value: string): string {
-  return value
-    .trim()
-    .split(/\s+/)
-    .map((word) => word.charAt(0).toLocaleUpperCase("fr-FR") + word.slice(1))
-    .join(" ");
-}
-
 function normalizeRawAction(raw: unknown): unknown {
   if (!raw || typeof raw !== "object") return raw;
   const record = raw as Record<string, unknown>;
@@ -316,126 +290,192 @@ function normalizeRawAction(raw: unknown): unknown {
   return { ...args, type: name };
 }
 
-function inferCreationIntent(data: z.infer<typeof orchestrateSchema>) {
-  const cctx = data.creation_context;
-  const userTexts = [
-    ...data.history.filter((m) => m.role === "user").map((m) => m.content),
-    data.message,
-  ];
-  const meaningfulTexts = userTexts.filter((text) => !AUTONOMY_RE.test(text));
-  const firstProjectText = meaningfulTexts[0] ?? data.message;
-  const joined = userTexts.join(". ");
+// ---------- Tool definitions (OpenAI function calling) ----------
 
-  const cityMatch = firstProjectText.match(
-    /(?:\bà\b|\ba\b|\bsur\b|près de|proche de|dans|situé[e]?\s+à)\s+([A-ZÀ-Ÿ][A-Za-zÀ-ÿ' -]{1,38}?)(?=\s+(?:premium|haut|luxe|minimal|moderne|urgent|pas\s+cher|corporate|élégant|elegant|pour|avec|qui|afin|dans|autour|centre|nord|sud|est|ouest)|[,.!?;]|$)/i,
-  );
-  const city = (cctx?.city || cityMatch?.[1] || "").trim();
+const colorsProp = {
+  type: "object",
+  properties: {
+    primary: { type: "string", description: "Hex #RRGGBB" },
+    secondary: { type: "string", description: "Hex #RRGGBB" },
+    accent: { type: "string", description: "Hex #RRGGBB" },
+    neutral: { type: "string", description: "Hex #RRGGBB" },
+    background: { type: "string", description: "Hex #RRGGBB" },
+  },
+  additionalProperties: false,
+} as const;
 
-  const beforeCity = firstProjectText.match(/^(.*?)\s+(?:\bà\b|\ba\b|\bsur\b|près de|proche de|dans)\s+/i)?.[1];
-  const themeSeed = (cctx?.theme || beforeCity || firstProjectText).replace(AUTONOMY_RE, "").trim();
-  const theme = themeSeed.split(/[,.!?;]/)[0]?.trim() || cctx?.theme || "Site vitrine";
-
-  const briefParts = meaningfulTexts.length > 0 ? meaningfulTexts : [data.message];
-  const brief =
-    cctx?.brief ||
-    briefParts.join(". ").trim() ||
-    `Créer un site professionnel ${theme}${city ? ` à ${city}` : ""}, avec une direction artistique cohérente et premium.`;
-
-  const hasAutonomy = AUTONOMY_RE.test(joined);
-  const name =
-    cctx?.name ||
-    (hasAutonomy || !meaningfulTexts.some((text) => /nom|soci[eé]t[eé]|entreprise|marque/i.test(text))
-      ? toTitleCase(`${theme}${city ? ` ${city}` : ""}`)
-      : "");
-
-  return {
-    name: name || undefined,
-    theme: theme || undefined,
-    city: city || undefined,
-    brief: brief || undefined,
-    hint_colors: cctx?.hint_colors,
-  };
-}
-
-function inferCreateFallbackAction(data: z.infer<typeof orchestrateSchema>): OrchestratorAction | null {
-  const msg = data.message.trim();
-  const lower = msg.toLocaleLowerCase("fr-FR");
-  const cctx = data.creation_context;
-
-  if (/\b(publie|publier|lance|build|finalise|cr[eé]e le site)\b/i.test(msg) && (cctx?.step ?? 1) >= 4) {
-    return { type: "finalize_and_build" };
-  }
-
-  if (/\b(seo|mots?[-\s]?cl[eé]s?|arborescence|sitemap|pages?|continue|suivant|avance)\b/i.test(msg) && (cctx?.step ?? 1) >= 2) {
-    return { type: "generate_seo_and_tree" };
-  }
-
-  if (/\b(logo|image|ic[oô]ne)\b/i.test(msg) && /\b(change|modifie|refais|r[eé]g[eé]n[eè]re|devien|remplace|nouveau|nouvelle)\b/i.test(msg)) {
-    return { type: "regenerate_logo", prompt: `logo ${msg}`.slice(0, 500) };
-  }
-
-  // Rename brand + tagline/description updates
+const editTools: OpenAiTool[] = [
   {
-    const patch: { brand_name?: string; tagline?: string } = {};
-    const renameRe =
-      /(?:renomme(?:r|z)?(?:\s+la\s+marque)?|appelle(?:-la|s|z)?|nomme(?:r|z)?|rebaptise|(?:change(?:r|z)?|modifie(?:r|z)?|remplace(?:r|z)?)\s+(?:le\s+)?nom(?:\s+de\s+(?:la\s+)?marque)?(?:\s+(?:en|par|pour|:))?|(?:le\s+)?nom\s+(?:de\s+(?:la\s+)?marque\s+)?(?:devient|est|sera|:)|marque\s*[:=])\s+["«"']?([A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9 '&.\-]{1,60}?)["»"']?(?=[.,;!?\n]|$)/i;
-    const mn = msg.match(renameRe);
-    if (mn && mn[1]) patch.brand_name = mn[1].trim().replace(/\s+/g, " ");
+    type: "function",
+    function: {
+      name: "update_colors",
+      description: "Met à jour la palette de couleurs du site actif.",
+      parameters: {
+        type: "object",
+        properties: { colors: colorsProp },
+        required: ["colors"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_page_content",
+      description: "Régénère le contenu HTML d'une page existante à partir d'une instruction.",
+      parameters: {
+        type: "object",
+        properties: {
+          slug: { type: "string" },
+          seo_title: { type: "string" },
+          instruction: { type: "string", description: "Ce que l'IA doit changer" },
+        },
+        required: ["slug", "instruction"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "add_page",
+      description: "Ajoute une nouvelle page au site (slug déduit si absent).",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          slug: { type: "string" },
+          instruction: { type: "string" },
+        },
+        required: ["title"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "remove_page",
+      description: "Supprime une page (jamais 'index').",
+      parameters: {
+        type: "object",
+        properties: { slug: { type: "string" } },
+        required: ["slug"],
+      },
+    },
+  },
+];
 
-    const tagRe =
-      /(?:tagline|slogan|baseline|sous[-\s]?titre|description|desc|accroche)\s*(?:en|par|pour|:|=|devient|est|sera)?\s*["«"']([^"»"'\n]{2,140})["»"']/i;
-    const mt = msg.match(tagRe);
-    if (mt && mt[1]) patch.tagline = mt[1].trim();
+const emptyTools: OpenAiTool[] = [
+  {
+    type: "function",
+    function: {
+      name: "open_create_wizard",
+      description: "Ouvre l'assistant de création de site.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+];
 
-    if (patch.brand_name || patch.tagline) {
-      return { type: "update_creation_theme", ...patch };
-    }
-  }
+const createTools: OpenAiTool[] = [
+  {
+    type: "function",
+    function: {
+      name: "update_creation_brief",
+      description:
+        "Remplit ou MODIFIE un ou plusieurs champs de l'étape 1 (brief) SANS changer d'étape. À utiliser à chaque fois que l'utilisateur donne ou corrige une info de brief.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          theme: { type: "string" },
+          city: { type: "string" },
+          brief: { type: "string" },
+          hint_colors: { type: "array", items: { type: "string" } },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "advance_to_brand_studio",
+      description:
+        "Passe à l'étape 2 et génère la marque + logo. À n'appeler QUE quand nom + thème + brief sont présents ET l'utilisateur confirme vouloir avancer.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          theme: { type: "string" },
+          city: { type: "string" },
+          brief: { type: "string" },
+          hint_colors: { type: "array", items: { type: "string" } },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_creation_theme",
+      description:
+        "Ajuste à l'étape 2 : couleurs, sélection Header/Hero/Sections/Footer, style de design, nom de marque, tagline. N'inclus que les champs à changer.",
+      parameters: {
+        type: "object",
+        properties: {
+          colors: colorsProp,
+          selected_header_id: { type: "string" },
+          selected_hero_id: { type: "string" },
+          selected_footer_id: { type: "string" },
+          selected_section_ids: { type: "array", items: { type: "string" } },
+          design_style: { type: "string" },
+          brand_name: { type: "string", description: "Nouveau nom de la marque" },
+          tagline: { type: "string", description: "Nouvelle tagline / description courte" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "regenerate_logo",
+      description: "Régénère le logo à l'étape 2 avec un nouveau prompt d'image détaillé.",
+      parameters: {
+        type: "object",
+        properties: { prompt: { type: "string" } },
+        required: ["prompt"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "generate_seo_and_tree",
+      description: "Passe aux étapes 3 puis 4 (SEO + arborescence). Champs optionnels.",
+      parameters: {
+        type: "object",
+        properties: {
+          main_keyword: { type: "string" },
+          keywords: { type: "array", items: { type: "string" } },
+          sitemap: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: { title: { type: "string" }, slug: { type: "string" } },
+              required: ["title", "slug"],
+            },
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "finalize_and_build",
+      description: "Lance la génération finale et le build (étape 5).",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+];
 
-
-  if ((cctx?.step ?? 1) >= 2) {
-    const hexes = Array.from(msg.matchAll(/#([0-9a-fA-F]{6})/g)).map((m) => `#${m[1]}`);
-    const colorFromWord = Object.entries(COLOR_WORDS).find(([word]) => lower.includes(word))?.[1];
-    const primary = hexes[0] ?? colorFromWord;
-    if (primary || /\b(minimaliste|corporate|ludique|sombre|elegant|élégant|brutaliste)\b/i.test(msg)) {
-      const design = lower.includes("corporate")
-        ? "corporate"
-        : lower.includes("ludique")
-          ? "ludique"
-          : lower.includes("sombre") || lower.includes("dark")
-            ? "sombre"
-            : lower.includes("brutal")
-              ? "brutaliste"
-              : lower.includes("elegant") || lower.includes("élégant")
-                ? "elegant"
-                : lower.includes("minimal")
-                  ? "minimaliste"
-                  : undefined;
-      return {
-        type: "update_creation_theme",
-        ...(primary ? { colors: { primary } } : {}),
-        ...(design ? { design_style: design } : {}),
-      };
-    }
-  }
-
-  // Only auto-advance to step 2 when the user explicitly delegates ("fais tout",
-  // "lance", "génère la marque"…). Otherwise let the LLM interview the user
-  // step by step instead of consuming the whole brief on the first message.
-  const wantsAutoAdvance =
-    (cctx?.step ?? 1) === 1 &&
-    (AUTONOMY_RE.test(msg) ||
-      /\b(lance|d[eé]marre|commence|passe\s+(?:à|a)\s+(?:l['']?)?[eé]tape\s*2|g[eé]n[eé]re(?:z)?\s+(?:la\s+)?marque|studio\s+de\s+marque)\b/i.test(
-        msg,
-      ));
-  if (wantsAutoAdvance) {
-    const inferred = inferCreationIntent(data);
-    return { type: "advance_to_brand_studio", ...inferred };
-  }
-
-
-  return null;
-}
 
 export const orchestrateChat = createServerFn({ method: "POST" })
   .inputValidator((input) => orchestrateSchema.parse(input))
