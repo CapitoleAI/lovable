@@ -505,7 +505,7 @@ Actions disponibles (mode ÉDITION):
 - add_page({ title, slug?, instruction? }) — ajoute une nouvelle page ; slug déduit du titre si absent
 - remove_page({ slug }) — supprime la page (jamais 'index')
 
-Renvoie STRICTEMENT le JSON {"reply": string, "actions": Action[]}. reply = ta réponse humaine courte en français. actions = liste (souvent vide) d'actions à appliquer. Toujours confirmer ce que tu vas faire dans reply.`;
+Tu appelles ces outils via function calling quand une action est nécessaire, et tu réponds en français court et clair dans le message pour confirmer ce que tu fais. Plusieurs outils peuvent être appelés dans le même tour.`;
 
     const systemEmpty = `Tu es un assistant IA d'un éditeur de sites web. Aucun site n'est actif. Guide l'utilisateur pour créer son premier site. Action disponible: open_create_wizard() pour ouvrir l'assistant de création. Réponds toujours en JSON strict au format {"reply": string, "actions": Action[]}.`;
 
