@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronDown, Loader2, Mic, Plus, Send, Settings2, Sparkles } from "lucide-react";
+import { ChevronDown, Cog, Loader2, Plus, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -162,8 +162,7 @@ export function WorkspaceChat({
               size="icon"
               variant="ghost"
               className="h-8 w-8 rounded-full text-neutral-400 hover:bg-[#3a3a38] hover:text-neutral-100"
-              onClick={() => setPromptsOpen(true)}
-              title="Gérer les prompts système"
+              title="Ajouter"
             >
               <Plus className="h-4 w-4" />
             </Button>
@@ -183,9 +182,10 @@ export function WorkspaceChat({
                 size="icon"
                 variant="ghost"
                 className="h-8 w-8 rounded-full text-neutral-400 hover:bg-[#3a3a38] hover:text-neutral-100"
-                title="Microphone (bientôt)"
+                onClick={() => setPromptsOpen(true)}
+                title="Modifier les prompts système"
               >
-                <Mic className="h-4 w-4" />
+                <Cog className="h-4 w-4" />
               </Button>
               <Button
                 type="button"
