@@ -106,11 +106,11 @@ export function WorkspaceChat({
         : "Bienvenue. Décrivez le site que vous voulez créer, ou cliquez sur « + Nouveau site » à droite.";
 
   return (
-    <div className="flex h-full flex-col bg-neutral-900 text-neutral-100">
+    <div className="flex h-full flex-col bg-[#1D1D1C] text-neutral-100">
       <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-center">
-            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-neutral-800 text-neutral-300">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-[#272726] text-neutral-300">
               <Sparkles className="h-5 w-5" />
             </div>
             <p className="max-w-xs text-sm text-neutral-400">{emptyHint}</p>
@@ -121,7 +121,7 @@ export function WorkspaceChat({
               <div
                 className={
                   m.role === "user"
-                    ? "max-w-[85%] rounded-2xl rounded-tr-md bg-neutral-800 px-3.5 py-2 text-sm text-neutral-100"
+                    ? "max-w-[85%] rounded-2xl rounded-tr-md bg-[#272726] px-3.5 py-2 text-sm text-neutral-100"
                     : "max-w-[85%] text-sm text-neutral-200"
                 }
               >
@@ -141,7 +141,7 @@ export function WorkspaceChat({
       </div>
 
       <div className="p-3">
-        <div className="relative rounded-2xl border border-neutral-700 bg-neutral-800 focus-within:border-neutral-600">
+        <div className="relative rounded-2xl border border-[#272726] bg-[#272726] focus-within:border-[#3a3a38]">
           <Textarea
             ref={inputRef}
             value={input}
@@ -165,7 +165,7 @@ export function WorkspaceChat({
               type="button"
               size="icon"
               variant="ghost"
-              className="h-8 w-8 text-neutral-400 hover:bg-neutral-700 hover:text-neutral-100"
+              className="h-8 w-8 text-neutral-400 hover:bg-[#272726] hover:text-neutral-100"
               onClick={() => setPromptsOpen(true)}
               title="Gérer les prompts système"
             >
