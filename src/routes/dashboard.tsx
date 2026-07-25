@@ -4,14 +4,23 @@ import { useQuery, queryOptions } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  BarChart3,
   Check,
   ChevronDown,
+  Code2,
   Copy,
   ExternalLink,
+  FileCode2,
+  Globe,
   LayoutDashboard,
   Loader2,
   LogOut,
+  Monitor,
+  Network,
   Plus,
+  RefreshCw,
+  Smartphone,
+  Tablet,
   Trash2,
   Upload,
 } from "lucide-react";
