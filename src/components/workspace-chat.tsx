@@ -106,14 +106,14 @@ export function WorkspaceChat({
         : "Bienvenue. Décrivez le site que vous voulez créer, ou cliquez sur « + Nouveau site » à droite.";
 
   return (
-    <div className="flex h-full flex-col bg-zinc-900 text-zinc-100">
+    <div className="flex h-full flex-col bg-neutral-900 text-neutral-100">
       <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-center">
-            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-zinc-800 text-zinc-300">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-neutral-800 text-neutral-300">
               <Sparkles className="h-5 w-5" />
             </div>
-            <p className="max-w-xs text-sm text-zinc-400">{emptyHint}</p>
+            <p className="max-w-xs text-sm text-neutral-400">{emptyHint}</p>
           </div>
         ) : (
           messages.map((m, i) => (
@@ -121,8 +121,8 @@ export function WorkspaceChat({
               <div
                 className={
                   m.role === "user"
-                    ? "max-w-[85%] rounded-2xl rounded-tr-md bg-zinc-800 px-3.5 py-2 text-sm text-zinc-100"
-                    : "max-w-[85%] text-sm text-zinc-200"
+                    ? "max-w-[85%] rounded-2xl rounded-tr-md bg-neutral-800 px-3.5 py-2 text-sm text-neutral-100"
+                    : "max-w-[85%] text-sm text-neutral-200"
                 }
               >
                 {m.content}
@@ -132,7 +132,7 @@ export function WorkspaceChat({
         )}
         {busy && (
           <div className="flex justify-start">
-            <div className="flex items-center gap-2 text-sm text-zinc-400">
+            <div className="flex items-center gap-2 text-sm text-neutral-400">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               Réflexion…
             </div>
@@ -141,7 +141,7 @@ export function WorkspaceChat({
       </div>
 
       <div className="p-3">
-        <div className="relative rounded-2xl border border-zinc-700 bg-zinc-800 focus-within:border-zinc-600">
+        <div className="relative rounded-2xl border border-neutral-700 bg-neutral-800 focus-within:border-neutral-600">
           <Textarea
             ref={inputRef}
             value={input}
@@ -157,7 +157,7 @@ export function WorkspaceChat({
                 ? "Modifier ce site avec l'IA…"
                 : "Poser une question ou décrire un site…"
             }
-            className="min-h-[60px] resize-none border-0 bg-transparent pr-24 text-sm text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-0 focus-visible:ring-offset-0"
+            className="min-h-[60px] resize-none border-0 bg-transparent pr-24 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:ring-0 focus-visible:ring-offset-0"
             disabled={busy}
           />
           <div className="absolute bottom-2 right-2 flex items-center gap-1.5">
@@ -165,7 +165,7 @@ export function WorkspaceChat({
               type="button"
               size="icon"
               variant="ghost"
-              className="h-8 w-8 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
+              className="h-8 w-8 text-neutral-400 hover:bg-neutral-700 hover:text-neutral-100"
               onClick={() => setPromptsOpen(true)}
               title="Gérer les prompts système"
             >
@@ -173,7 +173,7 @@ export function WorkspaceChat({
             </Button>
             <Button
               size="icon"
-              className="h-8 w-8 bg-zinc-100 text-zinc-900 hover:bg-white"
+              className="h-8 w-8 bg-neutral-100 text-neutral-900 hover:bg-white"
               onClick={send}
               disabled={busy || !input.trim()}
             >
