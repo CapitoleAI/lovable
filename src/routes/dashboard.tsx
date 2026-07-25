@@ -546,15 +546,15 @@ function DashboardPage() {
   const previewBg = draftBrand?.colors?.background;
 
   return (
-    <div className="flex h-screen w-full flex-col overflow-hidden bg-neutral-950 text-neutral-100">
+    <div className="flex h-screen w-full flex-col overflow-hidden bg-[#1D1D1C] text-neutral-100">
       {/* ================ TOP APP BAR ================ */}
-      <header className="flex h-14 shrink-0 items-stretch border-b border-neutral-800 bg-neutral-900">
-        <div className="flex w-80 shrink-0 items-center gap-3 border-r border-neutral-800 px-3">
+      <header className="flex h-14 shrink-0 items-stretch border-b border-[#272726] bg-[#1D1D1C]">
+        <div className="flex w-80 shrink-0 items-center gap-3 border-r border-[#272726] px-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-neutral-800"
+              className="flex items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-[#272726]"
               title="Menu"
             >
               <img src={logoAsset.url} alt="CapitoleAI" className="h-7 w-7 object-contain" />
@@ -642,7 +642,7 @@ function DashboardPage() {
         <div className="flex min-w-0 flex-1 items-center gap-2 px-3">
         {activeSite && mode === "edit" && (
           <div className="flex flex-1 items-center gap-2">
-            <div className="flex items-center rounded-full bg-neutral-800 p-0.5">
+            <div className="flex items-center rounded-full bg-[#272726] p-0.5">
               {[
                 { value: "preview" as const, label: "Aperçu", icon: Globe },
                 { value: "code" as const, label: "Code", icon: FileCode2 },
@@ -660,7 +660,7 @@ function DashboardPage() {
                     className={cn(
                       "flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors",
                       active
-                        ? "bg-neutral-700 text-white shadow-sm"
+                        ? "bg-[#272726] text-white shadow-sm"
                         : "text-neutral-400 hover:text-neutral-100",
                     )}
                   >
@@ -673,7 +673,7 @@ function DashboardPage() {
 
             {tab === "preview" && (draftPages ?? []).length > 0 && (
               <div className="mx-auto flex items-center gap-2">
-                <div className="flex items-center rounded-full bg-neutral-800 p-0.5">
+                <div className="flex items-center rounded-full bg-[#272726] p-0.5">
                   {([
                     { d: "desktop" as const, Icon: Monitor, label: "Bureau" },
                     { d: "tablet" as const, Icon: Tablet, label: "Tablette" },
@@ -687,7 +687,7 @@ function DashboardPage() {
                       className={cn(
                         "flex h-7 w-7 items-center justify-center rounded-full transition-colors",
                         device === d
-                          ? "bg-neutral-700 text-white shadow-sm"
+                          ? "bg-[#272726] text-white shadow-sm"
                           : "text-neutral-400 hover:text-neutral-100",
                       )}
                     >
@@ -696,12 +696,12 @@ function DashboardPage() {
                   ))}
                 </div>
 
-                <div className="flex items-center gap-1 rounded-full bg-neutral-800 px-1.5 py-1">
+                <div className="flex items-center gap-1 rounded-full bg-[#272726] px-1.5 py-1">
                   <button
                     type="button"
                     onClick={() => setPreviewNonce((n) => n + 1)}
                     title="Rafraîchir"
-                    className="flex h-6 w-6 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-700 hover:text-neutral-100"
+                    className="flex h-6 w-6 items-center justify-center rounded-full text-neutral-400 hover:bg-[#272726] hover:text-neutral-100"
                   >
                     <RefreshCw className="h-3 w-3" />
                   </button>
@@ -709,7 +709,7 @@ function DashboardPage() {
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
-                        className="flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-xs text-neutral-100 hover:bg-neutral-700"
+                        className="flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-xs text-neutral-100 hover:bg-[#272726]"
                       >
                         <span>{previewSlug === "index" ? "/" : `/${previewSlug}`}</span>
                         <ChevronDown className="h-3 w-3 opacity-60" />
@@ -745,7 +745,7 @@ function DashboardPage() {
                       target="_blank"
                       rel="noreferrer"
                       title="Ouvrir dans un nouvel onglet"
-                      className="flex h-6 w-6 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-700 hover:text-neutral-100"
+                      className="flex h-6 w-6 items-center justify-center rounded-full text-neutral-400 hover:bg-[#272726] hover:text-neutral-100"
                     >
                       <ExternalLink className="h-3 w-3" />
                     </a>
@@ -845,7 +845,7 @@ function DashboardPage() {
       {/* ================ SPLIT BODY ================ */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* LEFT: Chat */}
-        <aside className="flex w-80 shrink-0 flex-col border-r border-neutral-800 bg-neutral-900">
+        <aside className="flex w-80 shrink-0 flex-col border-r border-[#272726] bg-[#1D1D1C]">
           <div className="min-h-0 flex-1">
             <WorkspaceChat
               mode={mode}
