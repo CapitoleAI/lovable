@@ -1,88 +1,100 @@
 
-## Contrainte technique importante à valider avant de coder
-
-Le runtime serveur de Lovable (Cloudflare Worker) **ne peut pas exécuter `astro build`** : pas de `child_process`, pas de système de fichiers réel, pas de binaires natifs. Impossible donc de scaffolder un projet Astro et de lancer un build directement depuis le backend Lovable.
-
-Deux options réalistes pour l'étape "Job de génération + build" :
-
-- **A. Externaliser le build** (recommandé) : Lovable stocke la config du site + la "graine de randomisation", puis appelle un **webhook sortant** (GitHub Actions, un runner Node séparé, ou un service comme Cloudflare Workers Builds / Render / Fly). Ce runner clone un template Astro, injecte la config, exécute `astro build`, puis pousse le `dist/` vers Cloudflare Pages / Netlify / Vercel / FTP. Lovable reçoit ensuite le statut via un webhook retour (`/api/public/deploy-callback`).
-- **B. Générer statiquement côté serveur sans Astro** : produire directement du HTML/CSS randomisé depuis un server function (pas de vrai Astro, pas de build). Plus simple mais tu perds l'écosystème Astro et les vraies pages `.astro`.
-
-Je propose **A**. Le plan ci-dessous met en place tout ce qui vit dans Lovable ; le runner externe est décrit à part.
-
-## Ce qui est construit dans Lovable
-
-### 1. Base de données (Lovable Cloud)
-
-Table `sites` (RLS : owner = `auth.uid()`) :
+## Résultat visuel
 
 ```text
-id, owner_id, created_at, updated_at
--- Section A
-name, domain, hosting_target        -- 'cloudflare_pages' | 'netlify' | 'vercel' | 'ftp'
--- Section B
-theme, city, main_keyword, secondary_keywords (text[])
--- Section C
-business_name, phone, email, address
--- Section D
-astro_template,                     -- 'alpha' | 'beta' | 'gamma'
-color_palette (jsonb),
-randomize (bool),
-random_seed (jsonb)                 -- {sectionOrder:[...], cssPrefix:'x8k2_', paletteVariant:...}
--- Pipeline
-status                              -- 'pending' | 'generating' | 'building' | 'deploying' | 'deployed' | 'failed'
-deploy_url, last_error, build_log_url
+┌─────────────────────────────────────────────────────────────────┐
+│ [logo]  Site: "Plombier Toulouse ▾"      [Publier] [Déconnexion]│
+├──────────────┬──────────────────────────────────────────────────┤
+│              │ [ Live Preview | Arborescence | Analytics ]       │
+│  💬 CHAT     │                                                  │
+│              │  ┌────────────────────────────────────────────┐  │
+│  historique  │  │                                            │  │
+│  messages    │  │        contenu de l'onglet actif           │  │
+│              │  │                                            │  │
+│              │  └────────────────────────────────────────────┘  │
+│  [input _]   │                                                  │
+└──────────────┴──────────────────────────────────────────────────┘
+       w-96                              flex-1
 ```
 
-Table `deploy_targets` (URL du webhook de génération/déploiement par cible d'hébergement — permet d'isoler les IPs).
+Deux modes du panneau droit selon l'état :
 
-### 2. Formulaire `Créer` (dashboard)
+- **Aucun site sélectionné → mode Création** : le panneau droit affiche les étapes (Brief → Identité → SEO → Sitemap → Génération), le chat les remplit au fil de la conversation ; à la fin, bascule auto sur Live Preview.
+- **Site sélectionné → mode Édition** : onglets Live Preview / Arborescence / Analytics. Le chat modifie le site en cours.
 
-Bouton "Créer" → dialog shadcn en 4 sections (A/B/C/D) avec validation Zod. Soumission :
+## Architecture
 
-1. Génère `random_seed` côté client (ordre des sections, préfixe CSS, variante palette) via crypto.
-2. Appelle `createSite` (server function, `requireSupabaseAuth`) qui :
-   - insère la ligne `sites` avec `status='pending'`,
-   - déclenche **de manière non bloquante** le webhook du runner externe (`fetch` vers l'URL stockée pour l'hébergement choisi, signée HMAC avec `ASTRO_RUNNER_SECRET`),
-   - retourne immédiatement `{ id, status: 'pending' }`.
-3. Le dashboard ferme le dialog et affiche la nouvelle carte avec badge de statut. Un `useQuery` (polling léger 5s tant que status ∈ pending/generating/building/deploying) met à jour la carte.
+### 1. Nouveau layout — `src/routes/dashboard.tsx`
 
-### 3. Endpoint public de callback
+Refonte : `h-screen w-full flex overflow-hidden`. Panneau gauche `w-96 border-r bg-white` = chat. Panneau droit `flex-1 bg-muted/30` = workspace. La sidebar shadcn actuelle disparaît ; sa liste de sites migre en dropdown "Site actif" dans le header. Le bouton "Créer" devient un item "+ Nouveau site" dans ce dropdown → passe en mode création.
 
-`src/routes/api/public/astro-deploy-callback.ts` (server route) :
-- POST signé HMAC (vérif `timingSafeEqual` avec `ASTRO_RUNNER_SECRET`)
-- Payload : `{ site_id, status, deploy_url?, error?, build_log_url? }`
-- Met à jour la ligne via `supabaseAdmin` (chargé dans le handler).
+### 2. Chat orchestrateur — `src/components/workspace-chat.tsx` + `src/routes/api/chat.ts`
 
-### 4. UI liste des sites
+- UI : AI SDK `useChat` + AI Elements (`Conversation`, `Message`, `PromptInput`). Persistance mémoire par site (in-memory, pas de threads DB — un site = une conversation).
+- Backend : nouveau server route `src/routes/api/chat.ts` avec `streamText` + `tools` (function calling structuré) :
+  - `update_brand_colors({ primary, secondary, accent, ... })` → patch `brand.colors`
+  - `set_design_style({ style })`, `set_header_style`, `set_footer_style`, `toggle_content_section`
+  - `add_page({ title, slug })` / `remove_page({ slug })` / `rename_page`
+  - `update_page_content({ slug, instruction })` → régénère via `generatePageContentServer`
+  - `set_wizard_step({ step, values })` en mode création
+  - `trigger_publish()` en mode édition
+- Le client applique les résultats sur un state local `siteDraft`, ce qui rafraîchit Live Preview et Arborescence instantanément. Rien n'est persisté avant "Publier".
 
-Chaque carte : nom, domaine, statut coloré, lien `deploy_url` si déployé, bouton "Relancer" (repost webhook), bouton "Voir logs" (ouvre `build_log_url`).
+### 3. Panneau droit — `src/components/workspace-right.tsx`
 
-### 5. Secrets
+- Composant qui switch entre `<CreateFlow />` (mode création) et `<EditTabs />` (mode édition).
+- `EditTabs` = `Tabs` shadcn avec 3 valeurs.
 
-- `ASTRO_RUNNER_SECRET` — généré (HMAC partagé avec le runner).
-- Une URL de runner par cible, stockée en base (`deploy_targets`) — configurable via UI plus tard.
+#### 3a. Onglet Live Preview — `src/components/live-preview-panel.tsx`
+Iframe plein cadre avec `srcDoc` reconstruit à partir du `siteDraft.pages` en cours. Sélecteur de page (chips) en haut. Bouton "Rafraîchir".
 
-## Ce que tu dois fournir (runner externe)
+#### 3b. Onglet Arborescence — `src/components/sitemap-panel.tsx`
+Liste des pages avec drag & drop (`@dnd-kit/sortable` déjà utilisé), boutons Ajouter / Supprimer / Renommer. Les changements modifient `siteDraft` localement.
 
-Un endpoint HTTP qui accepte le payload signé et fait :
-1. `git clone` d'un template Astro (Alpha/Beta/Gamma).
-2. Applique `random_seed` : renomme classes CSS avec `cssPrefix`, réordonne sections, injecte contenu (`.md` / `.astro`).
-3. `npm ci && npx astro build`.
-4. Zip du `dist/` → push vers Cloudflare Pages / Netlify / Vercel / FTP selon `hosting_target`.
-5. POST retour vers `https://project--<id>.lovable.app/api/public/astro-deploy-callback`.
+#### 3c. Onglet Analytics — `src/components/analytics-panel.tsx`
+Cartes : Requêtes 24h / 7j, Visiteurs uniques, Bande passante, Top pages. Alimenté par `getCloudflareAnalytics` (voir §5).
 
-Je peux te fournir un exemple de runner **GitHub Actions** prêt à coller (workflow + script) dans un second temps, mais ce runner ne s'exécute pas dans Lovable.
+### 4. Bouton Publier
+
+Header : `<Button onClick={publish}>Publier</Button>` visible uniquement en mode édition avec `siteDraft !== savedSite`. Appelle `updateSite({ id, pages, brand })` (déjà existant, déclenche rebuild) puis toast + reset du dirty flag.
+
+### 5. Analytics Cloudflare — `src/lib/sites.functions.ts`
+
+Nouvelle server function `getCloudflareAnalytics({ id })` :
+- Récupère `project_name` Cloudflare Pages du site (déduit du domaine ou stocké).
+- Appelle l'API GraphQL Analytics de Cloudflare : `POST https://api.cloudflare.com/client/v4/graphql` avec le dataset `pagesFunctionsInvocationsAdaptiveGroups` et `httpRequestsAdaptiveGroups` (filtre `zoneTag` = zone du domaine `.pages.dev` ou domaine custom).
+- Retourne `{ requests_24h, requests_7d, unique_visitors_7d, bandwidth_bytes_7d, top_paths: [{path, count}] }`.
+- Fallback propre : si l'API renvoie 0 ou une erreur d'autorisation (le token doit avoir `Zone:Analytics:Read`), l'onglet affiche un état vide avec le message d'erreur.
+
+### 6. State management
+
+`useSiteWorkspace(siteId)` — hook local dans dashboard :
+- Charge le site depuis la query `sites`.
+- Maintient `siteDraft` (copie mutable).
+- Expose des mutateurs typés exposés au chat via callbacks (l'API `/api/chat` renvoie les tool calls que le client applique).
+- `isDirty` = comparaison superficielle draft vs saved.
+
+### 7. Nettoyage
+
+- `dashboard-sidebar.tsx` supprimé.
+- `edit-site-dialog.tsx` et `site-detail-dialog.tsx` supprimés (leurs fonctionnalités migrent dans les onglets).
+- `create-site-dialog.tsx` : contenu recyclé en `<CreateFlow />` (mêmes étapes, mais rendues à droite, plus dans un Dialog).
+- `build-progress-dialog.tsx` : conservé, se déclenche automatiquement à la fin de la création.
 
 ## Détails techniques
 
-- Stack : TanStack Start, server functions `createServerFn` avec `requireSupabaseAuth`, server route publique pour le callback, RLS sur `sites`.
-- Validation Zod client + server (mêmes schémas partagés).
-- `randomize` off → `random_seed` reste vide, le runner utilise l'ordre par défaut du template.
-- Aucun tracker partagé dans le code généré : c'est une contrainte du **template Astro** dans le runner, pas de Lovable.
-- Statuts progressent uniquement via le callback ; aucun état "faux positif" côté UI.
+- **Function calling** : `streamText` du package `ai` déjà installé (voir `tanstack-ai-chat`). Modèle par défaut `openai/gpt-5.5` via Lovable AI Gateway. Reasoning `none`. Chaque tool a un schéma Zod ; le client reçoit les tool results dans `message.parts` et les applique au draft.
+- **Publication** : réutilise `updateSite` existante qui rappelle `triggerRunner` — pas de changement backend côté GitHub.
+- **Analytics Cloudflare** : nécessite que le token `CF_API_TOKEN` (déjà présent) ait la permission `Account.Account Analytics:Read` + `Zone.Analytics:Read`. Si le token actuel ne les a pas, l'onglet affichera l'erreur `403` retournée par Cloudflare et je te dirai quelle permission ajouter.
+- **Aucune migration DB** nécessaire ; tout passe par les tables existantes.
+- **AI Elements** : installation `bunx ai-elements@latest add conversation message prompt-input shimmer`.
 
-## Confirme
+## Ce qui n'est PAS inclus (pour rester dans le scope)
 
-1. OK pour l'approche **A (runner externe déclenché par webhook)** ? Sinon je bascule sur B (générateur HTML pur, sans vrai Astro).
-2. Pour démarrer, on commence sans runner branché : le bouton crée la ligne + tente le webhook (échec silencieux → statut `failed` avec message clair). Tu branches le runner quand il est prêt. OK ?
+- Pas de persistance des messages du chat entre reloads (in-memory par session).
+- Pas de gestion multi-utilisateurs / threads.
+- Pas de tests automatisés.
+
+## Après ton OK
+
+J'exécute en une passe : install AI Elements → refonte dashboard + composants → `/api/chat` + tools → `getCloudflareAnalytics` → suppressions → typecheck. Puis je te donne un récap court.
