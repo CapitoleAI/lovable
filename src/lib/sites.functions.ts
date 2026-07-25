@@ -489,7 +489,7 @@ export const refineComponent = createServerFn({ method: "POST" })
 
 const generateThemeVariantsSchema = z.object({
   category: z.enum(["header", "hero", "section", "footer"]),
-  count: z.number().int().min(1).max(6).default(3),
+  count: z.number().int().min(1).max(10).default(3),
   brand: z.object({
     brand_name: z.string().trim().max(200).default(""),
     tagline: z.string().trim().max(300).default(""),
