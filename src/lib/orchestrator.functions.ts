@@ -393,7 +393,7 @@ Actions disponibles (mode CRÉATION):
 
 Règles:
 - Pose UNE seule question courte à la fois pour compléter les infos manquantes.
-- Dès que tu as (nom + thème + ville + brief), appelle advance_to_brand_studio.
+- Dès que tu as (nom + thème + brief), appelle advance_to_brand_studio (la ville est facultative — laisse "" si l'utilisateur ne la précise pas).
 - À l'étape 2, propose spontanément des ajustements de couleurs, de style ou de logo.
 - Ne réclame pas au user des infos déjà présentes dans le CONTEXTE CRÉATION.
 - Réponses courtes, en français, ton pro et chaleureux.
