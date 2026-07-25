@@ -39,6 +39,7 @@ import {
   generateBrandIdentity,
   generateBrandImage,
   generatePageContent,
+  generateThemeVariants,
   refineComponent,
   suggestKeywords,
   suggestSitemap,
@@ -49,9 +50,7 @@ import {
   type SitemapPage,
 } from "@/lib/sites-schema";
 import {
-  componentsByCategory,
   wrapPreviewDoc,
-  type ThemeComponent,
   type BrandCtx,
 } from "@/lib/theme-components";
 
