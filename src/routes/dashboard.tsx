@@ -487,13 +487,15 @@ function DashboardPage() {
         </div>
         <div className="min-h-0 flex-1">
           <WorkspaceChat
-            mode={activeSite ? "edit" : "empty"}
+            mode={mode}
             siteName={activeSite?.name}
             brand={draftBrand ?? undefined}
             pages={draftPages ?? undefined}
+            creationContext={mode === "create" ? creationSnapshot ?? undefined : undefined}
             onAction={handleAction}
-            onCreateWizard={() => setDialogOpen(true)}
+            onCreateWizard={openCreate}
           />
+
         </div>
       </aside>
 
@@ -542,7 +544,7 @@ function DashboardPage() {
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setDialogOpen(true)}>
+              <DropdownMenuItem onClick={openCreate}>
                 <Plus className="mr-2 h-3.5 w-3.5" /> Nouveau site
               </DropdownMenuItem>
             </DropdownMenuContent>
