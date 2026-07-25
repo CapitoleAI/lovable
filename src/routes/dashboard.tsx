@@ -548,7 +548,8 @@ function DashboardPage() {
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background">
       {/* ================ TOP APP BAR ================ */}
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-white px-3">
+      <header className="flex h-14 shrink-0 items-stretch border-b border-border bg-white">
+        <div className="flex w-80 shrink-0 items-center gap-3 border-r border-border px-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -636,8 +637,11 @@ function DashboardPage() {
           </span>
         )}
 
+        </div>
+
+        <div className="flex min-w-0 flex-1 items-center gap-2 px-3">
         {activeSite && mode === "edit" && (
-          <div className="ml-4 flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <div className="flex items-center rounded-full border border-border bg-white p-0.5 shadow-sm">
               {[
                 { value: "preview" as const, label: "Aperçu", icon: Globe },
@@ -834,12 +838,14 @@ function DashboardPage() {
             </Popover>
           )}
         </div>
+        </div>
       </header>
+
 
       {/* ================ SPLIT BODY ================ */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* LEFT: Chat */}
-        <aside className="flex w-96 shrink-0 flex-col border-r border-border bg-white">
+        <aside className="flex w-80 shrink-0 flex-col border-r border-border bg-white">
           <div className="min-h-0 flex-1">
             <WorkspaceChat
               mode={mode}
