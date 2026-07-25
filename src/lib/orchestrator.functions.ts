@@ -547,13 +547,16 @@ export const orchestrateChat = createServerFn({ method: "POST" })
       ? `\nCONTEXTE CRÉATION (étape ${cctx.step ?? 1}/5):\n- Nom brief: ${cctx.name || "-"}\n- Thème: ${cctx.theme || "-"}\n- Ville: ${cctx.city || "-"}\n- Brief: ${cctx.brief || "-"}\n- Couleurs indices: ${(cctx.hint_colors ?? []).join(", ") || "-"}\n- Marque affichée: ${cctx.brand ? JSON.stringify({ brand_name: cctx.brand.brand_name, tagline: cctx.brand.tagline, colors: cctx.brand.colors, design_style: cctx.brand.design_style, logo_url: cctx.brand.logo_url ? "présent" : "absent" }) : "-"}\n- Mot-clé principal: ${cctx.main_keyword || "-"}\n- Mots-clés: ${(cctx.keywords ?? []).join(", ") || "-"}\n- Sitemap: ${(cctx.sitemap ?? []).map((p) => p.title).join(", ") || "-"}`
       : "";
 
-    const systemEdit = data.system_override?.trim() || DEFAULT_SYSTEM_EDIT;
-    const systemEmpty = data.system_override?.trim() || DEFAULT_SYSTEM_EMPTY;
-    const systemCreate = data.system_override?.trim() || DEFAULT_SYSTEM_CREATE;
-
-
-    const system =
-      data.mode === "edit" ? systemEdit : data.mode === "create" ? systemCreate : systemEmpty;
+    let promptKey: PromptKey;
+    if (data.mode === "edit") {
+      promptKey = "orchestrator.edit";
+    } else if (data.mode === "create") {
+      const step = Math.min(5, Math.max(1, cctx?.step ?? 1));
+      promptKey = `orchestrator.create.step${step}` as PromptKey;
+    } else {
+      promptKey = "orchestrator.empty";
+    }
+    const system = await getPromptContent(promptKey);
     const tools =
       data.mode === "edit" ? editTools : data.mode === "create" ? createTools : emptyTools;
 
