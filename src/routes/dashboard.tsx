@@ -822,7 +822,7 @@ function DashboardPage() {
                   </Button>
                   <Button
                     size="sm"
-                    className="w-full"
+                    className="w-full bg-[#3B6DF5] text-white hover:bg-[#3361de]"
                     onClick={handlePublish}
                     disabled={!isDirty || publishing}
                   >
