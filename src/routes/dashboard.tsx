@@ -673,35 +673,47 @@ function DashboardPage() {
 
             {tab === "preview" && (draftPages ?? []).length > 0 && (
               <div className="mx-auto flex items-center gap-2">
-                <div className="flex items-center rounded-full bg-[#272726] p-0.5">
-                  {([
-                    { d: "desktop" as const, Icon: Monitor, label: "Bureau" },
-                    { d: "tablet" as const, Icon: Tablet, label: "Tablette" },
-                    { d: "mobile" as const, Icon: Smartphone, label: "Mobile" },
-                  ]).map(({ d, Icon, label }) => (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
                     <button
-                      key={d}
                       type="button"
-                      onClick={() => setDevice(d)}
-                      title={label}
-                      className={cn(
-                        "flex h-7 w-7 items-center justify-center rounded-full transition-colors",
-                        device === d
-                          ? "bg-[#272726] text-white shadow-sm"
-                          : "text-neutral-400 hover:text-neutral-100",
-                      )}
+                      title="Changer d'appareil"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-300 hover:bg-[#272726] hover:text-white"
                     >
-                      <Icon className="h-3.5 w-3.5" />
+                      {device === "desktop" && <Monitor className="h-4 w-4" />}
+                      {device === "tablet" && <Tablet className="h-4 w-4" />}
+                      {device === "mobile" && <Smartphone className="h-4 w-4" />}
                     </button>
-                  ))}
-                </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="min-w-[160px]">
+                    {([
+                      { d: "desktop" as const, Icon: Monitor, label: "Bureau" },
+                      { d: "tablet" as const, Icon: Tablet, label: "Tablette" },
+                      { d: "mobile" as const, Icon: Smartphone, label: "Mobile" },
+                    ]).map(({ d, Icon, label }) => (
+                      <DropdownMenuItem
+                        key={d}
+                        onClick={() => setDevice(d)}
+                        className="flex items-center gap-2"
+                      >
+                        {device === d ? (
+                          <Check className="h-3.5 w-3.5" />
+                        ) : (
+                          <span className="w-3.5" />
+                        )}
+                        <Icon className="h-3.5 w-3.5" />
+                        <span className="text-xs">{label}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
                 <div className="flex items-center gap-1 rounded-full bg-[#272726] px-1.5 py-1">
                   <button
                     type="button"
                     onClick={() => setPreviewNonce((n) => n + 1)}
                     title="Rafraîchir"
-                    className="flex h-6 w-6 items-center justify-center rounded-full text-neutral-400 hover:bg-[#272726] hover:text-neutral-100"
+                    className="flex h-6 w-6 items-center justify-center rounded-full text-neutral-400 hover:text-neutral-100"
                   >
                     <RefreshCw className="h-3 w-3" />
                   </button>
@@ -709,7 +721,7 @@ function DashboardPage() {
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
-                        className="flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-xs text-neutral-100 hover:bg-[#272726]"
+                        className="flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-xs text-neutral-100"
                       >
                         <span>{previewSlug === "index" ? "/" : `/${previewSlug}`}</span>
                         <ChevronDown className="h-3 w-3 opacity-60" />
@@ -735,26 +747,28 @@ function DashboardPage() {
                       ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
-                  {activeSite.deploy_url && (
-                    <a
-                      href={
-                        previewSlug === "index"
-                          ? activeSite.deploy_url
-                          : `${activeSite.deploy_url.replace(/\/$/, "")}/${previewSlug}`
-                      }
-                      target="_blank"
-                      rel="noreferrer"
-                      title="Ouvrir dans un nouvel onglet"
-                      className="flex h-6 w-6 items-center justify-center rounded-full text-neutral-400 hover:bg-[#272726] hover:text-neutral-100"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
                 </div>
+
+                {activeSite.deploy_url && (
+                  <a
+                    href={
+                      previewSlug === "index"
+                        ? activeSite.deploy_url
+                        : `${activeSite.deploy_url.replace(/\/$/, "")}/${previewSlug}`
+                    }
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Ouvrir dans un nouvel onglet"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-300 hover:bg-[#272726] hover:text-white"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                )}
               </div>
             )}
           </div>
         )}
+
 
         <div className="ml-auto flex items-center gap-2">
           {activeSite && (
