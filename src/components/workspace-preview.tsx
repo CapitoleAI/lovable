@@ -67,7 +67,7 @@ export function WorkspacePreview({ pages, brand, activeSlug, device, nonce }: Pr
             title={`Aperçu ${active.slug}`}
             sandbox="allow-scripts"
             srcDoc={buildDoc(active.html_content, colors)}
-            className="h-full w-full rounded-t-2xl border border-slate-200 bg-white shadow-lg"
+            className="h-full w-full rounded-t-2xl border border-[#1D1D1C] bg-white shadow-lg"
           />
         </div>
       ) : (
