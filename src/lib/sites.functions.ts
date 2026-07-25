@@ -112,6 +112,8 @@ type SiteData = {
 
 
 
+import { getPromptContent, renderPrompt } from "./prompts.functions";
+
 async function callAiJson<T>(system: string, user: string, fallback: T): Promise<T> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return fallback;
@@ -231,8 +233,9 @@ export const suggestKeywords = createServerFn({ method: "POST" })
   .inputValidator((input) => suggestKeywordsSchema.parse(input))
   .handler(async ({ data }) => {
     await requireUser();
+    const systemPrompt = await getPromptContent("sites.suggest_keywords");
     const parsed = await callAiJson<{ keywords?: string[] }>(
-      "Tu es un expert SEO francophone. Génère 12 mots-clés de longue traîne pertinents (3-6 mots), localisés, orientés intention d'achat/service. Réponds UNIQUEMENT en JSON {\"keywords\": string[]}. Pas de doublons.",
+      systemPrompt,
       `Thématique: ${data.theme}\nVille: ${data.city}\nEntreprise: ${data.business_name}`,
       { keywords: [] },
     );
@@ -254,8 +257,9 @@ export const suggestSitemap = createServerFn({ method: "POST" })
         { title: "Contact", slug: "/contact" },
       ],
     };
+    const systemPrompt = await getPromptContent("sites.suggest_sitemap");
     const parsed = await callAiJson<{ sitemap?: SitemapPage[] }>(
-      "Tu es un architecte SEO. Propose une arborescence de site cohérente pour référencement local. Racine + 4-7 rubriques, avec 2-4 sous-pages pertinentes par rubrique quand utile (services détaillés, articles blog). Slugs en kebab-case, français, sans accents. Réponds UNIQUEMENT en JSON {\"sitemap\": [{\"title\": string, \"slug\": string, \"children\"?: [{\"title\": string, \"slug\": string}]}]}.",
+      systemPrompt,
       `Thématique: ${data.theme}\nVille: ${data.city}\nEntreprise: ${data.business_name}\nMots-clés: ${data.keywords.join(", ")}`,
       fallback,
     );
@@ -337,6 +341,7 @@ export const generateBrandIdentity = createServerFn({ method: "POST" })
   .inputValidator((input) => generateBrandSchema.parse(input))
   .handler(async ({ data }) => {
     await requireUser();
+    const systemPrompt = await getPromptContent("sites.brand_identity");
     const parsed = await callAiJson<{
       brand_name?: string;
       tagline?: string;
@@ -348,7 +353,7 @@ export const generateBrandIdentity = createServerFn({ method: "POST" })
       footer_style?: string;
       sections?: string[];
     }>(
-      "Tu es un directeur artistique webdesign. À partir d'un brief, propose une identité de marque cohérente et distinctive ET une direction de webdesign. Choisis: (1) 5 couleurs en hex (#RRGGBB) — primary, secondary, accent, neutral, background — qui fonctionnent ensemble. (2) design_style parmi ['minimaliste','corporate','ludique','sombre','elegant','brutaliste']. (3) header_style parmi ['classique','centre']. (4) footer_style parmi ['simple','complet']. (5) sections: 3 à 6 blocs parmi ['hero_image','services_grid','testimonials','contact_form','features','pricing','faq','cta_banner','gallery','stats']. (6) Un prompt LOGO EN ANGLAIS, TRÈS CONCIS (MAX 30 MOTS, mots-clés visuels séparés par des virgules, logo vectoriel minimaliste sur fond blanc). Respecte les suggestions de teintes si fournies. Réponds UNIQUEMENT en JSON strict {\"brand_name\": string, \"tagline\": string, \"story\": string, \"colors\": {...5 clés hex}, \"logo_prompt\": string, \"design_style\": string, \"header_style\": string, \"footer_style\": string, \"sections\": string[]}.",
+      systemPrompt,
       `Brief: ${data.brief}\nEntreprise: ${data.business_name}\nThématique: ${data.theme}\nVille: ${data.city}\nSuggestions couleurs: ${data.hint_colors.join(", ") || "aucune"}`,
       {},
     );
@@ -362,9 +367,10 @@ export const generateBrandIdentity = createServerFn({ method: "POST" })
     const brand_name = (parsed.brand_name ?? "").trim() || data.business_name || "Ma Marque";
     const tagline = (parsed.tagline ?? "").trim();
     const story = (parsed.story ?? data.brief).trim();
+    const logoTemplate = await getPromptContent("sites.logo_image_prompt");
     const logo_prompt =
       (parsed.logo_prompt ?? "").trim() ||
-      `minimal vector logo for "${brand_name}", flat design, on solid white background, iconic, modern`;
+      renderPrompt(logoTemplate, { brand_name });
     const design_style = ensureIn(DESIGN_STYLES, parsed.design_style, "minimaliste");
     const header_style = ensureIn(HEADER_STYLES, parsed.header_style, "classique");
     const footer_style = ensureIn(FOOTER_STYLES, parsed.footer_style, "simple");
@@ -414,6 +420,7 @@ export const refineBrandIdentity = createServerFn({ method: "POST" })
   .inputValidator((input) => refineBrandSchema.parse(input))
   .handler(async ({ data }) => {
     await requireUser();
+    const systemPrompt = await getPromptContent("sites.brand_refine");
     const parsed = await callAiJson<{
       brand_name?: string;
       tagline?: string;
@@ -427,7 +434,7 @@ export const refineBrandIdentity = createServerFn({ method: "POST" })
       logo_prompt?: string;
       note?: string;
     }>(
-      "Tu es un directeur artistique webdesign qui ajuste une identité de marque et sa direction de design d'après une demande utilisateur. Comprends l'intention (ex: 'passe en dark mode et ajoute des témoignages' => design_style='sombre', couleurs sombres, ajoute 'testimonials' à sections). Renvoie l'identité MISE À JOUR complète (conserve les valeurs actuelles si non concernées). Champs à renvoyer: brand_name, tagline, story, colors (5 hex), design_style parmi ['minimaliste','corporate','ludique','sombre','elegant','brutaliste'], header_style parmi ['classique','centre'], footer_style parmi ['simple','complet'], sections (sous-ensemble de ['hero_image','services_grid','testimonials','contact_form','features','pricing','faq','cta_banner','gallery','stats']). Indique regenerate_logo (bool) et un nouveau logo_prompt EN ANGLAIS TRÈS CONCIS (MAX 30 MOTS, mots-clés séparés par des virgules) si le logo doit changer. Réponds UNIQUEMENT en JSON strict.",
+      systemPrompt,
       `Identité actuelle: ${JSON.stringify({ ...data.brand, logo_url: undefined, moodboard_url: undefined })}\n\nDemande utilisateur: ${data.message}`,
       {},
     );
@@ -476,8 +483,9 @@ export const refineComponent = createServerFn({ method: "POST" })
   .inputValidator((input) => refineComponentSchema.parse(input))
   .handler(async ({ data }) => {
     await requireUser();
+    const systemPrompt = await getPromptContent("sites.refine_component");
     const parsed = await callAiJson<{ html?: string; note?: string }>(
-      "Tu es un développeur frontend expert Tailwind CSS. On te fournit le HTML d'UN composant de site vitrine et une demande de modification. Renvoie UNIQUEMENT le HTML complet et modifié de ce composant. RÈGLE COULEURS IMPÉRATIVE : n'utilise JAMAIS de couleur figée (bg-blue-600, text-slate-900, hex arbitraire). Utilise EXCLUSIVEMENT les variables CSS de marque via classes arbitraires Tailwind : `bg-[var(--brand-primary)]`, `text-[var(--brand-primary)]`, `bg-[var(--brand-secondary)]`, `text-[var(--brand-secondary)]`, `bg-[var(--brand-accent)]`, `text-[var(--brand-accent)]`, `border-[var(--brand-neutral)]`, `bg-[var(--brand-background)]`, etc. text-white / bg-white restent autorisés pour du contraste. Garde la structure sémantique et la responsivité. Réponds STRICTEMENT en JSON {\"html\": string, \"note\": string (1 phrase)}.",
+      systemPrompt,
       `Demande: ${data.message}\n\nHTML actuel du composant (id=${data.component_id}):\n${data.current_html}`,
       {},
     );
