@@ -365,9 +365,10 @@ function DashboardPage() {
       return;
     }
     if (action.type === "update_creation_theme") {
+      const description = action.description ?? action.story ?? action.tagline;
       wizardRef.current?.updateTheme({
         ...(action.brand_name ? { brand_name: action.brand_name } : {}),
-        ...(action.tagline ? { tagline: action.tagline } : {}),
+        ...(description ? { tagline: description, story: description } : {}),
         ...(action.design_style ? { design_style: action.design_style as BrandIdentity["design_style"] } : {}),
         ...(action.selected_header_id ? { selected_header_id: action.selected_header_id } : {}),
         ...(action.selected_hero_id ? { selected_hero_id: action.selected_hero_id } : {}),
