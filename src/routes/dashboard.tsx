@@ -641,8 +641,8 @@ function DashboardPage() {
 
         <div className="flex min-w-0 flex-1 items-center gap-2 px-3">
         {activeSite && mode === "edit" && (
-          <div className="flex items-center gap-2">
-            <div className="flex items-center rounded-full border border-border bg-white p-0.5 shadow-sm">
+          <div className="flex flex-1 items-center gap-2">
+            <div className="flex items-center rounded-full bg-slate-100 p-0.5">
               {[
                 { value: "preview" as const, label: "Aperçu", icon: Globe },
                 { value: "code" as const, label: "Code", icon: FileCode2 },
@@ -660,7 +660,7 @@ function DashboardPage() {
                     className={cn(
                       "flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors",
                       active
-                        ? "bg-primary text-primary-foreground"
+                        ? "bg-white text-foreground shadow-sm"
                         : "text-muted-foreground hover:text-foreground",
                     )}
                   >
@@ -672,8 +672,8 @@ function DashboardPage() {
             </div>
 
             {tab === "preview" && (draftPages ?? []).length > 0 && (
-              <>
-                <div className="flex items-center rounded-full border border-border bg-white p-0.5">
+              <div className="mx-auto flex items-center gap-2">
+                <div className="flex items-center rounded-full bg-slate-100 p-0.5">
                   {([
                     { d: "desktop" as const, Icon: Monitor, label: "Bureau" },
                     { d: "tablet" as const, Icon: Tablet, label: "Tablette" },
@@ -687,7 +687,7 @@ function DashboardPage() {
                       className={cn(
                         "flex h-7 w-7 items-center justify-center rounded-full transition-colors",
                         device === d
-                          ? "bg-accent text-foreground"
+                          ? "bg-white text-foreground shadow-sm"
                           : "text-muted-foreground hover:text-foreground",
                       )}
                     >
@@ -696,12 +696,12 @@ function DashboardPage() {
                   ))}
                 </div>
 
-                <div className="flex items-center gap-1 rounded-full border border-border bg-white px-1.5 py-1">
+                <div className="flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-1">
                   <button
                     type="button"
                     onClick={() => setPreviewNonce((n) => n + 1)}
                     title="Rafraîchir"
-                    className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+                    className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-white hover:text-foreground"
                   >
                     <RefreshCw className="h-3 w-3" />
                   </button>
@@ -709,7 +709,7 @@ function DashboardPage() {
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
-                        className="flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-xs hover:bg-accent"
+                        className="flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-xs hover:bg-white"
                       >
                         <span>{previewSlug === "index" ? "/" : `/${previewSlug}`}</span>
                         <ChevronDown className="h-3 w-3 opacity-60" />
@@ -745,13 +745,13 @@ function DashboardPage() {
                       target="_blank"
                       rel="noreferrer"
                       title="Ouvrir dans un nouvel onglet"
-                      className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+                      className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-white hover:text-foreground"
                     >
                       <ExternalLink className="h-3 w-3" />
                     </a>
                   )}
                 </div>
-              </>
+              </div>
             )}
           </div>
         )}
