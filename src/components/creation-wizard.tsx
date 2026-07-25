@@ -715,6 +715,9 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
             onRegenLogo={() => runLogo(logoPrompt, brand)}
             onBack={() => setStep(1)}
             onNext={goStep2To3}
+            theme={theme}
+            city={city}
+            brief={brief}
           />
         )}
 
