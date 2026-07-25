@@ -43,7 +43,8 @@ function buildDoc(html: string, colors: typeof DEFAULT_COLORS): string {
     },
   };
   const cssVars = `:root{--brand:${colors.primary};--brand-primary:${colors.primary};--brand-secondary:${colors.secondary};--brand-accent:${colors.accent};--brand-neutral:${colors.neutral};--brand-background:${colors.background};}`;
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script src="https://cdn.tailwindcss.com"></script><script>tailwind.config = ${JSON.stringify(config)};</script><style>html,body{margin:0;padding:0;background:${colors.background};}${cssVars}</style></head><body>${html}</body></html>`;
+  const resetRadius = `.rounded-t-2xl{border-top-left-radius:0!important;border-top-right-radius:0!important;}`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script src="https://cdn.tailwindcss.com"></script><script>tailwind.config = ${JSON.stringify(config)};</script><style>html,body{margin:0;padding:0;background:${colors.background};}${cssVars}${resetRadius}</style></head><body>${html}</body></html>`;
 }
 
 export function WorkspacePreview({ pages, brand, activeSlug, device, nonce }: Props) {
