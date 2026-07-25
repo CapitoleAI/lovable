@@ -179,12 +179,6 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
     onSuccess: async (res) => {
       setBrand(res.brand);
       setLogoPrompt(res.logo_prompt);
-      setChat([
-        {
-          role: "assistant",
-          text: `Voici une première proposition pour "${res.brand.brand_name}". Demandez-moi des ajustements (style, couleurs, sections, logo…).`,
-        },
-      ]);
       setStep(2);
       void runLogo(res.logo_prompt, res.brand);
     },
