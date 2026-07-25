@@ -330,15 +330,20 @@ function inferCreateFallbackAction(data: z.infer<typeof orchestrateSchema>): Orc
     }
   }
 
-  const inferred = inferCreationIntent(data);
-  const hasProjectSignal =
-    Boolean(inferred.theme && inferred.theme !== "Site vitrine") ||
-    Boolean(inferred.city) ||
-    AUTONOMY_RE.test(msg) ||
-    /\b(site|entreprise|marque|premium|vitrine|local|agence|restaurant|plombier|artisan|coach|avocat|dentiste|immobilier)\b/i.test(msg);
-  if (hasProjectSignal && (cctx?.step ?? 1) === 1) {
+  // Only auto-advance to step 2 when the user explicitly delegates ("fais tout",
+  // "lance", "génère la marque"…). Otherwise let the LLM interview the user
+  // step by step instead of consuming the whole brief on the first message.
+  const wantsAutoAdvance =
+    (cctx?.step ?? 1) === 1 &&
+    (AUTONOMY_RE.test(msg) ||
+      /\b(lance|d[eé]marre|commence|passe\s+(?:à|a)\s+(?:l['']?)?[eé]tape\s*2|g[eé]n[eé]re(?:z)?\s+(?:la\s+)?marque|studio\s+de\s+marque)\b/i.test(
+        msg,
+      ));
+  if (wantsAutoAdvance) {
+    const inferred = inferCreationIntent(data);
     return { type: "advance_to_brand_studio", ...inferred };
   }
+
 
   return null;
 }
