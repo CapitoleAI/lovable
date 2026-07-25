@@ -632,7 +632,7 @@ function DashboardPage() {
             </span>
           </div>
         ) : (
-          <span className="text-sm text-muted-foreground">
+          <span className="text-sm text-zinc-400">
             {mode === "create" ? "Nouveau site" : "Dashboard"}
           </span>
         )}
