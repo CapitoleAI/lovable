@@ -24,6 +24,7 @@ import {
   syncCloudflareStatus,
 } from "@/lib/sites.functions";
 import { regeneratePageContent, generateNewPage } from "@/lib/orchestrator.functions";
+import { getSiteBuildProgress } from "@/lib/github-runs.functions";
 import type { OrchestratorAction } from "@/lib/orchestrator.functions";
 import type { BrandIdentity, PageContent } from "@/lib/sites-schema";
 
@@ -152,6 +153,7 @@ function DashboardPage() {
   const save = useServerFn(updateSite);
   const regen = useServerFn(regeneratePageContent);
   const genPage = useServerFn(generateNewPage);
+  const buildProgress = useServerFn(getSiteBuildProgress);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mode, setMode] = useState<"edit" | "create" | "empty">("empty");
@@ -259,6 +261,32 @@ function DashboardPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sites.map((s) => s.id).join(","), sites.map((s) => s.status).join(",")]);
+
+  // While the active site is building, reconcile its status against GitHub every 5s
+  // (getSiteBuildProgress updates the DB to "deployed"/"failed" when the run completes).
+  useEffect(() => {
+    if (!activeSite) return;
+    const inProgress = ["pending", "generating", "building", "deploying"].includes(
+      activeSite.status,
+    );
+    if (!inProgress) return;
+    let cancelled = false;
+    async function tick() {
+      try {
+        await buildProgress({ data: { id: activeSite!.id } });
+      } catch {
+        /* silent */
+      }
+      if (!cancelled) sitesQuery.refetch();
+    }
+    tick();
+    const t = setInterval(tick, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSite?.id, activeSite?.status]);
 
   const isDirty = useMemo(() => {
     if (!activeSite || !draftPages) return false;
