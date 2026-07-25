@@ -1169,25 +1169,25 @@ function brandCtx(brand: BrandIdentity): BrandCtx {
   };
 }
 
-function ComponentPreview({
-  comp,
+type Category = "header" | "hero" | "section" | "footer";
+type Variant = { id: string; label: string; category: Category; html: string };
+
+function VariantPreview({
+  variant,
   brand,
-  overrideHtml,
   selected,
   onSelect,
   onRefine,
 }: {
-  comp: ThemeComponent;
+  variant: Variant;
   brand: BrandIdentity;
-  overrideHtml?: string;
   selected: boolean;
   onSelect: () => void;
   onRefine: (prompt: string) => Promise<void>;
 }) {
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
-  const html = overrideHtml ?? comp.render(brandCtx(brand));
-  const doc = wrapPreviewDoc(html, brand.colors.background);
+  const doc = wrapPreviewDoc(variant.html, { colors: brand.colors });
 
   async function submitRefine() {
     const p = prompt.trim();
@@ -1216,7 +1216,7 @@ function ComponentPreview({
       >
         <div className="pointer-events-none relative h-[220px] w-full overflow-hidden bg-white">
           <iframe
-            title={comp.label}
+            title={variant.label}
             sandbox="allow-scripts"
             srcDoc={doc}
             className="pointer-events-none absolute left-0 top-0 origin-top-left border-0"
@@ -1230,12 +1230,10 @@ function ComponentPreview({
         )}
       </button>
       <div className="flex items-center justify-between border-t border-border bg-muted/40 px-3 py-2">
-        <span className="truncate text-xs font-medium">{comp.label}</span>
-        {overrideHtml && (
-          <Badge variant="outline" className="text-[9px]">
-            IA
-          </Badge>
-        )}
+        <span className="truncate text-xs font-medium">{variant.label}</span>
+        <Badge variant="outline" className="text-[9px]">
+          IA
+        </Badge>
       </div>
       <div className="border-t border-border p-2">
         <div className="flex gap-1.5">
@@ -1272,10 +1270,13 @@ function ThemeBuilder({
   brand,
   setBrand,
   logoLoading,
-  logoPrompt,
+  logoPrompt: _logoPrompt,
   onRegenLogo,
   onBack,
   onNext,
+  theme,
+  city,
+  brief,
 }: {
   brand: BrandIdentity;
   setBrand: (b: BrandIdentity) => void;
@@ -1284,39 +1285,124 @@ function ThemeBuilder({
   onRegenLogo: () => void;
   onBack: () => void;
   onNext: () => void;
+  theme: string;
+  city: string;
+  brief: string;
 }) {
   const refineComp = useServerFn(refineComponent);
+  const genVariants = useServerFn(generateThemeVariants);
   const overrides = brand.component_overrides ?? {};
 
-  const selectHeader = (id: string) =>
-    setBrand({ ...brand, selected_header_id: brand.selected_header_id === id ? "" : id });
-  const selectHero = (id: string) =>
-    setBrand({ ...brand, selected_hero_id: brand.selected_hero_id === id ? "" : id });
-  const selectFooter = (id: string) =>
-    setBrand({ ...brand, selected_footer_id: brand.selected_footer_id === id ? "" : id });
-  const toggleSection = (id: string) => {
-    const cur = brand.selected_section_ids ?? [];
-    setBrand({
-      ...brand,
-      selected_section_ids: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id],
-    });
-  };
+  const [variants, setVariants] = useState<Record<Category, Variant[]>>({
+    header: [],
+    hero: [],
+    section: [],
+    footer: [],
+  });
+  const [loadingCat, setLoadingCat] = useState<Record<Category, boolean>>({
+    header: false,
+    hero: false,
+    section: false,
+    footer: false,
+  });
+  const initRef = useRef(false);
 
-  async function refineOne(comp: ThemeComponent, message: string) {
+  async function loadCategory(category: Category, count = 3) {
+    setLoadingCat((s) => ({ ...s, [category]: true }));
     try {
-      const currentHtml = overrides[comp.id] ?? comp.render(brandCtx(brand));
-      const { html } = await refineComp({
+      const { variants: vs } = await genVariants({
         data: {
-          component_id: comp.id,
-          category: comp.category,
-          current_html: currentHtml,
-          message,
-          brand: brandCtx(brand),
+          category,
+          count,
+          brand: {
+            brand_name: brand.brand_name,
+            tagline: brand.tagline,
+            logo_url: brand.logo_url,
+            design_style: brand.design_style,
+            colors: brand.colors,
+          },
+          theme,
+          city,
+          brief,
         },
       });
+      setVariants((s) => ({
+        ...s,
+        [category]: vs.map((v) => ({ ...v, category })),
+      }));
+    } catch (e) {
+      toast.error(`${category}: ${(e as Error).message}`);
+    } finally {
+      setLoadingCat((s) => ({ ...s, [category]: false }));
+    }
+  }
+
+  // Charge les 4 catégories en parallèle au premier montage lorsque le brand est prêt.
+  useEffect(() => {
+    if (initRef.current) return;
+    if (!brand.brand_name) return;
+    initRef.current = true;
+    void Promise.all([
+      loadCategory("header", 3),
+      loadCategory("hero", 3),
+      loadCategory("section", 4),
+      loadCategory("footer", 3),
+    ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function selectVariant(category: Category, v: Variant, multi: boolean) {
+    // Stocke le HTML dans les overrides pour que `assembleHomeHtml` le retrouve.
+    const nextOverrides = { ...overrides, [v.id]: v.html };
+    if (category === "section") {
+      const cur = brand.selected_section_ids ?? [];
+      const nextIds = cur.includes(v.id)
+        ? cur.filter((x) => x !== v.id)
+        : multi
+          ? [...cur, v.id]
+          : [v.id];
+      setBrand({ ...brand, selected_section_ids: nextIds, component_overrides: nextOverrides });
+      return;
+    }
+    const key =
+      category === "header"
+        ? "selected_header_id"
+        : category === "hero"
+          ? "selected_hero_id"
+          : "selected_footer_id";
+    const currentId = brand[key];
+    setBrand({
+      ...brand,
+      [key]: currentId === v.id ? "" : v.id,
+      component_overrides: nextOverrides,
+    } as BrandIdentity);
+  }
+
+  function isSelected(category: Category, id: string): boolean {
+    if (category === "section") return (brand.selected_section_ids ?? []).includes(id);
+    if (category === "header") return brand.selected_header_id === id;
+    if (category === "hero") return brand.selected_hero_id === id;
+    return brand.selected_footer_id === id;
+  }
+
+  async function refineOne(v: Variant, message: string) {
+    try {
+      const currentHtml = overrides[v.id] ?? v.html;
+      const { html } = await refineComp({
+        data: {
+          component_id: v.id,
+          current_html: currentHtml,
+          message,
+        },
+      });
+      // Update variant HTML in place + overrides
+      setVariants((s) => ({
+        ...s,
+        [v.category]: s[v.category].map((x) => (x.id === v.id ? { ...x, html } : x)),
+      }));
       setBrand({
         ...brand,
-        component_overrides: { ...overrides, [comp.id]: html },
+        component_overrides: { ...overrides, [v.id]: html },
       });
       toast.success("Composant modifié");
     } catch (e) {
@@ -1324,16 +1410,24 @@ function ThemeBuilder({
     }
   }
 
-  const headers = componentsByCategory("header");
-  const heroes = componentsByCategory("hero");
-  const sections = componentsByCategory("section");
-  const footers = componentsByCategory("footer");
-
   const selectedCount =
     (brand.selected_header_id ? 1 : 0) +
     (brand.selected_hero_id ? 1 : 0) +
     (brand.selected_section_ids?.length ?? 0) +
     (brand.selected_footer_id ? 1 : 0);
+
+  const catConfig: {
+    key: Category;
+    label: string;
+    hint: string;
+    count: number;
+    multi: boolean;
+  }[] = [
+    { key: "header", label: "Header", hint: "Choisis 1 header", count: 3, multi: false },
+    { key: "hero", label: "Hero", hint: "Choisis 1 hero", count: 3, multi: false },
+    { key: "section", label: "Sections", hint: "Choisis plusieurs sections (dans l'ordre de clic)", count: 4, multi: true },
+    { key: "footer", label: "Footer", hint: "Choisis 1 footer", count: 3, multi: false },
+  ];
 
   return (
     <div className="space-y-4 pt-2">
@@ -1397,46 +1491,70 @@ function ThemeBuilder({
         {brand.selected_hero_id || "—"} · Sections:{" "}
         {(brand.selected_section_ids ?? []).join(", ") || "—"} · Footer:{" "}
         {brand.selected_footer_id || "—"}
-        <span className="ml-2 italic">Utilise le chat à gauche pour ajuster couleurs, style ou composants.</span>
+        <span className="ml-2 italic">Composants générés spécifiquement pour ce projet. Utilise le chat pour ajuster.</span>
       </div>
 
       <Tabs defaultValue="header" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="header">
-            Header {brand.selected_header_id && <Check className="ml-1 h-3 w-3" />}
-          </TabsTrigger>
-          <TabsTrigger value="hero">
-            Hero {brand.selected_hero_id && <Check className="ml-1 h-3 w-3" />}
-          </TabsTrigger>
-          <TabsTrigger value="section">
-            Sections ({brand.selected_section_ids?.length ?? 0})
-          </TabsTrigger>
-          <TabsTrigger value="footer">
-            Footer {brand.selected_footer_id && <Check className="ml-1 h-3 w-3" />}
-          </TabsTrigger>
+          {catConfig.map((c) => (
+            <TabsTrigger key={c.key} value={c.key}>
+              {c.label}
+              {c.key === "section"
+                ? ` (${brand.selected_section_ids?.length ?? 0})`
+                : isSelected(c.key, brand[
+                    c.key === "header"
+                      ? "selected_header_id"
+                      : c.key === "hero"
+                        ? "selected_hero_id"
+                        : "selected_footer_id"
+                  ])
+                  ? " ✓"
+                  : ""}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        {[
-          { key: "header", list: headers, onSel: selectHeader, isSel: (id: string) => brand.selected_header_id === id, hint: "Choisis 1 header" },
-          { key: "hero", list: heroes, onSel: selectHero, isSel: (id: string) => brand.selected_hero_id === id, hint: "Choisis 1 hero" },
-          { key: "section", list: sections, onSel: toggleSection, isSel: (id: string) => (brand.selected_section_ids ?? []).includes(id), hint: "Choisis plusieurs sections (dans l'ordre de clic)" },
-          { key: "footer", list: footers, onSel: selectFooter, isSel: (id: string) => brand.selected_footer_id === id, hint: "Choisis 1 footer" },
-        ].map((cat) => (
+        {catConfig.map((cat) => (
           <TabsContent key={cat.key} value={cat.key} className="mt-3">
-            <div className="mb-2 text-xs text-muted-foreground">{cat.hint}</div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-              {cat.list.map((c) => (
-                <ComponentPreview
-                  key={c.id}
-                  comp={c}
-                  brand={brand}
-                  overrideHtml={overrides[c.id]}
-                  selected={cat.isSel(c.id)}
-                  onSelect={() => cat.onSel(c.id)}
-                  onRefine={(msg) => refineOne(c, msg)}
-                />
-              ))}
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-xs text-muted-foreground">{cat.hint}</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => void loadCategory(cat.key, cat.count)}
+                disabled={loadingCat[cat.key]}
+              >
+                {loadingCat[cat.key] ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Régénérer
+              </Button>
             </div>
+            {loadingCat[cat.key] && variants[cat.key].length === 0 ? (
+              <div className="flex h-40 items-center justify-center text-xs text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Génération de {cat.count} variantes…
+              </div>
+            ) : variants[cat.key].length === 0 ? (
+              <div className="flex h-40 items-center justify-center text-xs text-muted-foreground">
+                Aucune variante. Cliquez sur « Régénérer ».
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                {variants[cat.key].map((v) => (
+                  <VariantPreview
+                    key={v.id}
+                    variant={v}
+                    brand={brand}
+                    selected={isSelected(cat.key, v.id)}
+                    onSelect={() => selectVariant(cat.key, v, cat.multi)}
+                    onRefine={(msg) => refineOne(v, msg)}
+                  />
+                ))}
+              </div>
+            )}
           </TabsContent>
         ))}
       </Tabs>
@@ -1452,4 +1570,5 @@ function ThemeBuilder({
     </div>
   );
 }
+
 
