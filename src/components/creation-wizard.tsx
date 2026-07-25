@@ -1313,22 +1313,36 @@ function ThemeBuilder({
   async function loadCategory(category: Category, count = 3) {
     setLoadingCat((s) => ({ ...s, [category]: true }));
     try {
-      const { variants: vs } = await genVariants({
-        data: {
-          category,
-          count,
-          brand: {
-            brand_name: brand.brand_name,
-            tagline: brand.tagline,
-            logo_url: brand.logo_url,
-            design_style: brand.design_style,
-            colors: brand.colors,
-          },
-          theme,
-          city,
-          brief,
-        },
-      });
+      // Server limit is 10 per call — batch large counts in parallel.
+      const CHUNK = 10;
+      const chunks: number[] = [];
+      let remaining = count;
+      while (remaining > 0) {
+        const take = Math.min(CHUNK, remaining);
+        chunks.push(take);
+        remaining -= take;
+      }
+      const results = await Promise.all(
+        chunks.map((n) =>
+          genVariants({
+            data: {
+              category,
+              count: n,
+              brand: {
+                brand_name: brand.brand_name,
+                tagline: brand.tagline,
+                logo_url: brand.logo_url,
+                design_style: brand.design_style,
+                colors: brand.colors,
+              },
+              theme,
+              city,
+              brief,
+            },
+          }),
+        ),
+      );
+      const vs = results.flatMap((r) => r.variants);
       setVariants((s) => ({
         ...s,
         [category]: vs.map((v) => ({ ...v, category })),
