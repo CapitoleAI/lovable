@@ -548,8 +548,8 @@ function DashboardPage() {
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-[#1D1D1C] text-neutral-100">
       {/* ================ TOP APP BAR ================ */}
-      <header className="flex h-14 shrink-0 items-stretch border-b border-[#272726] bg-[#1D1D1C]">
-        <div className="flex w-80 shrink-0 items-center gap-3 border-r border-[#272726] px-3">
+      <header className="flex h-14 shrink-0 items-stretch bg-[#1D1D1C]">
+        <div className="flex w-80 shrink-0 items-center gap-3 px-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
