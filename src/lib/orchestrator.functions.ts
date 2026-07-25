@@ -288,9 +288,21 @@ function inferCreateFallbackAction(data: z.infer<typeof orchestrateSchema>): Orc
     return { type: "generate_seo_and_tree" };
   }
 
-  if (/\b(logo|image|ic[oô]ne)\b/i.test(msg) && /\b(change|modifie|refais|r[eé]g[eé]n[eè]re|devien|remplace)\b/i.test(msg)) {
+  if (/\b(logo|image|ic[oô]ne)\b/i.test(msg) && /\b(change|modifie|refais|r[eé]g[eé]n[eè]re|devien|remplace|nouveau|nouvelle)\b/i.test(msg)) {
     return { type: "regenerate_logo", prompt: `logo ${msg}`.slice(0, 500) };
   }
+
+  // Rename brand: "appelle-la X", "renomme la marque X", "le nom devient X", "marque: X"
+  {
+    const renameRe =
+      /(?:(?:renomme(?:r)?|appelle(?:-la|s)?|nomme(?:r)?|rebaptise|le\s+nom\s+(?:devient|est|sera)|nom\s+de\s+(?:la\s+)?marque\s*[:=]?|marque\s*[:=])\s+["«]?([A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9 '&.\-]{1,60}?)["»]?)(?:[.,;!?]|$)/i;
+    const m = msg.match(renameRe);
+    if (m && m[1]) {
+      const brand_name = m[1].trim().replace(/\s+/g, " ");
+      if (brand_name) return { type: "update_creation_theme", brand_name };
+    }
+  }
+
 
   if ((cctx?.step ?? 1) >= 2) {
     const hexes = Array.from(msg.matchAll(/#([0-9a-fA-F]{6})/g)).map((m) => `#${m[1]}`);
