@@ -567,7 +567,7 @@ function DashboardPage() {
             </div>
 
             <TabsContent value="preview" className="min-h-0 flex-1 mt-0" style={previewBg ? { backgroundColor: previewBg } : undefined}>
-              <WorkspacePreview pages={draftPages ?? []} />
+              <WorkspacePreview pages={draftPages ?? []} brand={draftBrand ?? undefined} />
             </TabsContent>
 
             <TabsContent value="sitemap" className="min-h-0 flex-1 mt-0">
