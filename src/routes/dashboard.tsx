@@ -375,10 +375,15 @@ function DashboardPage() {
       });
       return;
     }
+    if (action.type === "regenerate_logo") {
+      await wizardRef.current?.regenerateLogo(action.prompt);
+      return;
+    }
     if (action.type === "finalize_and_build") {
       await wizardRef.current?.finalizeAndBuild();
       return;
     }
+
 
     if (!activeSite || !draftPages) return;
 
