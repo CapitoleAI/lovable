@@ -4,14 +4,23 @@ import { useQuery, queryOptions } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  BarChart3,
   Check,
   ChevronDown,
+  Code2,
   Copy,
   ExternalLink,
+  FileCode2,
+  Globe,
   LayoutDashboard,
   Loader2,
   LogOut,
+  Monitor,
+  Network,
   Plus,
+  RefreshCw,
+  Smartphone,
+  Tablet,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -44,7 +53,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import {
   CreationWizard,
   type CreationSnapshot,
@@ -173,6 +183,12 @@ function DashboardPage() {
   const [draftBrand, setDraftBrand] = useState<Partial<BrandIdentity> | null>(null);
   const [publishing, setPublishing] = useState(false);
 
+  // Workspace UI state (lifted from tabs/preview)
+  const [tab, setTab] = useState<"preview" | "code" | "sitemap" | "analytics">("preview");
+  const [device, setDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  const [previewSlug, setPreviewSlug] = useState<string>("index");
+  const [previewNonce, setPreviewNonce] = useState(0);
+
 
   const sitesQuery = useQuery({
     ...sitesQueryOptions,
@@ -196,7 +212,10 @@ function DashboardPage() {
   // When active site changes, reset drafts from server state
   useEffect(() => {
     if (activeSite) {
-      setDraftPages(activeSite.site_data?.pages ?? null);
+      const pages = activeSite.site_data?.pages ?? null;
+      setDraftPages(pages);
+      setPreviewSlug(pages?.[0]?.slug ?? "index");
+      setTab("preview");
       // brand is only stored partially in site_info; keep colors + logo
       const info = activeSite.site_data?.site_info;
       setDraftBrand(
@@ -617,6 +636,122 @@ function DashboardPage() {
           </span>
         )}
 
+        {activeSite && mode === "edit" && (
+          <div className="ml-4 flex items-center gap-2">
+            <div className="flex items-center rounded-full border border-border bg-white p-0.5 shadow-sm">
+              {[
+                { value: "preview" as const, label: "Aperçu", icon: Globe },
+                { value: "code" as const, label: "Code", icon: FileCode2 },
+                { value: "sitemap" as const, label: "Arborescence", icon: Network },
+                { value: "analytics" as const, label: "Analytics", icon: BarChart3 },
+              ].map((t) => {
+                const active = tab === t.value;
+                const Icon = t.icon;
+                return (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setTab(t.value)}
+                    title={t.label}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors",
+                      active
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {active && <span>{t.label}</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {tab === "preview" && (draftPages ?? []).length > 0 && (
+              <>
+                <div className="flex items-center rounded-full border border-border bg-white p-0.5">
+                  {([
+                    { d: "desktop" as const, Icon: Monitor, label: "Bureau" },
+                    { d: "tablet" as const, Icon: Tablet, label: "Tablette" },
+                    { d: "mobile" as const, Icon: Smartphone, label: "Mobile" },
+                  ]).map(({ d, Icon, label }) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setDevice(d)}
+                      title={label}
+                      className={cn(
+                        "flex h-7 w-7 items-center justify-center rounded-full transition-colors",
+                        device === d
+                          ? "bg-accent text-foreground"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-1 rounded-full border border-border bg-white px-1.5 py-1">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewNonce((n) => n + 1)}
+                    title="Rafraîchir"
+                    className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                  </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-xs hover:bg-accent"
+                      >
+                        <span>{previewSlug === "index" ? "/" : `/${previewSlug}`}</span>
+                        <ChevronDown className="h-3 w-3 opacity-60" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="center" className="min-w-[220px]">
+                      <DropdownMenuLabel>Pages</DropdownMenuLabel>
+                      {(draftPages ?? []).map((p) => (
+                        <DropdownMenuItem
+                          key={p.slug}
+                          onClick={() => setPreviewSlug(p.slug)}
+                          className="flex items-center gap-2"
+                        >
+                          {p.slug === previewSlug ? (
+                            <Check className="h-3.5 w-3.5" />
+                          ) : (
+                            <span className="w-3.5" />
+                          )}
+                          <span className="font-mono text-xs">
+                            {p.slug === "index" ? "/" : `/${p.slug}`}
+                          </span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  {activeSite.deploy_url && (
+                    <a
+                      href={
+                        previewSlug === "index"
+                          ? activeSite.deploy_url
+                          : `${activeSite.deploy_url.replace(/\/$/, "")}/${previewSlug}`
+                      }
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Ouvrir dans un nouvel onglet"
+                      className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         <div className="ml-auto flex items-center gap-2">
           {activeSite && (
             <Popover>
@@ -743,32 +878,23 @@ function DashboardPage() {
               </div>
             </div>
           ) : (
-            <Tabs defaultValue="preview" className="flex min-h-0 flex-1 flex-col">
-              <div className="border-b border-border bg-white px-4">
-                <TabsList className="h-10 bg-transparent p-0">
-                  {[
-                    { value: "preview", label: "Aperçu" },
-                    { value: "code", label: "Code" },
-                    { value: "sitemap", label: "Arborescence" },
-                    { value: "analytics", label: "Analytics" },
-                  ].map((t) => (
-                    <TabsTrigger
-                      key={t.value}
-                      value={t.value}
-                      className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none h-10"
-                    >
-                      {t.label}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </div>
-
+            <Tabs
+              value={tab}
+              onValueChange={(v) => setTab(v as typeof tab)}
+              className="flex min-h-0 flex-1 flex-col"
+            >
               <TabsContent
                 value="preview"
                 className="min-h-0 flex-1 mt-0"
                 style={previewBg ? { backgroundColor: previewBg } : undefined}
               >
-                <WorkspacePreview pages={draftPages ?? []} brand={draftBrand ?? undefined} />
+                <WorkspacePreview
+                  pages={draftPages ?? []}
+                  brand={draftBrand ?? undefined}
+                  activeSlug={previewSlug}
+                  device={device}
+                  nonce={previewNonce}
+                />
               </TabsContent>
 
               <TabsContent value="code" className="min-h-0 flex-1 mt-0">
