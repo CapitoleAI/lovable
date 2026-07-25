@@ -62,8 +62,6 @@ export function WorkspacePreview({ pages, brand, activeSlug, device, nonce }: Pr
         <div
           className="mx-auto h-full overflow-hidden border border-[#1D1D1C] shadow-lg transition-all"
           style={{
-            borderTopLeftRadius: "1rem",
-            borderTopRightRadius: "1rem",
             ...(deviceWidth ? { maxWidth: deviceWidth } : {}),
           }}
         >
