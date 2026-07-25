@@ -138,8 +138,13 @@ const actionSchema = z.discriminatedUnion("type", [
     sitemap: z.array(sitemapPageSchema).max(30).optional(),
   }),
   z.object({
+    type: z.literal("regenerate_logo"),
+    prompt: z.string().min(1).max(500),
+  }),
+  z.object({
     type: z.literal("finalize_and_build"),
   }),
+
 ]);
 export type OrchestratorAction = z.infer<typeof actionSchema>;
 
