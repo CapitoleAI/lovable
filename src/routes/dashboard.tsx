@@ -262,6 +262,32 @@ function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sites.map((s) => s.id).join(","), sites.map((s) => s.status).join(",")]);
 
+  // While the active site is building, reconcile its status against GitHub every 5s
+  // (getSiteBuildProgress updates the DB to "deployed"/"failed" when the run completes).
+  useEffect(() => {
+    if (!activeSite) return;
+    const inProgress = ["pending", "generating", "building", "deploying"].includes(
+      activeSite.status,
+    );
+    if (!inProgress) return;
+    let cancelled = false;
+    async function tick() {
+      try {
+        await buildProgress({ data: { id: activeSite!.id } });
+      } catch {
+        /* silent */
+      }
+      if (!cancelled) sitesQuery.refetch();
+    }
+    tick();
+    const t = setInterval(tick, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSite?.id, activeSite?.status]);
+
   const isDirty = useMemo(() => {
     if (!activeSite || !draftPages) return false;
     const savedPages = activeSite.site_data?.pages ?? [];
