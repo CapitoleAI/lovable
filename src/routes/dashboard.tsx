@@ -878,32 +878,23 @@ function DashboardPage() {
               </div>
             </div>
           ) : (
-            <Tabs defaultValue="preview" className="flex min-h-0 flex-1 flex-col">
-              <div className="border-b border-border bg-white px-4">
-                <TabsList className="h-10 bg-transparent p-0">
-                  {[
-                    { value: "preview", label: "Aperçu" },
-                    { value: "code", label: "Code" },
-                    { value: "sitemap", label: "Arborescence" },
-                    { value: "analytics", label: "Analytics" },
-                  ].map((t) => (
-                    <TabsTrigger
-                      key={t.value}
-                      value={t.value}
-                      className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none h-10"
-                    >
-                      {t.label}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </div>
-
+            <Tabs
+              value={tab}
+              onValueChange={(v) => setTab(v as typeof tab)}
+              className="flex min-h-0 flex-1 flex-col"
+            >
               <TabsContent
                 value="preview"
                 className="min-h-0 flex-1 mt-0"
                 style={previewBg ? { backgroundColor: previewBg } : undefined}
               >
-                <WorkspacePreview pages={draftPages ?? []} brand={draftBrand ?? undefined} />
+                <WorkspacePreview
+                  pages={draftPages ?? []}
+                  brand={draftBrand ?? undefined}
+                  activeSlug={previewSlug}
+                  device={device}
+                  nonce={previewNonce}
+                />
               </TabsContent>
 
               <TabsContent value="code" className="min-h-0 flex-1 mt-0">
