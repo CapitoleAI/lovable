@@ -1,17 +1,47 @@
 import { useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { PageContent } from "@/lib/sites-schema";
+import type { BrandIdentity, PageContent } from "@/lib/sites-schema";
 
 interface Props {
   pages: PageContent[];
+  brand?: Partial<BrandIdentity>;
 }
 
-function buildDoc(html: string): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script src="https://cdn.tailwindcss.com"></script><style>html,body{margin:0;padding:0;background:#fff;}</style></head><body>${html}</body></html>`;
+const DEFAULT_COLORS = {
+  primary: "#0f172a",
+  secondary: "#334155",
+  accent: "#38bdf8",
+  neutral: "#e2e8f0",
+  background: "#ffffff",
+};
+
+function buildDoc(html: string, colors: typeof DEFAULT_COLORS): string {
+  // Tailwind Play CDN config MUST be set after the CDN script loads.
+  // We register a `brand` color palette (DEFAULT + variants) so templates
+  // can use `bg-brand`, `text-brand`, `ring-brand`, `bg-brand-accent`, etc.,
+  // and the Live Preview reflects palette changes instantly.
+  const config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: {
+            DEFAULT: colors.primary,
+            primary: colors.primary,
+            secondary: colors.secondary,
+            accent: colors.accent,
+            neutral: colors.neutral,
+            background: colors.background,
+          },
+        },
+      },
+    },
+  };
+  const cssVars = `:root{--brand:${colors.primary};--brand-primary:${colors.primary};--brand-secondary:${colors.secondary};--brand-accent:${colors.accent};--brand-neutral:${colors.neutral};--brand-background:${colors.background};}`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script src="https://cdn.tailwindcss.com"></script><script>tailwind.config = ${JSON.stringify(config)};</script><style>html,body{margin:0;padding:0;background:${colors.background};}${cssVars}</style></head><body>${html}</body></html>`;
 }
 
-export function WorkspacePreview({ pages }: Props) {
+export function WorkspacePreview({ pages, brand }: Props) {
   const [activeSlug, setActiveSlug] = useState<string>(pages[0]?.slug ?? "index");
   const [nonce, setNonce] = useState(0);
 
@@ -19,6 +49,9 @@ export function WorkspacePreview({ pages }: Props) {
     () => pages.find((p) => p.slug === activeSlug) ?? pages[0],
     [pages, activeSlug],
   );
+
+  const colors = { ...DEFAULT_COLORS, ...(brand?.colors ?? {}) };
+  const colorKey = `${colors.primary}|${colors.secondary}|${colors.accent}|${colors.neutral}|${colors.background}`;
 
   return (
     <div className="flex h-full flex-col">
@@ -51,10 +84,10 @@ export function WorkspacePreview({ pages }: Props) {
       <div className="min-h-0 flex-1 bg-muted p-4">
         {active ? (
           <iframe
-            key={`${active.slug}-${nonce}`}
+            key={`${active.slug}-${colorKey}-${nonce}`}
             title={`Aperçu ${active.slug}`}
             sandbox="allow-scripts"
-            srcDoc={buildDoc(active.html_content)}
+            srcDoc={buildDoc(active.html_content, colors)}
             className="h-full w-full rounded-lg border border-border bg-white shadow-sm"
           />
         ) : (
