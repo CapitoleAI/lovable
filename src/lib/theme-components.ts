@@ -583,8 +583,9 @@ export function renderComponent(
 }
 
 /**
- * Assemble l'ossature HTML complète de la home à partir des composants
- * sélectionnés.
+ * Assemble l'ossature HTML complète de la home. Injecte les variables CSS de
+ * marque (`--brand-*`) pour que les classes arbitraires du type
+ * `bg-[var(--brand-primary)]` générées par l'IA fonctionnent dans le build.
  */
 export function assembleHomeHtml(
   selection: {
@@ -596,7 +597,7 @@ export function assembleHomeHtml(
   brand: BrandCtx,
   overrides?: Record<string, string>,
 ): string {
-  const parts: string[] = [];
+  const parts: string[] = [brandStyleBlock(brand.colors)];
   if (selection.header) parts.push(renderComponent(selection.header, brand, overrides));
   if (selection.hero) parts.push(renderComponent(selection.hero, brand, overrides));
   for (const id of selection.sections ?? []) {
@@ -606,7 +607,27 @@ export function assembleHomeHtml(
   return parts.filter(Boolean).join("\n");
 }
 
-/** Wrap un HTML dans un document complet avec Tailwind CDN pour aperçu iframe. */
-export function wrapPreviewDoc(html: string, background = "#ffffff"): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script src="https://cdn.tailwindcss.com"></script><style>body{margin:0;background:${background};font-family:ui-sans-serif,system-ui,-apple-system,sans-serif}</style></head><body>${html}</body></html>`;
+function brandStyleBlock(colors: BrandCtx["colors"]): string {
+  return `<style>:root{--brand:${colors.primary};--brand-primary:${colors.primary};--brand-secondary:${colors.secondary};--brand-accent:${colors.accent};--brand-neutral:${colors.neutral};--brand-background:${colors.background};}</style>`;
+}
+
+/**
+ * Wrap un HTML dans un document complet avec Tailwind CDN pour aperçu iframe.
+ * Injecte les variables CSS `--brand-*` afin de supporter les classes
+ * arbitraires (`bg-[var(--brand-primary)]`, etc.) émises par l'IA.
+ */
+export function wrapPreviewDoc(
+  html: string,
+  brandOrBackground?: string | { colors: BrandCtx["colors"] },
+): string {
+  let colors: BrandCtx["colors"] | undefined;
+  let background = "#ffffff";
+  if (typeof brandOrBackground === "string") {
+    background = brandOrBackground || background;
+  } else if (brandOrBackground?.colors) {
+    colors = brandOrBackground.colors;
+    background = colors.background || background;
+  }
+  const style = colors ? brandStyleBlock(colors) : "";
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script src="https://cdn.tailwindcss.com"></script>${style}<style>body{margin:0;background:${background};font-family:ui-sans-serif,system-ui,-apple-system,sans-serif}</style></head><body>${html}</body></html>`;
 }
