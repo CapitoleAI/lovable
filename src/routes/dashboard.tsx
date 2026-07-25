@@ -673,7 +673,7 @@ function DashboardPage() {
 
             {tab === "preview" && (draftPages ?? []).length > 0 && (
               <div className="mx-auto flex items-center gap-2">
-                <div className="flex items-center rounded-full bg-slate-100 p-0.5">
+                <div className="flex items-center rounded-full bg-zinc-800 p-0.5">
                   {([
                     { d: "desktop" as const, Icon: Monitor, label: "Bureau" },
                     { d: "tablet" as const, Icon: Tablet, label: "Tablette" },
@@ -687,8 +687,8 @@ function DashboardPage() {
                       className={cn(
                         "flex h-7 w-7 items-center justify-center rounded-full transition-colors",
                         device === d
-                          ? "bg-white text-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground",
+                          ? "bg-zinc-700 text-white shadow-sm"
+                          : "text-zinc-400 hover:text-zinc-100",
                       )}
                     >
                       <Icon className="h-3.5 w-3.5" />
@@ -696,12 +696,12 @@ function DashboardPage() {
                   ))}
                 </div>
 
-                <div className="flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-1">
+                <div className="flex items-center gap-1 rounded-full bg-zinc-800 px-1.5 py-1">
                   <button
                     type="button"
                     onClick={() => setPreviewNonce((n) => n + 1)}
                     title="Rafraîchir"
-                    className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-white hover:text-foreground"
+                    className="flex h-6 w-6 items-center justify-center rounded-full text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
                   >
                     <RefreshCw className="h-3 w-3" />
                   </button>
@@ -709,7 +709,7 @@ function DashboardPage() {
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
-                        className="flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-xs hover:bg-white"
+                        className="flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-xs text-zinc-100 hover:bg-zinc-700"
                       >
                         <span>{previewSlug === "index" ? "/" : `/${previewSlug}`}</span>
                         <ChevronDown className="h-3 w-3 opacity-60" />
@@ -745,7 +745,7 @@ function DashboardPage() {
                       target="_blank"
                       rel="noreferrer"
                       title="Ouvrir dans un nouvel onglet"
-                      className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-white hover:text-foreground"
+                      className="flex h-6 w-6 items-center justify-center rounded-full text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
                     >
                       <ExternalLink className="h-3 w-3" />
                     </a>
