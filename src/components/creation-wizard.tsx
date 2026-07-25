@@ -516,6 +516,13 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
           toast.error((e as Error).message);
         }
       },
+      updateBrief(input) {
+        if (input.name !== undefined) setName(input.name);
+        if (input.theme !== undefined) setTheme(input.theme);
+        if (input.city !== undefined) setCity(input.city);
+        if (input.brief !== undefined) setBrief(input.brief);
+        if (input.hint_colors !== undefined) setHintColors(input.hint_colors);
+      },
       updateTheme(patch) {
         applyBrandPatch(patch);
         setStep(2);
