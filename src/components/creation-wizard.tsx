@@ -175,7 +175,7 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
 
   function defaultBrand(seed?: Partial<BrandIdentity>): BrandIdentity {
     return {
-      brand_name: seed?.brand_name ?? name.trim() || "Nouvelle marque",
+      brand_name: seed?.brand_name ?? (name.trim() || "Nouvelle marque"),
       tagline: seed?.tagline ?? "",
       story: seed?.story ?? brief,
       colors: seed?.colors ?? DEFAULT_COLORS,
