@@ -618,12 +618,6 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
             logoLoading={logoLoading}
             logoPrompt={logoPrompt}
             onRegenLogo={() => runLogo(logoPrompt, brand)}
-            chat={chat}
-            setChat={setChat}
-            chatInput={chatInput}
-            setChatInput={setChatInput}
-            refining={refining}
-            sendChat={sendChat}
             onBack={() => setStep(1)}
             onNext={goStep2To3}
           />
