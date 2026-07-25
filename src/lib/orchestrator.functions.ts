@@ -539,49 +539,50 @@ Renvoie STRICTEMENT un objet JSON valide au format {"reply": string, "actions": 
 
     const system =
       data.mode === "edit" ? systemEdit : data.mode === "create" ? systemCreate : systemEmpty;
+    const tools =
+      data.mode === "edit" ? editTools : data.mode === "create" ? createTools : emptyTools;
 
-    const parsed = await callAiJson<{ reply?: string; actions?: unknown[] }>(
-      system,
-      `${ctxBlock}${creationBlock}\n\nHISTORIQUE:\n${historyBlock}\n\nUSER: ${data.message}`,
-      {},
-    );
-
-    const reply = (parsed.reply ?? "").trim() || "OK.";
-    const rawActions = Array.isArray(parsed.actions) ? parsed.actions : [];
+    let reply = "OK.";
     const actions: OrchestratorAction[] = [];
-    for (const a of rawActions) {
-      const res = actionSchema.safeParse(normalizeRawAction(a));
-      if (res.success) {
-        if (res.data.type === "update_colors" || res.data.type === "update_creation_theme") {
-          if (res.data.colors) {
+    try {
+      const { reply: r, rawCalls } = await callAiWithTools(
+        system,
+        `${ctxBlock}${creationBlock}\n\nHISTORIQUE:\n${historyBlock}\n\nUSER: ${data.message}`,
+        tools,
+      );
+      if (r) reply = r;
+      for (const call of rawCalls) {
+        const args =
+          call.arguments && typeof call.arguments === "object"
+            ? (call.arguments as Record<string, unknown>)
+            : {};
+        const parsed = actionSchema.safeParse(normalizeRawAction({ ...args, type: call.name }));
+        if (!parsed.success) continue;
+        const act = parsed.data;
+        if (act.type === "update_colors" || act.type === "update_creation_theme") {
+          if (act.colors) {
             const clean: Record<string, string> = {};
-            for (const [k, v] of Object.entries(res.data.colors)) {
+            for (const [k, v] of Object.entries(act.colors)) {
               if (typeof v === "string" && HEX_RE.test(v.trim())) clean[k] = v.trim();
             }
-            if (res.data.type === "update_colors") {
-              if (Object.keys(clean).length > 0) {
-                actions.push({ type: "update_colors", colors: clean });
-              }
+            if (act.type === "update_colors") {
+              if (Object.keys(clean).length > 0) actions.push({ type: "update_colors", colors: clean });
             } else {
-              actions.push({ ...res.data, colors: clean });
+              actions.push({ ...act, colors: clean });
             }
           } else {
-            actions.push(res.data);
+            actions.push(act);
           }
-        } else if (res.data.type === "advance_to_brand_studio" && data.mode === "create") {
-          const inferred = inferCreationIntent(data);
-          actions.push({ ...inferred, ...res.data, hint_colors: res.data.hint_colors ?? inferred.hint_colors });
         } else {
-          actions.push(res.data);
+          actions.push(act);
         }
       }
-    }
-    if (actions.length === 0 && data.mode === "create") {
-      const fallbackAction = inferCreateFallbackAction(data);
-      if (fallbackAction) actions.push(fallbackAction);
+    } catch (e) {
+      reply = `Désolé, l'IA a rencontré une erreur: ${(e as Error).message}`;
     }
     return { reply, actions };
   });
+
 
 
 // -------------------- Regenerate page content --------------------
