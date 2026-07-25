@@ -186,6 +186,151 @@ const orchestrateSchema = z.object({
 
 const HEX_RE = /^#([0-9a-fA-F]{6})$/;
 
+const AUTONOMY_RE =
+  /\b(peu importe|peut importe|n['’]?importe|toi[-\s]?même|tout toi|comme tu veux|choisis|propose|carte blanche|fais au mieux|crée?r? tout)\b/i;
+
+const COLOR_WORDS: Record<string, string> = {
+  bleu: "#1d4ed8",
+  marine: "#0f172a",
+  rouge: "#dc2626",
+  vert: "#16a34a",
+  jaune: "#f59e0b",
+  orange: "#ea580c",
+  rose: "#db2777",
+  violet: "#7c3aed",
+  noir: "#111827",
+  blanc: "#ffffff",
+  sombre: "#111827",
+  premium: "#0f172a",
+};
+
+function toTitleCase(value: string): string {
+  return value
+    .trim()
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toLocaleUpperCase("fr-FR") + word.slice(1))
+    .join(" ");
+}
+
+function normalizeRawAction(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") return raw;
+  const record = raw as Record<string, unknown>;
+  if (typeof record.type === "string") return raw;
+  const name =
+    typeof record.name === "string"
+      ? record.name
+      : typeof record.action === "string"
+        ? record.action
+        : typeof (record.function as { name?: unknown } | undefined)?.name === "string"
+          ? ((record.function as { name: string }).name)
+          : "";
+  if (!name) return raw;
+  const args =
+    record.arguments && typeof record.arguments === "object"
+      ? (record.arguments as Record<string, unknown>)
+      : record.args && typeof record.args === "object"
+        ? (record.args as Record<string, unknown>)
+        : {};
+  return { ...args, type: name };
+}
+
+function inferCreationIntent(data: z.infer<typeof orchestrateSchema>) {
+  const cctx = data.creation_context;
+  const userTexts = [
+    ...data.history.filter((m) => m.role === "user").map((m) => m.content),
+    data.message,
+  ];
+  const meaningfulTexts = userTexts.filter((text) => !AUTONOMY_RE.test(text));
+  const firstProjectText = meaningfulTexts[0] ?? data.message;
+  const joined = userTexts.join(". ");
+
+  const cityMatch = firstProjectText.match(
+    /(?:\bà\b|\ba\b|\bsur\b|près de|proche de|dans)\s+([A-ZÀ-Ÿ][A-Za-zÀ-ÿ' -]{1,38}?)(?=\s+(?:premium|haut|luxe|minimal|moderne|urgent|pas\s+cher|corporate|élégant|elegant)|[,.!?;]|$)/i,
+  );
+  const city = (cctx?.city || cityMatch?.[1] || "").trim();
+
+  const beforeCity = firstProjectText.match(/^(.*?)\s+(?:\bà\b|\ba\b|\bsur\b|près de|proche de|dans)\s+/i)?.[1];
+  const themeSeed = (cctx?.theme || beforeCity || firstProjectText).replace(AUTONOMY_RE, "").trim();
+  const theme = themeSeed.split(/[,.!?;]/)[0]?.trim() || cctx?.theme || "Site vitrine";
+
+  const briefParts = meaningfulTexts.length > 0 ? meaningfulTexts : [data.message];
+  const brief =
+    cctx?.brief ||
+    briefParts.join(". ").trim() ||
+    `Créer un site professionnel ${theme}${city ? ` à ${city}` : ""}, avec une direction artistique cohérente et premium.`;
+
+  const hasAutonomy = AUTONOMY_RE.test(joined);
+  const name =
+    cctx?.name ||
+    (hasAutonomy || !meaningfulTexts.some((text) => /nom|soci[eé]t[eé]|entreprise|marque/i.test(text))
+      ? toTitleCase(`${theme}${city ? ` ${city}` : ""}`)
+      : "");
+
+  return {
+    name: name || undefined,
+    theme: theme || undefined,
+    city: city || undefined,
+    brief: brief || undefined,
+    hint_colors: cctx?.hint_colors,
+  };
+}
+
+function inferCreateFallbackAction(data: z.infer<typeof orchestrateSchema>): OrchestratorAction | null {
+  const msg = data.message.trim();
+  const lower = msg.toLocaleLowerCase("fr-FR");
+  const cctx = data.creation_context;
+
+  if (/\b(publie|publier|lance|build|finalise|cr[eé]e le site)\b/i.test(msg) && (cctx?.step ?? 1) >= 4) {
+    return { type: "finalize_and_build" };
+  }
+
+  if (/\b(seo|mots?[-\s]?cl[eé]s?|arborescence|sitemap|pages?|continue|suivant|avance)\b/i.test(msg) && (cctx?.step ?? 1) >= 2) {
+    return { type: "generate_seo_and_tree" };
+  }
+
+  if (/\b(logo|image|ic[oô]ne)\b/i.test(msg) && /\b(change|modifie|refais|r[eé]g[eé]n[eè]re|devien|remplace)\b/i.test(msg)) {
+    return { type: "regenerate_logo", prompt: `logo ${msg}`.slice(0, 500) };
+  }
+
+  if ((cctx?.step ?? 1) >= 2) {
+    const hexes = Array.from(msg.matchAll(/#([0-9a-fA-F]{6})/g)).map((m) => `#${m[1]}`);
+    const colorFromWord = Object.entries(COLOR_WORDS).find(([word]) => lower.includes(word))?.[1];
+    const primary = hexes[0] ?? colorFromWord;
+    if (primary || /\b(minimaliste|corporate|ludique|sombre|elegant|élégant|brutaliste)\b/i.test(msg)) {
+      const design = lower.includes("corporate")
+        ? "corporate"
+        : lower.includes("ludique")
+          ? "ludique"
+          : lower.includes("sombre") || lower.includes("dark")
+            ? "sombre"
+            : lower.includes("brutal")
+              ? "brutaliste"
+              : lower.includes("elegant") || lower.includes("élégant")
+                ? "elegant"
+                : lower.includes("minimal")
+                  ? "minimaliste"
+                  : undefined;
+      return {
+        type: "update_creation_theme",
+        ...(primary ? { colors: { primary } } : {}),
+        ...(design ? { design_style: design } : {}),
+      };
+    }
+  }
+
+  const inferred = inferCreationIntent(data);
+  const hasProjectSignal =
+    Boolean(inferred.theme && inferred.theme !== "Site vitrine") ||
+    Boolean(inferred.city) ||
+    AUTONOMY_RE.test(msg) ||
+    /\b(site|entreprise|marque|premium|vitrine|local|agence|restaurant|plombier|artisan|coach|avocat|dentiste|immobilier)\b/i.test(msg);
+  if (hasProjectSignal && (cctx?.step ?? 1) === 1) {
+    return { type: "advance_to_brand_studio", ...inferred };
+  }
+
+  return null;
+}
+
 export const orchestrateChat = createServerFn({ method: "POST" })
   .inputValidator((input) => orchestrateSchema.parse(input))
   .handler(async ({ data }) => {
@@ -257,7 +402,7 @@ Renvoie STRICTEMENT un objet JSON valide au format {"reply": string, "actions": 
     const rawActions = Array.isArray(parsed.actions) ? parsed.actions : [];
     const actions: OrchestratorAction[] = [];
     for (const a of rawActions) {
-      const res = actionSchema.safeParse(a);
+      const res = actionSchema.safeParse(normalizeRawAction(a));
       if (res.success) {
         if (res.data.type === "update_colors" || res.data.type === "update_creation_theme") {
           if (res.data.colors) {
@@ -275,10 +420,17 @@ Renvoie STRICTEMENT un objet JSON valide au format {"reply": string, "actions": 
           } else {
             actions.push(res.data);
           }
+        } else if (res.data.type === "advance_to_brand_studio" && data.mode === "create") {
+          const inferred = inferCreationIntent(data);
+          actions.push({ ...inferred, ...res.data, hint_colors: res.data.hint_colors ?? inferred.hint_colors });
         } else {
           actions.push(res.data);
         }
       }
+    }
+    if (actions.length === 0 && data.mode === "create") {
+      const fallbackAction = inferCreateFallbackAction(data);
+      if (fallbackAction) actions.push(fallbackAction);
     }
     return { reply, actions };
   });
