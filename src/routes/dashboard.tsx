@@ -845,7 +845,7 @@ function DashboardPage() {
       {/* ================ SPLIT BODY ================ */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* LEFT: Chat */}
-        <aside className="flex w-80 shrink-0 flex-col border-r border-[#272726] bg-[#1D1D1C]">
+        <aside className="flex w-80 shrink-0 flex-col bg-[#1D1D1C]">
           <div className="min-h-0 flex-1">
             <WorkspaceChat
               mode={mode}
