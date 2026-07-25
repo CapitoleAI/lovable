@@ -506,7 +506,8 @@ export const generateThemeVariants = createServerFn({ method: "POST" })
   .inputValidator((input) => generateThemeVariantsSchema.parse(input))
   .handler(async ({ data }) => {
     await requireUser();
-    const { category, count, brand, theme, city, brief } = data;
+    const { category, count, brand, theme, city, brief } =
+      data as z.output<typeof generateThemeVariantsSchema>;
 
     const categoryBrief: Record<typeof category, string> = {
       header: "un HEADER de site : logo à gauche ou centré, navigation (Accueil, Services, À propos, Contact), un CTA optionnel. Responsive.",
