@@ -138,6 +138,8 @@ const actionSchema = z.discriminatedUnion("type", [
     design_style: z.string().optional(),
     brand_name: z.string().optional(),
     tagline: z.string().optional(),
+    story: z.string().optional(),
+    description: z.string().optional(),
   }),
   z.object({
     type: z.literal("generate_seo_and_tree"),
@@ -242,6 +244,49 @@ function normalizeRawAction(raw: unknown): unknown {
   return { ...args, type: name };
 }
 
+function cleanCapturedText(value: string): string {
+  return value
+    .trim()
+    .replace(/^["«“”]+|["»“”]+$/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/\s+(?:s['’]?il\s+te\s+pla[îi]t|stp|svp)$/i, "")
+    .trim();
+}
+
+function firstRegexCapture(message: string, regexes: RegExp[]): string | undefined {
+  for (const regex of regexes) {
+    const match = message.match(regex);
+    const value = cleanCapturedText(match?.[1] ?? "");
+    if (value.length >= 2) return value;
+  }
+  return undefined;
+}
+
+function inferCreationThemeTextPatch(message: string): Partial<Extract<OrchestratorAction, { type: "update_creation_theme" }>> | null {
+  const valueEnd = String.raw`["»“”]?(?=\s+(?:et|,|;|puis)\s+(?:le\s+|la\s+|l['’])?(?:nom|marque|description|tagline|slogan|accroche)\b|[.;!?]|$)`;
+  const value = String.raw`["«“”]?([^"»“”\n.;!?]{2,180}?)${valueEnd}`;
+  const name = firstRegexCapture(message, [
+    new RegExp(String.raw`(?:renomme|rebaptise|appelle(?:-la)?|nomme)\s+(?:la\s+)?(?:marque\s+)?(?:en|par|pour)?\s*${value}`, "i"),
+    new RegExp(String.raw`(?:change|modifie|remplace|mets)\s+(?:le\s+)?nom(?:\s+de\s+(?:la\s+)?marque)?\s+(?:en|par|pour)\s*${value}`, "i"),
+    new RegExp(String.raw`(?:le\s+)?nom(?:\s+de\s+(?:la\s+)?marque)?\s+(?:doit\s+)?(?:devenir|devient|sera|est|=|:)\s*${value}`, "i"),
+    new RegExp(String.raw`(?:marque|brand_name)\s*(?:=|:)\s*${value}`, "i"),
+  ]);
+  const description = firstRegexCapture(message, [
+    new RegExp(String.raw`(?:change|modifie|remplace|mets)\s+(?:la\s+)?(?:description|tagline|slogan|accroche)\s+(?:en|par|pour)\s*${value}`, "i"),
+    new RegExp(String.raw`(?:la\s+)?(?:description|tagline|slogan|accroche)\s+(?:doit\s+)?(?:devenir|devient|sera|est|=|:)\s*${value}`, "i"),
+    new RegExp(String.raw`(?:avec|comme)\s+(?:description|tagline|slogan|accroche)\s*${value}`, "i"),
+  ]);
+
+  const patch: Partial<Extract<OrchestratorAction, { type: "update_creation_theme" }>> = {};
+  if (name) patch.brand_name = name;
+  if (description) {
+    patch.tagline = description;
+    patch.story = description;
+    patch.description = description;
+  }
+  return Object.keys(patch).length > 0 ? patch : null;
+}
+
 function inferCreationIntent(data: z.infer<typeof orchestrateSchema>) {
   const cctx = data.creation_context;
   const userTexts = [
@@ -298,6 +343,11 @@ function inferCreateFallbackAction(data: z.infer<typeof orchestrateSchema>): Orc
 
   if (/\b(logo|image|ic[oô]ne)\b/i.test(msg) && /\b(change|modifie|refais|r[eé]g[eé]n[eè]re|devien|remplace|nouveau|nouvelle)\b/i.test(msg)) {
     return { type: "regenerate_logo", prompt: `logo ${msg}`.slice(0, 500) };
+  }
+
+  if ((cctx?.step ?? 1) >= 2) {
+    const themePatch = inferCreationThemeTextPatch(msg);
+    if (themePatch) return { type: "update_creation_theme", ...themePatch };
   }
 
   // Rename brand: "appelle-la X", "renomme la marque X", "le nom devient X", "marque: X"
@@ -400,7 +450,7 @@ Renvoie STRICTEMENT le JSON {"reply": string, "actions": Action[]}. reply = ta r
 Actions disponibles (mode CRÉATION):
 - update_creation_brief({ name?, theme?, city?, brief?, hint_colors? }) — remplit ou MODIFIE un ou plusieurs champs de l'étape 1 SANS changer d'étape. Utilise-la à chaque fois que l'utilisateur donne ou corrige une info de brief ("le nom c'est X", "on est plutôt à Lyon", "change la thématique en Y", ajoute une couleur…). Inclus uniquement les champs concernés.
 - advance_to_brand_studio({ name?, theme?, city?, brief?, hint_colors? }) — passe à l'étape 2 et génère la marque + le logo. À n'utiliser QUE quand tu as déjà (nom + thème + brief) ET que l'utilisateur est prêt à avancer (dit "ok on y va", "lance", "génère la marque", ou après ta question de confirmation).
-- update_creation_theme({ colors?, selected_header_id?, selected_hero_id?, selected_footer_id?, selected_section_ids?, design_style?, brand_name?, tagline? }) — ajuste les choix du Theme Builder à l'étape 2 (couleurs en hex #RRGGBB). Utilise brand_name dès que l'utilisateur veut renommer/rebaptiser la marque (ex: "renomme la marque en Acme" → { brand_name: "Acme" }).
+    - update_creation_theme({ colors?, selected_header_id?, selected_hero_id?, selected_footer_id?, selected_section_ids?, design_style?, brand_name?, tagline?, story?, description? }) — ajuste les choix du Theme Builder à l'étape 2 (couleurs en hex #RRGGBB). Utilise brand_name dès que l'utilisateur veut renommer/rebaptiser la marque (ex: "renomme la marque en Acme" → { brand_name: "Acme" }). Utilise tagline/story/description dès que l'utilisateur veut changer la description, l'accroche, le slogan ou le texte court de marque.
 - regenerate_logo({ prompt }) — régénère le logo à l'étape 2 avec un nouveau prompt d'image (ex: "logo minimaliste en forme de casquette bleue sur fond blanc"). Utilise cette action dès que l'utilisateur demande de changer, modifier ou refaire le logo.
 - generate_seo_and_tree({ main_keyword?, keywords?, sitemap? }) — passe aux étapes 3 puis 4 ; si vides, l'app suggère automatiquement
 - finalize_and_build() — clôture la création et lance le build
@@ -408,6 +458,8 @@ Actions disponibles (mode CRÉATION):
 Règles:
 - INTERVIEW d'abord : pose UNE seule question courte à la fois pour compléter les infos manquantes de l'étape en cours. NE fais PAS avancer d'étape tant que l'utilisateur ne l'a pas confirmé.
 - Dès que l'utilisateur donne une info de brief (nom, thème, ville, brief, couleurs), appelle update_creation_brief avec uniquement les champs fournis ou modifiés, PUIS pose la prochaine question dans reply.
+- À partir de l'étape 2, si l'utilisateur demande de changer le nom, la marque, la description, l'accroche, le slogan ou le texte visible, appelle update_creation_theme (pas update_creation_brief), pour que le rendu visuel change immédiatement.
+- Si l'utilisateur change le nom ET la description dans le même message, renvoie une seule action update_creation_theme contenant brand_name + tagline + story.
 - N'appelle advance_to_brand_studio que quand tu as (nom + thème + brief) ET que l'utilisateur confirme (la ville reste facultative).
 - À l'étape 2, propose spontanément des ajustements de couleurs, de style ou de logo.
 - Ne réclame pas au user des infos déjà présentes dans le CONTEXTE CRÉATION.
