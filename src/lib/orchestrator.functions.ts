@@ -534,7 +534,7 @@ Règles:
 - Ne réclame pas au user des infos déjà présentes dans le CONTEXTE CRÉATION.
 - Réponses courtes, en français, ton pro et chaleureux.
 
-Renvoie STRICTEMENT un objet JSON valide au format {"reply": string, "actions": Action[]}. reply = message humain court. actions = liste (souvent vide) des actions à appliquer.`;
+Ton message texte = confirmation courte + question suivante. Les outils sont appelés en parallèle du message. N'invente jamais de champ non listé dans les outils.`;
 
 
     const system =
