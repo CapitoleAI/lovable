@@ -1362,7 +1362,7 @@ function ThemeBuilder({
     void Promise.all([
       loadCategory("header", 3),
       loadCategory("hero", 3),
-      loadCategory("section", 4),
+      loadCategory("section", 20),
       loadCategory("footer", 3),
     ]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
