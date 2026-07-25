@@ -1313,16 +1313,23 @@ function ThemeBuilder({
       {/* Brand summary */}
       <div className="rounded-lg border border-border bg-card p-3">
         <div className="flex items-center gap-3">
-          {brand.logo_url ? (
-            <img src={brand.logo_url} alt="" className="h-12 w-12 rounded object-contain" />
-          ) : (
-            <div
-              className="flex h-12 w-12 items-center justify-center rounded font-bold text-white"
-              style={{ background: brand.colors.primary }}
-            >
-              {(brand.brand_name?.[0] ?? "L").toUpperCase()}
-            </div>
-          )}
+          <div className="relative h-12 w-12 shrink-0">
+            {brand.logo_url ? (
+              <img src={brand.logo_url} alt="" className="h-12 w-12 rounded object-contain" />
+            ) : (
+              <div
+                className="flex h-12 w-12 items-center justify-center rounded font-bold text-white"
+                style={{ background: brand.colors.primary }}
+              >
+                {(brand.brand_name?.[0] ?? "L").toUpperCase()}
+              </div>
+            )}
+            {logoLoading && (
+              <div className="absolute inset-0 flex items-center justify-center rounded bg-background/70 backdrop-blur-sm">
+                <Loader2 className="h-5 w-5 animate-spin text-foreground" />
+              </div>
+            )}
+          </div>
           <div className="flex-1">
             <Input
               value={brand.brand_name}
