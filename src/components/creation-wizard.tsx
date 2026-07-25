@@ -577,7 +577,7 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
           )}
         </div>
 
-        <Stepper current={step} onNavigate={(s) => setStep(s)} maxReached={step} />
+        <Stepper current={step} />
 
 
         {step === 1 && (
