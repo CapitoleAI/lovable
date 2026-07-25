@@ -412,7 +412,7 @@ function DashboardPage() {
       {/* ================ LEFT: Chat ================ */}
       <aside className="flex w-96 shrink-0 flex-col border-r border-border bg-white">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <img src={logoAsset.src} alt="CapitoleAI" className="h-7" />
+          <img src={logoAsset.url} alt="CapitoleAI" className="h-7" />
           <Button variant="ghost" size="sm" onClick={handleLogout}>
             <LogOut className="h-4 w-4" />
           </Button>
