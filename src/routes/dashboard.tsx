@@ -546,10 +546,10 @@ function DashboardPage() {
   const previewBg = draftBrand?.colors?.background;
 
   return (
-    <div className="flex h-screen w-full flex-col overflow-hidden bg-background">
+    <div className="flex h-screen w-full flex-col overflow-hidden bg-zinc-950 text-zinc-100">
       {/* ================ TOP APP BAR ================ */}
-      <header className="flex h-14 shrink-0 items-stretch border-b border-border bg-white">
-        <div className="flex w-80 shrink-0 items-center gap-3 border-r border-border px-3">
+      <header className="flex h-14 shrink-0 items-stretch border-b border-zinc-800 bg-zinc-900">
+        <div className="flex w-80 shrink-0 items-center gap-3 border-r border-zinc-800 px-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
