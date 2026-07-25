@@ -300,14 +300,21 @@ function inferCreateFallbackAction(data: z.infer<typeof orchestrateSchema>): Orc
     return { type: "regenerate_logo", prompt: `logo ${msg}`.slice(0, 500) };
   }
 
-  // Rename brand: "appelle-la X", "renomme la marque X", "le nom devient X", "marque: X"
+  // Rename brand + tagline/description updates
   {
+    const patch: { brand_name?: string; tagline?: string } = {};
     const renameRe =
-      /(?:(?:renomme(?:r)?|appelle(?:-la|s)?|nomme(?:r)?|rebaptise|le\s+nom\s+(?:devient|est|sera)|nom\s+de\s+(?:la\s+)?marque\s*[:=]?|marque\s*[:=])\s+["«]?([A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9 '&.\-]{1,60}?)["»]?)(?:[.,;!?]|$)/i;
-    const m = msg.match(renameRe);
-    if (m && m[1]) {
-      const brand_name = m[1].trim().replace(/\s+/g, " ");
-      if (brand_name) return { type: "update_creation_theme", brand_name };
+      /(?:renomme(?:r|z)?(?:\s+la\s+marque)?|appelle(?:-la|s|z)?|nomme(?:r|z)?|rebaptise|(?:change(?:r|z)?|modifie(?:r|z)?|remplace(?:r|z)?)\s+(?:le\s+)?nom(?:\s+de\s+(?:la\s+)?marque)?(?:\s+(?:en|par|pour|:))?|(?:le\s+)?nom\s+(?:de\s+(?:la\s+)?marque\s+)?(?:devient|est|sera|:)|marque\s*[:=])\s+["«"']?([A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9 '&.\-]{1,60}?)["»"']?(?=[.,;!?\n]|$)/i;
+    const mn = msg.match(renameRe);
+    if (mn && mn[1]) patch.brand_name = mn[1].trim().replace(/\s+/g, " ");
+
+    const tagRe =
+      /(?:tagline|slogan|baseline|sous[-\s]?titre|description|desc|accroche)\s*(?:en|par|pour|:|=|devient|est|sera)?\s*["«"']([^"»"'\n]{2,140})["»"']/i;
+    const mt = msg.match(tagRe);
+    if (mt && mt[1]) patch.tagline = mt[1].trim();
+
+    if (patch.brand_name || patch.tagline) {
+      return { type: "update_creation_theme", ...patch };
     }
   }
 
