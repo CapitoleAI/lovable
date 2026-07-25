@@ -10,10 +10,11 @@ import type { BrandIdentity, PageContent } from "@/lib/sites-schema";
 export type ChatMessage = { role: "user" | "assistant"; content: string };
 
 interface Props {
-  mode: "edit" | "empty";
+  mode: "edit" | "empty" | "create";
   siteName?: string;
   brand?: Partial<BrandIdentity>;
   pages?: PageContent[];
+  creationContext?: unknown;
   onAction: (action: OrchestratorAction) => void | Promise<void>;
   onCreateWizard?: () => void;
 }
@@ -23,6 +24,7 @@ export function WorkspaceChat({
   siteName,
   brand,
   pages,
+  creationContext,
   onAction,
   onCreateWizard,
 }: Props) {
@@ -67,8 +69,10 @@ export function WorkspaceChat({
                   pages: (pages ?? []).map((p) => ({ slug: p.slug, seo_title: p.seo_title })),
                 }
               : undefined,
+          creation_context: mode === "create" ? (creationContext as any) : undefined,
         },
       });
+
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
       for (const a of actions) {
         if (a.type === "open_create_wizard") {
@@ -92,7 +96,10 @@ export function WorkspaceChat({
   const emptyHint =
     mode === "edit"
       ? `Modifier "${siteName ?? ""}" — essayez : « passe la couleur principale en bleu marine » ou « ajoute une page Contact »`
-      : "Bienvenue. Décrivez le site que vous voulez créer, ou cliquez sur « + Nouveau site » à droite.";
+      : mode === "create"
+        ? "Directeur d'agence à l'écoute. Décrivez votre projet : nom, thème, ville, ambiance…"
+        : "Bienvenue. Décrivez le site que vous voulez créer, ou cliquez sur « + Nouveau site » à droite.";
+
 
   return (
     <div className="flex h-full flex-col">

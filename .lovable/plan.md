@@ -1,100 +1,63 @@
 
+## Objectif
+
+Le mode Création passe du Dialog superposé à une vue inline dans le panneau droit, orchestrée par le chat de gauche via function calling.
+
 ## Résultat visuel
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│ [logo]  Site: "Plombier Toulouse ▾"      [Publier] [Déconnexion]│
-├──────────────┬──────────────────────────────────────────────────┤
-│              │ [ Live Preview | Arborescence | Analytics ]       │
-│  💬 CHAT     │                                                  │
-│              │  ┌────────────────────────────────────────────┐  │
-│  historique  │  │                                            │  │
-│  messages    │  │        contenu de l'onglet actif           │  │
-│              │  │                                            │  │
-│              │  └────────────────────────────────────────────┘  │
-│  [input _]   │                                                  │
-└──────────────┴──────────────────────────────────────────────────┘
-       w-96                              flex-1
+Mode ÉDITION (existant)                    Mode CRÉATION (nouveau)
+┌────────┬────────────────────────┐        ┌────────┬────────────────────────┐
+│        │ [Preview│Sitemap│Analytics]      │        │ Stepper: ● Brief > Studio > SEO > Arbo    │
+│ CHAT   │                        │        │ CHAT   │                        │
+│ édit   │  contenu onglets       │        │ créa   │  wizard inline plein   │
+│        │                        │        │        │  cadre (étape active)  │
+└────────┴────────────────────────┘        └────────┴────────────────────────┘
 ```
 
-Deux modes du panneau droit selon l'état :
+## Changements
 
-- **Aucun site sélectionné → mode Création** : le panneau droit affiche les étapes (Brief → Identité → SEO → Sitemap → Génération), le chat les remplit au fil de la conversation ; à la fin, bascule auto sur Live Preview.
-- **Site sélectionné → mode Édition** : onglets Live Preview / Arborescence / Analytics. Le chat modifie le site en cours.
+### 1. Suppression du Dialog
+- `src/components/create-site-dialog.tsx` → renommé `src/components/creation-wizard.tsx`. Retire `<Dialog>/<DialogContent>`, expose `<CreationWizard state onChange onLaunched />`.
+- L'état du wizard (brief, brand, mots-clés, sitemap, phase de lancement) remonte dans `dashboard.tsx` (`creationDraft`) pour que le chat puisse le muter.
+- Suppression du chat interne de l'étape 2 (dupliqué avec celui de gauche) et de `BuildProgressDialog` déclenché depuis le wizard (le mode Édition prend le relais).
 
-## Architecture
+### 2. Nouveau mode dashboard
+- `dashboard.tsx` : ajoute `mode: "edit" | "create"` (dérivé : `activeId ? edit : create` si `creationDraft` existe, sinon `empty`).
+- Dropdown « + Nouveau site » → `setCreationDraft({ step: 1, brief: {}, brand: null, seo: {}, sitemap: [] })` + `setActiveId(null)`.
+- Panneau droit : si `mode==="create"` → `<CreationWizard>` en plein cadre (pas de Tabs, pas de bouton Publier), sinon les onglets actuels.
+- Après `finalize_and_build` réussi → `setActiveId(newSiteId)` + `setCreationDraft(null)` → bascule automatique en mode Édition + Live Preview.
 
-### 1. Nouveau layout — `src/routes/dashboard.tsx`
+### 3. Orchestrateur enrichi (`src/lib/orchestrator.functions.ts`)
+- Nouveau mode `"create"` dans `orchestrateSchema` avec `creation_context: { step, brief, brand, seo, sitemap }`.
+- 4 nouvelles actions structurées :
+  - `advance_to_brand_studio({ name?, theme?, city?, brief?, hint_colors? })` → écrit le brief, lance `generateBrandIdentity` côté serveur, retourne `{ brand, logo_prompt }` dans l'action pour que le client mette à jour `creationDraft.brand` et passe à l'étape 2.
+  - `update_creation_theme({ colors?, selected_header_id?, selected_hero_id?, selected_section_ids?, selected_footer_id?, design_style? })` → patch partiel de `creationDraft.brand`.
+  - `generate_seo_and_tree({ main_keyword?, keywords?, sitemap? })` → optionnellement appelle `suggestKeywords` / `suggestSitemap` si absents, passe à l'étape 3 puis 4.
+  - `finalize_and_build()` → client déclenche `createSite` avec tout le draft.
+- Prompt système "création" : posture directeur d'agence, interview étape par étape, appelle les actions au fil de la conversation.
 
-Refonte : `h-screen w-full flex overflow-hidden`. Panneau gauche `w-96 border-r bg-white` = chat. Panneau droit `flex-1 bg-muted/30` = workspace. La sidebar shadcn actuelle disparaît ; sa liste de sites migre en dropdown "Site actif" dans le header. Le bouton "Créer" devient un item "+ Nouveau site" dans ce dropdown → passe en mode création.
+### 4. Chat (`workspace-chat.tsx`)
+- Ajoute mode `"create"`, passe `creation_context` à l'orchestrateur.
+- Nouveau `onCreationAction` sur le parent qui applique les 4 actions au `creationDraft`.
+- Empty state création : « Racontez-moi votre projet : activité, ville, ambiance visuelle… »
 
-### 2. Chat orchestrateur — `src/components/workspace-chat.tsx` + `src/routes/api/chat.ts`
+### 5. Nettoyage
+- Retire `<BuildProgressDialog>` du dashboard (statut visible via badge header + section « Build en cours » existante côté édition).
+- Retire l'entrée « Nouveau site » qui ouvrait un Dialog ; le clic active désormais le mode création.
 
-- UI : AI SDK `useChat` + AI Elements (`Conversation`, `Message`, `PromptInput`). Persistance mémoire par site (in-memory, pas de threads DB — un site = une conversation).
-- Backend : nouveau server route `src/routes/api/chat.ts` avec `streamText` + `tools` (function calling structuré) :
-  - `update_brand_colors({ primary, secondary, accent, ... })` → patch `brand.colors`
-  - `set_design_style({ style })`, `set_header_style`, `set_footer_style`, `toggle_content_section`
-  - `add_page({ title, slug })` / `remove_page({ slug })` / `rename_page`
-  - `update_page_content({ slug, instruction })` → régénère via `generatePageContentServer`
-  - `set_wizard_step({ step, values })` en mode création
-  - `trigger_publish()` en mode édition
-- Le client applique les résultats sur un state local `siteDraft`, ce qui rafraîchit Live Preview et Arborescence instantanément. Rien n'est persisté avant "Publier".
+## Points techniques
 
-### 3. Panneau droit — `src/components/workspace-right.tsx`
+- **Actions retournant du contenu** : l'orchestrateur exécute côté serveur `generateBrandIdentity` / `suggestKeywords` / `suggestSitemap` puis embarque le résultat dans l'action renvoyée au client — pas de round-trip supplémentaire.
+- **Persistance** : rien n'est sauvegardé avant `finalize_and_build`. `creationDraft` vit dans `useState` du dashboard.
+- **Types** : nouveau discriminated union étendu, `OrchestratorAction` couvre les 9 types (5 existants + 4 création).
+- **Focus visuel** : le stepper du wizard reste barre horizontale en tête du panneau droit ; les étapes 1–4 sont toujours accessibles au clic (fallback si l'utilisateur ne veut pas passer par le chat), mais le chat peut les faire toutes.
+- **Build phase** : quand `finalize_and_build` s'achève, `setActiveId(siteId) + setCreationDraft(null)` déclenche le rendu du mode Édition ; la section « Build en cours » existante prend le relais avec `SiteBuildProgress`.
 
-- Composant qui switch entre `<CreateFlow />` (mode création) et `<EditTabs />` (mode édition).
-- `EditTabs` = `Tabs` shadcn avec 3 valeurs.
+## Non inclus
 
-#### 3a. Onglet Live Preview — `src/components/live-preview-panel.tsx`
-Iframe plein cadre avec `srcDoc` reconstruit à partir du `siteDraft.pages` en cours. Sélecteur de page (chips) en haut. Bouton "Rafraîchir".
-
-#### 3b. Onglet Arborescence — `src/components/sitemap-panel.tsx`
-Liste des pages avec drag & drop (`@dnd-kit/sortable` déjà utilisé), boutons Ajouter / Supprimer / Renommer. Les changements modifient `siteDraft` localement.
-
-#### 3c. Onglet Analytics — `src/components/analytics-panel.tsx`
-Cartes : Requêtes 24h / 7j, Visiteurs uniques, Bande passante, Top pages. Alimenté par `getCloudflareAnalytics` (voir §5).
-
-### 4. Bouton Publier
-
-Header : `<Button onClick={publish}>Publier</Button>` visible uniquement en mode édition avec `siteDraft !== savedSite`. Appelle `updateSite({ id, pages, brand })` (déjà existant, déclenche rebuild) puis toast + reset du dirty flag.
-
-### 5. Analytics Cloudflare — `src/lib/sites.functions.ts`
-
-Nouvelle server function `getCloudflareAnalytics({ id })` :
-- Récupère `project_name` Cloudflare Pages du site (déduit du domaine ou stocké).
-- Appelle l'API GraphQL Analytics de Cloudflare : `POST https://api.cloudflare.com/client/v4/graphql` avec le dataset `pagesFunctionsInvocationsAdaptiveGroups` et `httpRequestsAdaptiveGroups` (filtre `zoneTag` = zone du domaine `.pages.dev` ou domaine custom).
-- Retourne `{ requests_24h, requests_7d, unique_visitors_7d, bandwidth_bytes_7d, top_paths: [{path, count}] }`.
-- Fallback propre : si l'API renvoie 0 ou une erreur d'autorisation (le token doit avoir `Zone:Analytics:Read`), l'onglet affiche un état vide avec le message d'erreur.
-
-### 6. State management
-
-`useSiteWorkspace(siteId)` — hook local dans dashboard :
-- Charge le site depuis la query `sites`.
-- Maintient `siteDraft` (copie mutable).
-- Expose des mutateurs typés exposés au chat via callbacks (l'API `/api/chat` renvoie les tool calls que le client applique).
-- `isDirty` = comparaison superficielle draft vs saved.
-
-### 7. Nettoyage
-
-- `dashboard-sidebar.tsx` supprimé.
-- `edit-site-dialog.tsx` et `site-detail-dialog.tsx` supprimés (leurs fonctionnalités migrent dans les onglets).
-- `create-site-dialog.tsx` : contenu recyclé en `<CreateFlow />` (mêmes étapes, mais rendues à droite, plus dans un Dialog).
-- `build-progress-dialog.tsx` : conservé, se déclenche automatiquement à la fin de la création.
-
-## Détails techniques
-
-- **Function calling** : `streamText` du package `ai` déjà installé (voir `tanstack-ai-chat`). Modèle par défaut `openai/gpt-5.5` via Lovable AI Gateway. Reasoning `none`. Chaque tool a un schéma Zod ; le client reçoit les tool results dans `message.parts` et les applique au draft.
-- **Publication** : réutilise `updateSite` existante qui rappelle `triggerRunner` — pas de changement backend côté GitHub.
-- **Analytics Cloudflare** : nécessite que le token `CF_API_TOKEN` (déjà présent) ait la permission `Account.Account Analytics:Read` + `Zone.Analytics:Read`. Si le token actuel ne les a pas, l'onglet affichera l'erreur `403` retournée par Cloudflare et je te dirai quelle permission ajouter.
-- **Aucune migration DB** nécessaire ; tout passe par les tables existantes.
-- **AI Elements** : installation `bunx ai-elements@latest add conversation message prompt-input shimmer`.
-
-## Ce qui n'est PAS inclus (pour rester dans le scope)
-
-- Pas de persistance des messages du chat entre reloads (in-memory par session).
-- Pas de gestion multi-utilisateurs / threads.
 - Pas de tests automatisés.
+- L'étape 2 conserve le Theme Builder visuel actuel ; le chat pilote la sélection (`selected_*_id`) mais l'utilisateur peut aussi cliquer.
+- Le prompt système création reste en français et suit un scénario linéaire (Brief → Studio → SEO → Arbo → Build). Pas encore d'aller-retour arbitraire entre étapes via chat au-delà de patches sur l'étape courante.
 
-## Après ton OK
-
-J'exécute en une passe : install AI Elements → refonte dashboard + composants → `/api/chat` + tools → `getCloudflareAnalytics` → suppressions → typecheck. Puis je te donne un récap court.
+Après ton OK j'exécute tout en une passe puis typecheck.

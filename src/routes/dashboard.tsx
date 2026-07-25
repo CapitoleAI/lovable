@@ -1,7 +1,8 @@
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, queryOptions } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
 import {
   Check,
   ChevronDown,
@@ -36,13 +37,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { CreateSiteDialog } from "@/components/create-site-dialog";
-import { BuildProgressDialog } from "@/components/build-progress-dialog";
+import {
+  CreationWizard,
+  type CreationSnapshot,
+  type CreationWizardHandle,
+} from "@/components/creation-wizard";
 import { WorkspaceChat } from "@/components/workspace-chat";
 import { WorkspacePreview } from "@/components/workspace-preview";
 import { WorkspaceSitemap } from "@/components/workspace-sitemap";
 import { WorkspaceAnalytics } from "@/components/workspace-analytics";
 import { SiteBuildProgress } from "@/components/site-build-progress";
+
 
 // ---------------- Route ----------------
 
@@ -149,13 +154,15 @@ function DashboardPage() {
   const genPage = useServerFn(generateNewPage);
 
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [launchedSiteId, setLaunchedSiteId] = useState<string | null>(null);
+  const [mode, setMode] = useState<"edit" | "create" | "empty">("empty");
+  const [creationSnapshot, setCreationSnapshot] = useState<CreationSnapshot | null>(null);
+  const wizardRef = useRef<CreationWizardHandle | null>(null);
 
   // Local draft state per active site
   const [draftPages, setDraftPages] = useState<PageContent[] | null>(null);
   const [draftBrand, setDraftBrand] = useState<Partial<BrandIdentity> | null>(null);
   const [publishing, setPublishing] = useState(false);
+
 
   const sitesQuery = useQuery({
     ...sitesQueryOptions,
@@ -197,14 +204,36 @@ function DashboardPage() {
     }
   }, [activeSite?.id]);
 
-  // Auto-select first site on first load if none selected
+  // Auto-select first site on first load if none selected AND not creating
   useEffect(() => {
-    if (!activeId && sites.length > 0) {
+    if (!activeId && mode !== "create" && sites.length > 0) {
       const firstDeployed = sites.find((s) => s.status === "deployed") ?? sites[0];
       setActiveId(firstDeployed.id);
+      setMode("edit");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sites.length]);
+
+  // Keep mode in sync with active site
+  useEffect(() => {
+    if (mode === "create") return;
+    setMode(activeId ? "edit" : "empty");
+  }, [activeId, mode]);
+
+  function openCreate() {
+    setActiveId(null);
+    setMode("create");
+    setCreationSnapshot(null);
+  }
+
+  function exitCreate() {
+    setMode(sites.length > 0 ? "edit" : "empty");
+    if (sites.length > 0 && !activeId) {
+      setActiveId(sites[0].id);
+    }
+    setCreationSnapshot(null);
+  }
+
 
   // Background Cloudflare sync every 60s for deployed/failed sites
   useEffect(() => {
@@ -313,7 +342,46 @@ function DashboardPage() {
 
   // ---------- Chat action handler ----------
   async function handleAction(action: OrchestratorAction) {
+
+    // Create-mode actions target the wizard imperatively
+    if (action.type === "advance_to_brand_studio") {
+      await wizardRef.current?.advanceToBrandStudio({
+        name: action.name,
+        theme: action.theme,
+        city: action.city,
+        brief: action.brief,
+        hint_colors: action.hint_colors,
+      });
+      return;
+    }
+    if (action.type === "update_creation_theme") {
+      wizardRef.current?.updateTheme({
+        ...(action.brand_name ? { brand_name: action.brand_name } : {}),
+        ...(action.tagline ? { tagline: action.tagline } : {}),
+        ...(action.design_style ? { design_style: action.design_style as BrandIdentity["design_style"] } : {}),
+        ...(action.selected_header_id ? { selected_header_id: action.selected_header_id } : {}),
+        ...(action.selected_hero_id ? { selected_hero_id: action.selected_hero_id } : {}),
+        ...(action.selected_footer_id ? { selected_footer_id: action.selected_footer_id } : {}),
+        ...(action.selected_section_ids ? { selected_section_ids: action.selected_section_ids } : {}),
+        ...(action.colors ? { colors: action.colors as BrandIdentity["colors"] } : {}),
+      });
+      return;
+    }
+    if (action.type === "generate_seo_and_tree") {
+      await wizardRef.current?.generateSeoAndTree({
+        main_keyword: action.main_keyword,
+        keywords: action.keywords,
+        sitemap: action.sitemap,
+      });
+      return;
+    }
+    if (action.type === "finalize_and_build") {
+      await wizardRef.current?.finalizeAndBuild();
+      return;
+    }
+
     if (!activeSite || !draftPages) return;
+
 
     if (action.type === "update_colors") {
       setDraftBrand((prev) => {
@@ -419,13 +487,15 @@ function DashboardPage() {
         </div>
         <div className="min-h-0 flex-1">
           <WorkspaceChat
-            mode={activeSite ? "edit" : "empty"}
+            mode={mode}
             siteName={activeSite?.name}
             brand={draftBrand ?? undefined}
             pages={draftPages ?? undefined}
+            creationContext={mode === "create" ? creationSnapshot ?? undefined : undefined}
             onAction={handleAction}
-            onCreateWizard={() => setDialogOpen(true)}
+            onCreateWizard={openCreate}
           />
+
         </div>
       </aside>
 
@@ -474,7 +544,7 @@ function DashboardPage() {
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setDialogOpen(true)}>
+              <DropdownMenuItem onClick={openCreate}>
                 <Plus className="mr-2 h-3.5 w-3.5" /> Nouveau site
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -531,8 +601,20 @@ function DashboardPage() {
         </header>
 
         {/* Body */}
-        {!activeSite ? (
-          <EmptyWorkspace onCreate={() => setDialogOpen(true)} />
+        {mode === "create" ? (
+          <CreationWizard
+            ref={wizardRef}
+            onSnapshotChange={setCreationSnapshot}
+            onExit={exitCreate}
+            onFinalized={(id) => {
+              setActiveId(id);
+              setMode("edit");
+              setCreationSnapshot(null);
+              sitesQuery.refetch();
+            }}
+          />
+        ) : !activeSite ? (
+          <EmptyWorkspace onCreate={openCreate} />
         ) : ["pending", "generating", "building", "deploying"].includes(activeSite.status) &&
           !draftPages?.length ? (
           <div className="flex flex-1 items-center justify-center p-6">
@@ -585,24 +667,10 @@ function DashboardPage() {
           </Tabs>
         )}
       </main>
-
-      <CreateSiteDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onLaunched={(id) => {
-          setLaunchedSiteId(id);
-          setActiveId(id);
-          sitesQuery.refetch();
-        }}
-      />
-      <BuildProgressDialog
-        siteId={launchedSiteId}
-        open={!!launchedSiteId}
-        onOpenChange={(v) => !v && setLaunchedSiteId(null)}
-      />
     </div>
   );
 }
+
 
 function EmptyWorkspace({ onCreate }: { onCreate: () => void }) {
   return (
