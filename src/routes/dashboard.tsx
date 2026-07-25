@@ -554,7 +554,7 @@ function DashboardPage() {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-accent"
+              className="flex items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-zinc-800"
               title="Menu"
             >
               <img src={logoAsset.url} alt="CapitoleAI" className="h-7 w-7 object-contain" />
