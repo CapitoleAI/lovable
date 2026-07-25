@@ -685,11 +685,11 @@ function DashboardPage() {
                           : "desktop",
                     )
                   }
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-300 hover:bg-[#272726] hover:text-white"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-neutral-300 hover:bg-[#272726] hover:text-white"
                 >
-                  {device === "desktop" && <Monitor className="h-4 w-4" />}
-                  {device === "tablet" && <Tablet className="h-4 w-4" />}
-                  {device === "mobile" && <Smartphone className="h-4 w-4" />}
+                  {device === "desktop" && <Monitor className="h-3.5 w-3.5" />}
+                  {device === "tablet" && <Tablet className="h-3.5 w-3.5" />}
+                  {device === "mobile" && <Smartphone className="h-3.5 w-3.5" />}
                 </button>
 
                 <div className="flex min-w-[220px] items-center gap-1 rounded-full bg-[#272726] px-1.5 py-1">
@@ -705,7 +705,7 @@ function DashboardPage() {
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
-                        className="flex flex-1 items-center justify-center gap-1 rounded-full px-2 py-0.5 font-mono text-xs text-neutral-100"
+                        className="flex flex-1 items-center justify-start gap-1 rounded-full px-2 py-0.5 font-mono text-xs text-neutral-100"
                       >
                         <span className="truncate">{previewSlug === "index" ? "/" : `/${previewSlug}`}</span>
                         <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
@@ -744,9 +744,9 @@ function DashboardPage() {
                     target="_blank"
                     rel="noreferrer"
                     title="Ouvrir dans un nouvel onglet"
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-300 hover:bg-[#272726] hover:text-white"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-neutral-300 hover:bg-[#272726] hover:text-white"
                   >
-                    <ExternalLink className="h-4 w-4" />
+                    <ExternalLink className="h-3.5 w-3.5" />
                   </a>
                 )}
               </div>
