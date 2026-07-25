@@ -625,8 +625,9 @@ export const regeneratePageContent = createServerFn({ method: "POST" })
           design_style: data.brand.design_style,
         })}`
       : "";
+    const systemPrompt = await getPromptContent("orchestrator.regen_page");
     const parsed = await callAiJson<{ html_content?: string; seo_title?: string }>(
-      "Tu es un développeur frontend et rédacteur SEO expert. Tu modifies UNE page d'un site vitrine (HTML + Tailwind CSS). Réponds STRICTEMENT en JSON {\"seo_title\": string, \"html_content\": string}. Le html_content ne contient AUCUN <html>/<head>/<body> — uniquement le contenu du body. RÈGLE COULEURS IMPÉRATIVE : n'utilise JAMAIS de classes Tailwind de couleur figées (bg-blue-600, text-emerald-500, bg-slate-900, etc.) ni de couleurs hex arbitraires. Utilise EXCLUSIVEMENT la palette de marque via les classes custom `bg-brand`, `text-brand`, `border-brand`, `ring-brand`, `bg-brand-primary`, `bg-brand-secondary`, `bg-brand-accent`, `bg-brand-neutral`, `bg-brand-background` (et leurs équivalents text-/border-/ring-/from-/to-/via-). Le noir/blanc et les nuances neutres purement structurelles (text-white, bg-white, text-black) restent autorisés. Conserve la structure sémantique et les liens existants sauf si l'instruction dit le contraire.",
+      systemPrompt,
       `Page: "${data.page_title}" (slug=${data.slug})${brandBlock}\n\nINSTRUCTION UTILISATEUR: ${data.instruction}\n\nHTML ACTUEL:\n${data.current_html.slice(0, 40_000)}`,
       {},
     );
@@ -666,8 +667,9 @@ export const generateNewPage = createServerFn({ method: "POST" })
       : "";
     const nav = data.site_context?.pages ?? [];
     const navBlock = `\nNavigation existante: ${JSON.stringify(nav)}`;
+    const systemPrompt = await getPromptContent("orchestrator.new_page");
     const parsed = await callAiJson<{ html_content?: string; seo_title?: string }>(
-      "Tu es un développeur frontend et rédacteur SEO expert. Génère UNE nouvelle page (HTML + Tailwind CSS). Réponds STRICTEMENT en JSON {\"seo_title\": string, \"html_content\": string}. Pas de <html>/<head>/<body>. RÈGLE COULEURS IMPÉRATIVE : n'utilise JAMAIS de classes Tailwind de couleur figées (bg-blue-600, text-emerald-500, bg-slate-900, etc.) ni de couleurs hex arbitraires. Utilise EXCLUSIVEMENT la palette de marque via les classes custom `bg-brand`, `text-brand`, `border-brand`, `ring-brand`, `bg-brand-primary`, `bg-brand-secondary`, `bg-brand-accent`, `bg-brand-neutral`, `bg-brand-background` (et leurs équivalents text-/border-/ring-/from-/to-/via-). Le noir/blanc et les nuances neutres purement structurelles (text-white, bg-white, text-black) restent autorisés. Inclus un header cohérent (avec les liens de la navigation existante) et un footer. Contenu riche et adapté au titre demandé.",
+      systemPrompt,
       `Page à créer: "${data.title}" (slug=${data.slug})${brandBlock}${navBlock}\n\nINSTRUCTION: ${data.instruction || `Génère une page "${data.title}" moderne, riche et professionnelle.`}`,
       {},
     );
