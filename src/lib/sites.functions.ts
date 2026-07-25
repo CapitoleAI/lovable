@@ -475,7 +475,7 @@ export const refineComponent = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await requireUser();
     const parsed = await callAiJson<{ html?: string; note?: string }>(
-      "Tu es un développeur frontend expert Tailwind CSS. On te fournit le HTML d'UN composant de site vitrine et une demande de modification. Renvoie UNIQUEMENT le HTML complet et modifié de ce composant (uniquement des classes Tailwind pour la mise en page, couleurs via style=\"...\" hex ou classes bg-[#hex]/text-[#hex]). Garde la structure sémantique et la responsivité. Réponds STRICTEMENT en JSON {\"html\": string, \"note\": string (1 phrase)}.",
+      "Tu es un développeur frontend expert Tailwind CSS. On te fournit le HTML d'UN composant de site vitrine et une demande de modification. Renvoie UNIQUEMENT le HTML complet et modifié de ce composant. RÈGLE COULEURS IMPÉRATIVE : n'utilise JAMAIS de couleur figée (bg-blue-600, text-slate-900, hex arbitraire). Utilise EXCLUSIVEMENT les variables CSS de marque via classes arbitraires Tailwind : `bg-[var(--brand-primary)]`, `text-[var(--brand-primary)]`, `bg-[var(--brand-secondary)]`, `text-[var(--brand-secondary)]`, `bg-[var(--brand-accent)]`, `text-[var(--brand-accent)]`, `border-[var(--brand-neutral)]`, `bg-[var(--brand-background)]`, etc. text-white / bg-white restent autorisés pour du contraste. Garde la structure sémantique et la responsivité. Réponds STRICTEMENT en JSON {\"html\": string, \"note\": string (1 phrase)}.",
       `Demande: ${data.message}\n\nHTML actuel du composant (id=${data.component_id}):\n${data.current_html}`,
       {},
     );
@@ -483,6 +483,95 @@ export const refineComponent = createServerFn({ method: "POST" })
     if (!html) throw new Error("L'IA n'a pas retourné de HTML valide");
     return { html, note: (parsed.note ?? "").trim() || "Composant mis à jour." };
   });
+
+// ---------- Theme Builder — génération à la volée de variantes par projet ----------
+
+const generateThemeVariantsSchema = z.object({
+  category: z.enum(["header", "hero", "section", "footer"]),
+  count: z.number().int().min(1).max(6).default(3),
+  brand: z.object({
+    brand_name: z.string().trim().max(200).default(""),
+    tagline: z.string().trim().max(300).default(""),
+    logo_url: z.string().trim().max(2_000_000).default(""),
+    design_style: z.string().trim().max(60).default("minimaliste"),
+    colors: brandColorsSchema,
+  }),
+  theme: z.string().trim().max(200).default(""),
+  city: z.string().trim().max(120).default(""),
+  brief: z.string().trim().max(4000).default(""),
+});
+
+export const generateThemeVariants = createServerFn({ method: "POST" })
+  .inputValidator((input) => generateThemeVariantsSchema.parse(input))
+  .handler(async ({ data }) => {
+    await requireUser();
+    const { category, count, brand, theme, city, brief } = data;
+
+    const categoryBrief: Record<typeof category, string> = {
+      header: "un HEADER de site : logo à gauche ou centré, navigation (Accueil, Services, À propos, Contact), un CTA optionnel. Responsive.",
+      hero: "une section HERO en pleine largeur : gros titre H1 percutant reprenant l'activité et la ville, sous-titre explicatif, 1 à 2 CTA, éventuellement un visuel décoratif (formes, dégradé, illustration SVG inline). Impact visuel fort.",
+      section: "une SECTION intermédiaire pertinente pour cette activité (au choix parmi services, valeurs, témoignages, chiffres, tarifs, FAQ, galerie, CTA, contact, processus, équipe…). Contenu riche et adapté au métier.",
+      footer: "un FOOTER : identité, liens de navigation, coordonnées, mentions, éventuellement newsletter.",
+    };
+
+    const logoInstruction = brand.logo_url
+      ? `Le logo est disponible : intègre-le via <img src="${brand.logo_url}" alt="${brand.brand_name}" class="h-10 w-auto" /> aux endroits pertinents.`
+      : `Pas de logo image : utilise un badge textuel avec l'initiale sur fond bg-[var(--brand-primary)].`;
+
+    const system = `Tu es un directeur artistique web + développeur frontend expert Tailwind CSS. Tu génères ${count} variantes VISUELLEMENT DIFFÉRENTES de ${categoryBrief[category]} pour un projet spécifique.
+
+RÈGLES IMPÉRATIVES :
+1. HTML pur avec classes Tailwind uniquement — pas de <html>, <head>, <body>, <script>, <style>.
+2. COULEURS : n'utilise JAMAIS de couleur figée (bg-blue-*, text-slate-*, hex arbitraire, rgb()). Utilise EXCLUSIVEMENT les variables CSS de marque via classes arbitraires Tailwind :
+   - fond : bg-[var(--brand-primary)] / bg-[var(--brand-secondary)] / bg-[var(--brand-accent)] / bg-[var(--brand-neutral)] / bg-[var(--brand-background)]
+   - texte : text-[var(--brand-primary)] / text-[var(--brand-secondary)] / text-[var(--brand-accent)]
+   - bordure : border-[var(--brand-neutral)] / border-[var(--brand-primary)]
+   - ring/from-/to-/via- suivent la même syntaxe.
+   text-white, bg-white, text-black restent autorisés pour du contraste structurel.
+3. Style global demandé : "${brand.design_style}" — chaque variante DOIT exprimer visuellement ce style (proportions, typographie, densité, arrondis, ombres).
+4. Les ${count} variantes doivent proposer des mises en page DISTINCTES (structure, alignement, densité, décor) — pas juste des changements de nuances.
+5. Contenu textuel en français, spécifique à l'activité "${theme}"${city ? ` à ${city}` : ""} — pas de lorem ipsum ni de « ici votre texte ».
+6. Responsive (mobile-first) et accessibilité de base (balises sémantiques, alt).
+7. ${logoInstruction}
+
+Réponds STRICTEMENT en JSON : {"variants": [{"id": "kebab-case-unique", "label": "Nom court FR", "html": "..."}]} — exactement ${count} entrées.`;
+
+    const user = `Projet :
+- Marque : ${brand.brand_name || "(à venir)"}
+- Tagline : ${brand.tagline || "(aucune)"}
+- Activité / thème : ${theme || "(non précisé)"}
+- Ville : ${city || "(non précisé)"}
+- Brief : ${brief || "(aucun)"}
+- Palette (référence pour les variables) : primary=${brand.colors.primary}, secondary=${brand.colors.secondary}, accent=${brand.colors.accent}, neutral=${brand.colors.neutral}, background=${brand.colors.background}
+- Style : ${brand.design_style}
+
+Génère ${count} variantes de la catégorie "${category}".`;
+
+    const parsed = await callAiJson<{
+      variants?: Array<{ id?: string; label?: string; html?: string }>;
+    }>(system, user, {});
+
+    const raw = Array.isArray(parsed.variants) ? parsed.variants : [];
+    const variants = raw
+      .map((v, i) => {
+        const html = (v.html ?? "").trim();
+        if (!html) return null;
+        const id = (v.id?.trim() || `${category}_ai_${Date.now()}_${i}`)
+          .toLowerCase()
+          .replace(/[^a-z0-9_-]/g, "-")
+          .slice(0, 80);
+        const label = (v.label?.trim() || `${category} ${i + 1}`).slice(0, 120);
+        return { id, label, html };
+      })
+      .filter((v): v is { id: string; label: string; html: string } => v !== null);
+
+    if (variants.length === 0) {
+      throw new Error("L'IA n'a pas retourné de variantes exploitables");
+    }
+    return { variants };
+  });
+
+
 
 
 
