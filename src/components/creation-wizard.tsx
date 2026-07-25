@@ -337,9 +337,6 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
     setNewHint("#");
     setBrand(null);
     setLogoPrompt("");
-    
-    setChat([]);
-    setChatInput("");
     setMainKeyword("");
     setKeywords([]);
     setSelectedKw(new Set());
