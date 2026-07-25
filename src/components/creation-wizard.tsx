@@ -515,9 +515,20 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
         setStep(5);
         await launch();
       },
+      async regenerateLogo(prompt) {
+        const p = prompt.trim();
+        if (!p) return;
+        setLogoPrompt(p);
+        if (brand) {
+          await runLogo(p, brand);
+        } else {
+          toast.info("Génère d'abord la marque avant de refaire le logo.");
+        }
+      },
       goToStep(s) {
         setStep(s);
       },
+
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [name, theme, city, brief, hintColors, brand, keywords, sitemap],
