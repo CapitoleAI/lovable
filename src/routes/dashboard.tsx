@@ -601,8 +601,20 @@ function DashboardPage() {
         </header>
 
         {/* Body */}
-        {!activeSite ? (
-          <EmptyWorkspace onCreate={() => setDialogOpen(true)} />
+        {mode === "create" ? (
+          <CreationWizard
+            ref={wizardRef}
+            onSnapshotChange={setCreationSnapshot}
+            onExit={exitCreate}
+            onFinalized={(id) => {
+              setActiveId(id);
+              setMode("edit");
+              setCreationSnapshot(null);
+              sitesQuery.refetch();
+            }}
+          />
+        ) : !activeSite ? (
+          <EmptyWorkspace onCreate={openCreate} />
         ) : ["pending", "generating", "building", "deploying"].includes(activeSite.status) &&
           !draftPages?.length ? (
           <div className="flex flex-1 items-center justify-center p-6">
@@ -655,24 +667,10 @@ function DashboardPage() {
           </Tabs>
         )}
       </main>
-
-      <CreateSiteDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onLaunched={(id) => {
-          setLaunchedSiteId(id);
-          setActiveId(id);
-          sitesQuery.refetch();
-        }}
-      />
-      <BuildProgressDialog
-        siteId={launchedSiteId}
-        open={!!launchedSiteId}
-        onOpenChange={(v) => !v && setLaunchedSiteId(null)}
-      />
     </div>
   );
 }
+
 
 function EmptyWorkspace({ onCreate }: { onCreate: () => void }) {
   return (
