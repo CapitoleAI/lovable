@@ -840,6 +840,7 @@ function DashboardPage() {
         </div>
       </header>
 
+
       {/* ================ SPLIT BODY ================ */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* LEFT: Chat */}
