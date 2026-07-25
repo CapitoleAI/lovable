@@ -692,7 +692,7 @@ function DashboardPage() {
                   {device === "mobile" && <Smartphone className="h-4 w-4" />}
                 </button>
 
-                <div className="flex min-w-[220px] items-center gap-1 rounded-full bg-[#272726] px-1.5 py-1">
+                <div className="flex min-w-[165px] items-center gap-1 rounded-full bg-[#272726] px-1.5 py-1">
                   <button
                     type="button"
                     onClick={() => setPreviewNonce((n) => n + 1)}
@@ -705,7 +705,7 @@ function DashboardPage() {
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
-                        className="flex flex-1 items-center justify-center gap-1 rounded-full px-2 py-0.5 font-mono text-xs text-neutral-100"
+                        className="flex flex-1 items-center justify-start gap-1 rounded-full px-2 py-0.5 font-mono text-xs text-neutral-100"
                       >
                         <span className="truncate">{previewSlug === "index" ? "/" : `/${previewSlug}`}</span>
                         <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
