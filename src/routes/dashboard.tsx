@@ -548,8 +548,8 @@ function DashboardPage() {
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-[#1D1D1C] text-neutral-100">
       {/* ================ TOP APP BAR ================ */}
-      <header className="flex h-14 shrink-0 items-stretch border-b border-[#272726] bg-[#1D1D1C]">
-        <div className="flex w-80 shrink-0 items-center gap-3 border-r border-[#272726] px-3">
+      <header className="flex h-14 shrink-0 items-stretch bg-[#1D1D1C]">
+        <div className="flex w-80 shrink-0 items-center gap-3 px-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -619,7 +619,7 @@ function DashboardPage() {
 
         {activeSite ? (
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold">{activeSite.name}</span>
+            <span className="text-xs font-medium">{activeSite.name}</span>
             {activeSite.status === "deployed" ? (
               <StatusDot up title="En ligne" />
             ) : activeSite.status === "failed" ? (
@@ -760,7 +760,7 @@ function DashboardPage() {
           {activeSite && (
             <Popover>
               <PopoverTrigger asChild>
-                <Button size="sm">
+                <Button size="sm" className="bg-[#3B6DF5] text-white hover:bg-[#3361de]">
                   <Upload className="mr-1.5 h-4 w-4" />
                   Publier
                 </Button>
@@ -822,7 +822,7 @@ function DashboardPage() {
                   </Button>
                   <Button
                     size="sm"
-                    className="w-full"
+                    className="w-full bg-[#3B6DF5] text-white hover:bg-[#3361de]"
                     onClick={handlePublish}
                     disabled={!isDirty || publishing}
                   >
@@ -845,7 +845,7 @@ function DashboardPage() {
       {/* ================ SPLIT BODY ================ */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* LEFT: Chat */}
-        <aside className="flex w-80 shrink-0 flex-col border-r border-[#272726] bg-[#1D1D1C]">
+        <aside className="flex w-80 shrink-0 flex-col bg-[#1D1D1C]">
           <div className="min-h-0 flex-1">
             <WorkspaceChat
               mode={mode}
