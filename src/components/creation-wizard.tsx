@@ -139,6 +139,7 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
 
   // Step 2 — Brand
   const [brand, setBrand] = useState<BrandIdentity | null>(null);
+  const brandRef = useRef<BrandIdentity | null>(null);
   const [logoPrompt, setLogoPrompt] = useState("");
   const [logoLoading, setLogoLoading] = useState(false);
 
@@ -168,6 +169,49 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
   const createFn = useServerFn(createSite);
   const qc = useQueryClient();
 
+  useEffect(() => {
+    brandRef.current = brand;
+  }, [brand]);
+
+  function defaultBrand(seed?: Partial<BrandIdentity>): BrandIdentity {
+    return {
+      brand_name: seed?.brand_name ?? name.trim() || "Nouvelle marque",
+      tagline: seed?.tagline ?? "",
+      story: seed?.story ?? brief,
+      colors: seed?.colors ?? DEFAULT_COLORS,
+      logo_url: seed?.logo_url ?? "",
+      moodboard_url: seed?.moodboard_url ?? "",
+      design_style: seed?.design_style ?? "minimaliste",
+      header_style: seed?.header_style ?? "classique",
+      footer_style: seed?.footer_style ?? "simple",
+      sections: seed?.sections ?? [],
+      selected_header_id: seed?.selected_header_id ?? "",
+      selected_hero_id: seed?.selected_hero_id ?? "",
+      selected_section_ids: seed?.selected_section_ids ?? [],
+      selected_footer_id: seed?.selected_footer_id ?? "",
+      component_overrides: seed?.component_overrides ?? {},
+      home_html: seed?.home_html ?? "",
+    };
+  }
+
+  function applyBrandPatch(patch: Partial<BrandIdentity>): BrandIdentity {
+    const base = brandRef.current ?? defaultBrand(patch);
+    const next: BrandIdentity = {
+      ...base,
+      ...patch,
+      colors: { ...base.colors, ...(patch.colors ?? {}) },
+      sections: patch.sections ?? base.sections,
+      selected_section_ids: patch.selected_section_ids ?? base.selected_section_ids,
+      component_overrides: {
+        ...base.component_overrides,
+        ...(patch.component_overrides ?? {}),
+      },
+    };
+    brandRef.current = next;
+    setBrand(next);
+    return next;
+  }
+
   const brandMutation = useMutation({
     mutationFn: async () =>
       genBrand({
@@ -180,6 +224,7 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
         },
       }),
     onSuccess: async (res) => {
+      brandRef.current = res.brand;
       setBrand(res.brand);
       setLogoPrompt(res.logo_prompt);
       setStep(2);
@@ -192,7 +237,11 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
     setLogoLoading(true);
     try {
       const { data_url } = await genImage({ data: { prompt } });
-      setBrand((prev) => ({ ...(prev ?? current), logo_url: data_url }));
+      setBrand((prev) => {
+        const next = { ...(prev ?? brandRef.current ?? current), logo_url: data_url };
+        brandRef.current = next;
+        return next;
+      });
     } catch (e) {
       toast.error(`Logo: ${(e as Error).message}`);
     } finally {
@@ -448,6 +497,7 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
           const res = await genBrand({
             data: { brief: br, hint_colors: input.hint_colors ?? hintColors, business_name: n, theme: th, city: ci },
           });
+          brandRef.current = res.brand;
           setBrand(res.brand);
           setLogoPrompt(res.logo_prompt);
           setStep(2);
@@ -457,10 +507,11 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
         }
       },
       updateTheme(patch) {
-        if (!brand) return;
-        setBrand({ ...brand, ...patch, colors: { ...brand.colors, ...(patch.colors ?? {}) } });
+        applyBrandPatch(patch);
+        setStep(2);
       },
       async generateSeoAndTree(input) {
+        const currentBrand = brandRef.current ?? brand;
         if (input.main_keyword !== undefined) setMainKeyword(input.main_keyword);
         setStep(3);
         let kws = keywords;
@@ -472,9 +523,9 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
           try {
             const res = await suggestKw({
               data: {
-                theme: theme || brand?.tagline || "",
+                theme: theme || currentBrand?.tagline || "",
                 city,
-                business_name: brand?.brand_name || name,
+                business_name: currentBrand?.brand_name || name,
               },
             });
             kws = Array.from(new Set([...keywords, ...res.keywords]));
@@ -493,7 +544,7 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
               data: {
                 theme,
                 city,
-                business_name: brand?.brand_name || name,
+                business_name: currentBrand?.brand_name || name,
                 keywords: kws,
               },
             });
@@ -504,7 +555,7 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
         }
       },
       async finalizeAndBuild() {
-        if (!brand) {
+        if (!brandRef.current && !brand) {
           toast.error("Identité de marque manquante");
           return;
         }
@@ -519,8 +570,9 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
         const p = prompt.trim();
         if (!p) return;
         setLogoPrompt(p);
-        if (brand) {
-          await runLogo(p, brand);
+        const currentBrand = brandRef.current ?? brand;
+        if (currentBrand) {
+          await runLogo(p, currentBrand);
         } else {
           toast.info("Génère d'abord la marque avant de refaire le logo.");
         }
