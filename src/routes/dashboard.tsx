@@ -838,6 +838,7 @@ function DashboardPage() {
             </Popover>
           )}
         </div>
+        </div>
       </header>
 
 
