@@ -522,6 +522,12 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
         if (input.city !== undefined) setCity(input.city);
         if (input.brief !== undefined) setBrief(input.brief);
         if (input.hint_colors !== undefined) setHintColors(input.hint_colors);
+        if (brandRef.current && (input.name !== undefined || input.brief !== undefined)) {
+          applyBrandPatch({
+            ...(input.name !== undefined ? { brand_name: input.name } : {}),
+            ...(input.brief !== undefined ? { story: input.brief, tagline: input.brief } : {}),
+          });
+        }
       },
       updateTheme(patch) {
         applyBrandPatch(patch);
