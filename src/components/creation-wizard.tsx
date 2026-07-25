@@ -15,7 +15,6 @@ import {
   Loader2,
   Plus,
   RefreshCw,
-  Send,
   Sparkles,
   Trash2,
   X,
