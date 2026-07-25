@@ -1179,12 +1179,6 @@ function ThemeBuilder({
   logoLoading,
   logoPrompt,
   onRegenLogo,
-  chat,
-  setChat,
-  chatInput,
-  setChatInput,
-  refining,
-  sendChat,
   onBack,
   onNext,
 }: {
@@ -1193,12 +1187,6 @@ function ThemeBuilder({
   logoLoading: boolean;
   logoPrompt: string;
   onRegenLogo: () => void;
-  chat: { role: "user" | "assistant"; text: string }[];
-  setChat: React.Dispatch<React.SetStateAction<{ role: "user" | "assistant"; text: string }[]>>;
-  chatInput: string;
-  setChatInput: (v: string) => void;
-  refining: boolean;
-  sendChat: () => Promise<void>;
   onBack: () => void;
   onNext: () => void;
 }) {
