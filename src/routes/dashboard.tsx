@@ -6,7 +6,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   ChevronDown,
+  Copy,
   ExternalLink,
+  LayoutDashboard,
   Loader2,
   LogOut,
   Plus,
@@ -15,7 +17,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import logoAsset from "@/assets/capitoleai-logo.png.asset.json";
+import logoAsset from "@/assets/capitoleai-flower.webp.asset.json";
 import { getAuthStatus, signOut } from "@/lib/auth.functions";
 import {
   listSites,
@@ -37,6 +39,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   CreationWizard,
@@ -45,6 +52,7 @@ import {
 } from "@/components/creation-wizard";
 import { WorkspaceChat } from "@/components/workspace-chat";
 import { WorkspacePreview } from "@/components/workspace-preview";
+import { WorkspaceCode } from "@/components/workspace-code";
 import { WorkspaceSitemap } from "@/components/workspace-sitemap";
 import { WorkspaceAnalytics } from "@/components/workspace-analytics";
 import { SiteBuildProgress } from "@/components/site-build-progress";
