@@ -160,7 +160,7 @@ const creationContextSchema = z
 
 
 const orchestrateSchema = z.object({
-  mode: z.enum(["edit", "empty"]),
+  mode: z.enum(["edit", "empty", "create"]),
   message: z.string().trim().min(1).max(4000),
   history: z
     .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string() }))
@@ -176,6 +176,7 @@ const orchestrateSchema = z.object({
         .default([]),
     })
     .optional(),
+  creation_context: creationContextSchema.optional(),
 });
 
 const HEX_RE = /^#([0-9a-fA-F]{6})$/;
@@ -195,6 +196,11 @@ export const orchestrateChat = createServerFn({ method: "POST" })
       ? `\nCONTEXTE DU SITE ACTIF:\n- Nom: ${ctx.name ?? "(sans nom)"}\n- Marque: ${JSON.stringify(ctx.brand ?? {})}\n- Pages: ${JSON.stringify(ctx.pages)}`
       : "\nAUCUN SITE SÉLECTIONNÉ.";
 
+    const cctx = data.creation_context;
+    const creationBlock = cctx
+      ? `\nCONTEXTE CRÉATION (étape ${cctx.step ?? 1}/5):\n- Nom: ${cctx.name || "-"}\n- Thème: ${cctx.theme || "-"}\n- Ville: ${cctx.city || "-"}\n- Brief: ${cctx.brief || "-"}\n- Couleurs indices: ${(cctx.hint_colors ?? []).join(", ") || "-"}\n- Marque: ${cctx.brand ? JSON.stringify({ brand_name: cctx.brand.brand_name, colors: cctx.brand.colors, design_style: cctx.brand.design_style }) : "-"}\n- Mot-clé principal: ${cctx.main_keyword || "-"}\n- Mots-clés: ${(cctx.keywords ?? []).join(", ") || "-"}\n- Sitemap: ${(cctx.sitemap ?? []).map((p) => p.title).join(", ") || "-"}`
+      : "";
+
     const systemEdit = `Tu es un assistant IA intégré à un éditeur de sites web. L'utilisateur discute avec toi pour MODIFIER son site actif. Tu peux répondre en langage naturel ET/OU appeler des actions structurées.
 
 Actions disponibles (mode ÉDITION):
@@ -207,9 +213,36 @@ Renvoie STRICTEMENT le JSON {"reply": string, "actions": Action[]}. reply = ta r
 
     const systemEmpty = `Tu es un assistant IA d'un éditeur de sites web. Aucun site n'est actif. Guide l'utilisateur pour créer son premier site. Action disponible: open_create_wizard() pour ouvrir l'assistant de création. Renvoie STRICTEMENT {"reply": string, "actions": Action[]}.`;
 
+    const systemCreate = `Tu es DIRECTEUR D'AGENCE dans un studio de création de sites web. Tu interviewes l'utilisateur pour concevoir son site étape par étape et tu pilotes l'interface via des actions structurées.
+
+Étapes:
+1 = Brief créatif (nom, thème, ville, brief, couleurs indices)
+2 = Studio de marque (logo + palette + composants)
+3 = SEO & mots-clés
+4 = Arborescence (sitemap)
+5 = Lancement / build
+
+Actions disponibles (mode CRÉATION):
+- advance_to_brand_studio({ name?, theme?, city?, brief?, hint_colors? }) — remplit les champs manquants du brief PUIS passe à l'étape 2 et génère automatiquement la marque + le logo
+- update_creation_theme({ colors?, selected_header_id?, selected_hero_id?, selected_footer_id?, selected_section_ids?, design_style?, brand_name?, tagline? }) — ajuste les choix du Theme Builder à l'étape 2
+- generate_seo_and_tree({ main_keyword?, keywords?, sitemap? }) — passe aux étapes 3 puis 4 ; si vides, l'app suggère automatiquement
+- finalize_and_build() — clôture la création et lance le build
+
+Règles:
+- Pose UNE seule question courte à la fois pour compléter les infos manquantes.
+- Dès que tu as (nom + thème + ville + brief), appelle advance_to_brand_studio.
+- À l'étape 2, propose spontanément des ajustements de couleurs ou de style.
+- Ne réclame pas au user des infos déjà présentes dans le CONTEXTE CRÉATION.
+- Réponses courtes, en français, ton pro et chaleureux.
+
+Renvoie STRICTEMENT {"reply": string, "actions": Action[]}.`;
+
+    const system =
+      data.mode === "edit" ? systemEdit : data.mode === "create" ? systemCreate : systemEmpty;
+
     const parsed = await callAiJson<{ reply?: string; actions?: unknown[] }>(
-      data.mode === "edit" ? systemEdit : systemEmpty,
-      `${ctxBlock}\n\nHISTORIQUE:\n${historyBlock}\n\nUSER: ${data.message}`,
+      system,
+      `${ctxBlock}${creationBlock}\n\nHISTORIQUE:\n${historyBlock}\n\nUSER: ${data.message}`,
       {},
     );
 
@@ -219,14 +252,21 @@ Renvoie STRICTEMENT le JSON {"reply": string, "actions": Action[]}. reply = ta r
     for (const a of rawActions) {
       const res = actionSchema.safeParse(a);
       if (res.success) {
-        // normalize hex on color updates
-        if (res.data.type === "update_colors") {
-          const clean: Record<string, string> = {};
-          for (const [k, v] of Object.entries(res.data.colors)) {
-            if (typeof v === "string" && HEX_RE.test(v.trim())) clean[k] = v.trim();
-          }
-          if (Object.keys(clean).length > 0) {
-            actions.push({ type: "update_colors", colors: clean });
+        if (res.data.type === "update_colors" || res.data.type === "update_creation_theme") {
+          if (res.data.colors) {
+            const clean: Record<string, string> = {};
+            for (const [k, v] of Object.entries(res.data.colors)) {
+              if (typeof v === "string" && HEX_RE.test(v.trim())) clean[k] = v.trim();
+            }
+            if (res.data.type === "update_colors") {
+              if (Object.keys(clean).length > 0) {
+                actions.push({ type: "update_colors", colors: clean });
+              }
+            } else {
+              actions.push({ ...res.data, colors: clean });
+            }
+          } else {
+            actions.push(res.data);
           }
         } else {
           actions.push(res.data);
@@ -235,6 +275,7 @@ Renvoie STRICTEMENT le JSON {"reply": string, "actions": Action[]}. reply = ta r
     }
     return { reply, actions };
   });
+
 
 // -------------------- Regenerate page content --------------------
 
