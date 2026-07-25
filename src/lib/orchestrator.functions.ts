@@ -72,6 +72,80 @@ async function callAiJson<T>(system: string, user: string, fallback: T): Promise
   }
 }
 
+type OpenAiTool = {
+  type: "function";
+  function: { name: string; description: string; parameters: Record<string, unknown> };
+};
+
+type ChatMsg =
+  | { role: "system" | "user" | "assistant"; content: string }
+  | {
+      role: "assistant";
+      content: string | null;
+      tool_calls: Array<{
+        id: string;
+        type: "function";
+        function: { name: string; arguments: string };
+      }>;
+    };
+
+async function callAiWithTools(
+  system: string,
+  user: string,
+  tools: OpenAiTool[],
+): Promise<{ reply: string; rawCalls: Array<{ name: string; arguments: unknown }> }> {
+  const apiKey = process.env.LOVABLE_API_KEY;
+  if (!apiKey) return { reply: "", rawCalls: [] };
+  const messages: ChatMsg[] = [
+    { role: "system", content: system },
+    { role: "user", content: user },
+  ];
+  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey },
+    body: JSON.stringify({
+      model: "openai/gpt-5.5",
+      reasoning_effort: "none",
+      messages,
+      tools,
+      tool_choice: "auto",
+      parallel_tool_calls: true,
+    }),
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`AI ${res.status}: ${t.slice(0, 200)}`);
+  }
+  const json = (await res.json()) as {
+    choices?: Array<{
+      message?: {
+        content?: string | null;
+        tool_calls?: Array<{
+          id: string;
+          type: string;
+          function?: { name?: string; arguments?: string };
+        }>;
+      };
+    }>;
+  };
+  const msg = json.choices?.[0]?.message;
+  const reply = (msg?.content ?? "").trim();
+  const rawCalls: Array<{ name: string; arguments: unknown }> = [];
+  for (const c of msg?.tool_calls ?? []) {
+    const name = c.function?.name;
+    if (!name) continue;
+    let args: unknown = {};
+    try {
+      args = c.function?.arguments ? JSON.parse(c.function.arguments) : {};
+    } catch {
+      args = {};
+    }
+    rawCalls.push({ name, arguments: args });
+  }
+  return { reply, rawCalls };
+}
+
+
 // -------------------- Chat Orchestrator --------------------
 
 const actionSchema = z.discriminatedUnion("type", [
