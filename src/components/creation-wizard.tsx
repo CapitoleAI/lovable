@@ -854,10 +854,11 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
             )}
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
-}
+});
+
 
 function ImageCard({
   title,
