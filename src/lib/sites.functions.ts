@@ -112,15 +112,14 @@ type SiteData = {
 
 
 async function callAiJson<T>(system: string, user: string, fallback: T): Promise<T> {
-  const apiKey = process.env.LOVABLE_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return fallback;
   try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: "openai/gpt-5.5",
-        reasoning_effort: "none",
+        model: "gpt-4o-mini",
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: system },
@@ -136,6 +135,7 @@ async function callAiJson<T>(system: string, user: string, fallback: T): Promise
     return fallback;
   }
 }
+
 
 function fallbackHtml(pageTitle: string, business: string, theme: string, city: string) {
   return `<section class="py-20 bg-gradient-to-br from-slate-50 to-white"><div class="max-w-4xl mx-auto px-6 text-center"><h1 class="text-5xl font-bold tracking-tight mb-6">${pageTitle}</h1><p class="text-lg text-slate-600 mb-8">${business} — ${theme} à ${city}. Service professionnel, rapide et de confiance.</p><a href="/contact" class="inline-block bg-slate-900 text-white px-8 py-3 rounded-lg font-semibold">Nous contacter</a></div></section>`;
