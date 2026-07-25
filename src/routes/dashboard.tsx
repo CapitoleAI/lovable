@@ -153,6 +153,7 @@ function DashboardPage() {
   const save = useServerFn(updateSite);
   const regen = useServerFn(regeneratePageContent);
   const genPage = useServerFn(generateNewPage);
+  const buildProgress = useServerFn(getSiteBuildProgress);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mode, setMode] = useState<"edit" | "create" | "empty">("empty");
