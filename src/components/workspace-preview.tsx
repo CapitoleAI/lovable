@@ -59,7 +59,7 @@ export function WorkspacePreview({ pages, brand, activeSlug, device, nonce }: Pr
     <div className="min-h-0 flex-1 overflow-auto h-full">
       {active ? (
         <div
-          className="mx-auto h-full transition-all"
+          className="mx-auto h-full overflow-hidden rounded-t-2xl border border-[#1D1D1C] shadow-lg transition-all"
           style={deviceWidth ? { maxWidth: deviceWidth } : undefined}
         >
           <iframe
@@ -67,7 +67,7 @@ export function WorkspacePreview({ pages, brand, activeSlug, device, nonce }: Pr
             title={`Aperçu ${active.slug}`}
             sandbox="allow-scripts"
             srcDoc={buildDoc(active.html_content, colors)}
-            className="h-full w-full rounded-t-2xl border border-[#1D1D1C] bg-white shadow-lg"
+            className="h-full w-full bg-white"
           />
         </div>
       ) : (
