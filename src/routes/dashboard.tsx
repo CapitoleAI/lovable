@@ -154,13 +154,15 @@ function DashboardPage() {
   const genPage = useServerFn(generateNewPage);
 
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [launchedSiteId, setLaunchedSiteId] = useState<string | null>(null);
+  const [mode, setMode] = useState<"edit" | "create" | "empty">("empty");
+  const [creationSnapshot, setCreationSnapshot] = useState<CreationSnapshot | null>(null);
+  const wizardRef = useRef<CreationWizardHandle | null>(null);
 
   // Local draft state per active site
   const [draftPages, setDraftPages] = useState<PageContent[] | null>(null);
   const [draftBrand, setDraftBrand] = useState<Partial<BrandIdentity> | null>(null);
   const [publishing, setPublishing] = useState(false);
+
 
   const sitesQuery = useQuery({
     ...sitesQueryOptions,
