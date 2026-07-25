@@ -530,23 +530,16 @@ export const generateThemeVariants = createServerFn({ method: "POST" })
       ? `Le logo est disponible et ${needsLogo ? "DOIT ABSOLUMENT être présent" : "peut être intégré"} via <img src="${brand.logo_url}" alt="${brand.brand_name}" class="h-10 w-auto" /> (ajuste la hauteur selon le contexte).`
       : `Pas de logo image disponible : ${needsLogo ? "affiche IMPÉRATIVEMENT" : "utilise"} un badge textuel avec l'initiale de la marque sur fond bg-[var(--brand-primary)] text-white rounded, suivi du nom "${brand.brand_name}".`;
 
-    const system = `Tu es un directeur artistique web + développeur frontend expert Tailwind CSS. Tu génères ${count} variantes VISUELLEMENT DIFFÉRENTES de ${categoryBrief[category]} pour un projet spécifique.
-
-RÈGLES IMPÉRATIVES :
-1. HTML pur avec classes Tailwind uniquement — pas de <html>, <head>, <body>, <script>, <style>.
-2. COULEURS : n'utilise JAMAIS de couleur figée (bg-blue-*, text-slate-*, hex arbitraire, rgb()). Utilise EXCLUSIVEMENT les variables CSS de marque via classes arbitraires Tailwind :
-   - fond : bg-[var(--brand-primary)] / bg-[var(--brand-secondary)] / bg-[var(--brand-accent)] / bg-[var(--brand-neutral)] / bg-[var(--brand-background)]
-   - texte : text-[var(--brand-primary)] / text-[var(--brand-secondary)] / text-[var(--brand-accent)]
-   - bordure : border-[var(--brand-neutral)] / border-[var(--brand-primary)]
-   - ring/from-/to-/via- suivent la même syntaxe.
-   text-white, bg-white, text-black restent autorisés pour du contraste structurel.
-3. Style global demandé : "${brand.design_style}" — chaque variante DOIT exprimer visuellement ce style (proportions, typographie, densité, arrondis, ombres).
-4. Les ${count} variantes doivent proposer des mises en page DISTINCTES (structure, alignement, densité, décor) — pas juste des changements de nuances.
-5. Contenu textuel en français, spécifique à l'activité "${theme}"${city ? ` à ${city}` : ""} — pas de lorem ipsum ni de « ici votre texte ».
-6. Responsive (mobile-first) et accessibilité de base (balises sémantiques, alt).
-7. ${logoInstruction}
-
-Réponds STRICTEMENT en JSON : {"variants": [{"id": "kebab-case-unique", "label": "Nom court FR", "html": "..."}]} — exactement ${count} entrées.`;
+    const systemTemplate = await getPromptContent("sites.theme_variants");
+    const system = renderPrompt(systemTemplate, {
+      count: String(count),
+      categoryBrief: categoryBrief[category],
+      design_style: brand.design_style,
+      theme: theme || "(non précisé)",
+      city: city || "",
+      cityClause: city ? ` à ${city}` : "",
+      logoInstruction,
+    });
 
     const user = `Projet :
 - Marque : ${brand.brand_name || "(à venir)"}
