@@ -59,8 +59,12 @@ export function WorkspacePreview({ pages, brand, activeSlug, device, nonce }: Pr
     <div className="min-h-0 flex-1 overflow-auto h-full">
       {active ? (
         <div
-          className="mx-auto h-full overflow-hidden rounded-t-2xl border border-[#1D1D1C] shadow-lg transition-all"
-          style={deviceWidth ? { maxWidth: deviceWidth } : undefined}
+          className="mx-auto h-full overflow-hidden border border-[#1D1D1C] shadow-lg transition-all"
+          style={{
+            borderTopLeftRadius: "1rem",
+            borderTopRightRadius: "1rem",
+            ...(deviceWidth ? { maxWidth: deviceWidth } : {}),
+          }}
         >
           <iframe
             key={`${active.slug}-${colorKey}-${nonce}-${device}`}
