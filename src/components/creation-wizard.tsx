@@ -159,7 +159,6 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
 
   const genBrand = useServerFn(generateBrandIdentity);
   const genImage = useServerFn(generateBrandImage);
-  const refineBrand = useServerFn(refineBrandIdentity);
   const suggestKw = useServerFn(suggestKeywords);
   const suggestSm = useServerFn(suggestSitemap);
   const genPage = useServerFn(generatePageContent);
