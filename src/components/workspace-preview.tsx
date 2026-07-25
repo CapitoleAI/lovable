@@ -57,7 +57,7 @@ export function WorkspacePreview({ pages, brand, activeSlug, device, nonce }: Pr
   const deviceWidth = DEVICE_WIDTHS[device];
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto h-full">
+    <div className="min-h-0 flex-1 overflow-auto h-full" style={{ borderRadius: "1rem" }}>
       {active ? (
         <div
           className="mx-auto h-full overflow-hidden border border-[#1D1D1C] shadow-lg transition-all"
