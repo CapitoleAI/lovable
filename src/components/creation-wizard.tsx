@@ -235,6 +235,7 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
 
   async function runLogo(prompt: string, current: BrandIdentity) {
     setLogoLoading(true);
+    const t = toast.loading("Génération du nouveau logo…");
     try {
       const { data_url } = await genImage({ data: { prompt } });
       setBrand((prev) => {
@@ -242,8 +243,9 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
         brandRef.current = next;
         return next;
       });
+      toast.success("Logo mis à jour", { id: t });
     } catch (e) {
-      toast.error(`Logo: ${(e as Error).message}`);
+      toast.error(`Logo: ${(e as Error).message}`, { id: t });
     } finally {
       setLogoLoading(false);
     }
