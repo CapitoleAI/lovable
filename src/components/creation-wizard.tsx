@@ -82,6 +82,14 @@ export type CreationWizardHandle = {
     brief?: string;
     hint_colors?: string[];
   }) => Promise<void>;
+  /** Update step-1 brief fields without changing the current step. */
+  updateBrief: (input: {
+    name?: string;
+    theme?: string;
+    city?: string;
+    brief?: string;
+    hint_colors?: string[];
+  }) => void;
   /** Patch the theme/brand at step 2. */
   updateTheme: (patch: Partial<BrandIdentity>) => void;
   /** Move to SEO + Sitemap (step 3-4), optionally seed values and auto-suggest missing ones. */
