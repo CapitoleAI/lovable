@@ -92,9 +92,12 @@ export type CreationWizardHandle = {
   }) => Promise<void>;
   /** Launch the site build. */
   finalizeAndBuild: () => Promise<void>;
+  /** Regenerate the brand logo from a new image prompt (step 2). */
+  regenerateLogo: (prompt: string) => Promise<void>;
   /** Manually navigate to a step (from stepper clicks). */
   goToStep: (step: Step) => void;
 };
+
 
 interface Props {
   onFinalized?: (siteId: string) => void;
