@@ -342,7 +342,46 @@ function DashboardPage() {
 
   // ---------- Chat action handler ----------
   async function handleAction(action: OrchestratorAction) {
+  async function handleAction(action: OrchestratorAction) {
+    // Create-mode actions target the wizard imperatively
+    if (action.type === "advance_to_brand_studio") {
+      await wizardRef.current?.advanceToBrandStudio({
+        name: action.name,
+        theme: action.theme,
+        city: action.city,
+        brief: action.brief,
+        hint_colors: action.hint_colors,
+      });
+      return;
+    }
+    if (action.type === "update_creation_theme") {
+      wizardRef.current?.updateTheme({
+        ...(action.brand_name ? { brand_name: action.brand_name } : {}),
+        ...(action.tagline ? { tagline: action.tagline } : {}),
+        ...(action.design_style ? { design_style: action.design_style as BrandIdentity["design_style"] } : {}),
+        ...(action.selected_header_id ? { selected_header_id: action.selected_header_id } : {}),
+        ...(action.selected_hero_id ? { selected_hero_id: action.selected_hero_id } : {}),
+        ...(action.selected_footer_id ? { selected_footer_id: action.selected_footer_id } : {}),
+        ...(action.selected_section_ids ? { selected_section_ids: action.selected_section_ids } : {}),
+        ...(action.colors ? { colors: action.colors as BrandIdentity["colors"] } : {}),
+      });
+      return;
+    }
+    if (action.type === "generate_seo_and_tree") {
+      await wizardRef.current?.generateSeoAndTree({
+        main_keyword: action.main_keyword,
+        keywords: action.keywords,
+        sitemap: action.sitemap,
+      });
+      return;
+    }
+    if (action.type === "finalize_and_build") {
+      await wizardRef.current?.finalizeAndBuild();
+      return;
+    }
+
     if (!activeSite || !draftPages) return;
+
 
     if (action.type === "update_colors") {
       setDraftBrand((prev) => {
