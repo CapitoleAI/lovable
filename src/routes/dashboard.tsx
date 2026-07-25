@@ -892,7 +892,7 @@ function DashboardPage() {
               <TabsContent
                 value="preview"
                 className="min-h-0 flex-1 mt-0"
-                style={{ backgroundColor: previewBg || "#1D1D1C" }}
+                style={{ backgroundColor: "#1D1D1C" }}
               >
                 <WorkspacePreview
                   pages={draftPages ?? []}
