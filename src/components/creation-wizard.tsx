@@ -15,7 +15,6 @@ import {
   Loader2,
   Plus,
   RefreshCw,
-  Send,
   Sparkles,
   Trash2,
   X,
@@ -40,7 +39,6 @@ import {
   generateBrandIdentity,
   generateBrandImage,
   generatePageContent,
-  refineBrandIdentity,
   refineComponent,
   suggestKeywords,
   suggestSitemap,
@@ -121,8 +119,6 @@ const DEFAULT_COLORS: BrandIdentity["colors"] = {
 };
 
 
-type ChatMsg = { role: "user" | "assistant"; text: string };
-
 export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function CreationWizard(
   { onFinalized, onSnapshotChange, onExit },
   ref,
@@ -142,9 +138,6 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
   const [brand, setBrand] = useState<BrandIdentity | null>(null);
   const [logoPrompt, setLogoPrompt] = useState("");
   const [logoLoading, setLogoLoading] = useState(false);
-  const [chat, setChat] = useState<ChatMsg[]>([]);
-  const [chatInput, setChatInput] = useState("");
-  const [refining, setRefining] = useState(false);
 
   // Step 3 — SEO
   const [mainKeyword, setMainKeyword] = useState("");
@@ -166,7 +159,6 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
 
   const genBrand = useServerFn(generateBrandIdentity);
   const genImage = useServerFn(generateBrandImage);
-  const refineBrand = useServerFn(refineBrandIdentity);
   const suggestKw = useServerFn(suggestKeywords);
   const suggestSm = useServerFn(suggestSitemap);
   const genPage = useServerFn(generatePageContent);
@@ -187,12 +179,6 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
     onSuccess: async (res) => {
       setBrand(res.brand);
       setLogoPrompt(res.logo_prompt);
-      setChat([
-        {
-          role: "assistant",
-          text: `Voici une première proposition pour "${res.brand.brand_name}". Demandez-moi des ajustements (style, couleurs, sections, logo…).`,
-        },
-      ]);
       setStep(2);
       void runLogo(res.logo_prompt, res.brand);
     },
@@ -244,29 +230,6 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
     onError: (e: Error) => toast.error(e.message),
   });
 
-  async function sendChat() {
-    const msg = chatInput.trim();
-    if (!msg || !brand) return;
-    setChatInput("");
-    setChat((c) => [...c, { role: "user", text: msg }]);
-    setRefining(true);
-    try {
-      const res = await refineBrand({ data: { message: msg, brand } });
-      setBrand(res.brand);
-      setChat((c) => [
-        ...c,
-        { role: "assistant", text: res.note || "Mise à jour appliquée." },
-      ]);
-      if (res.regenerate_logo && res.logo_prompt) {
-        setLogoPrompt(res.logo_prompt);
-        void runLogo(res.logo_prompt, res.brand);
-      }
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setRefining(false);
-    }
-  }
 
   function normalizeSlug(input: string): string {
     const raw = (input ?? "").trim();
@@ -374,9 +337,6 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
     setNewHint("#");
     setBrand(null);
     setLogoPrompt("");
-    
-    setChat([]);
-    setChatInput("");
     setMainKeyword("");
     setKeywords([]);
     setSelectedKw(new Set());
@@ -658,12 +618,6 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
             logoLoading={logoLoading}
             logoPrompt={logoPrompt}
             onRegenLogo={() => runLogo(logoPrompt, brand)}
-            chat={chat}
-            setChat={setChat}
-            chatInput={chatInput}
-            setChatInput={setChatInput}
-            refining={refining}
-            sendChat={sendChat}
             onBack={() => setStep(1)}
             onNext={goStep2To3}
           />
@@ -1225,12 +1179,6 @@ function ThemeBuilder({
   logoLoading,
   logoPrompt,
   onRegenLogo,
-  chat,
-  setChat,
-  chatInput,
-  setChatInput,
-  refining,
-  sendChat,
   onBack,
   onNext,
 }: {
@@ -1239,12 +1187,6 @@ function ThemeBuilder({
   logoLoading: boolean;
   logoPrompt: string;
   onRegenLogo: () => void;
-  chat: { role: "user" | "assistant"; text: string }[];
-  setChat: React.Dispatch<React.SetStateAction<{ role: "user" | "assistant"; text: string }[]>>;
-  chatInput: string;
-  setChatInput: (v: string) => void;
-  refining: boolean;
-  sendChat: () => Promise<void>;
   onBack: () => void;
   onNext: () => void;
 }) {
@@ -1299,166 +1241,112 @@ function ThemeBuilder({
     (brand.selected_footer_id ? 1 : 0);
 
   return (
-    <div className="grid gap-4 pt-2 lg:grid-cols-[1fr_360px]">
-      {/* LEFT — Gallery */}
-      <div className="space-y-4">
-        {/* Brand summary */}
-        <div className="rounded-lg border border-border bg-card p-3">
-          <div className="flex items-center gap-3">
-            {brand.logo_url ? (
-              <img src={brand.logo_url} alt="" className="h-12 w-12 rounded object-contain" />
-            ) : (
-              <div
-                className="flex h-12 w-12 items-center justify-center rounded font-bold text-white"
-                style={{ background: brand.colors.primary }}
-              >
-                {(brand.brand_name?.[0] ?? "L").toUpperCase()}
-              </div>
-            )}
-            <div className="flex-1">
-              <Input
-                value={brand.brand_name}
-                onChange={(e) => setBrand({ ...brand, brand_name: e.target.value })}
-                className="h-8 text-sm font-semibold"
-              />
-              <Input
-                value={brand.tagline}
-                onChange={(e) => setBrand({ ...brand, tagline: e.target.value })}
-                className="mt-1 h-7 text-xs"
-                placeholder="Tagline"
-              />
+    <div className="space-y-4 pt-2">
+      {/* Brand summary */}
+      <div className="rounded-lg border border-border bg-card p-3">
+        <div className="flex items-center gap-3">
+          {brand.logo_url ? (
+            <img src={brand.logo_url} alt="" className="h-12 w-12 rounded object-contain" />
+          ) : (
+            <div
+              className="flex h-12 w-12 items-center justify-center rounded font-bold text-white"
+              style={{ background: brand.colors.primary }}
+            >
+              {(brand.brand_name?.[0] ?? "L").toUpperCase()}
             </div>
-            <div className="flex gap-1">
-              {(Object.keys(brand.colors) as (keyof BrandIdentity["colors"])[]).map((k) => (
-                <div
-                  key={k}
-                  className="h-8 w-8 rounded border border-border"
-                  style={{ background: brand.colors[k] }}
-                  title={`${k}: ${brand.colors[k]}`}
+          )}
+          <div className="flex-1">
+            <Input
+              value={brand.brand_name}
+              onChange={(e) => setBrand({ ...brand, brand_name: e.target.value })}
+              className="h-8 text-sm font-semibold"
+            />
+            <Input
+              value={brand.tagline}
+              onChange={(e) => setBrand({ ...brand, tagline: e.target.value })}
+              className="mt-1 h-7 text-xs"
+              placeholder="Tagline"
+            />
+          </div>
+          <div className="flex gap-1">
+            {(Object.keys(brand.colors) as (keyof BrandIdentity["colors"])[]).map((k) => (
+              <div
+                key={k}
+                className="h-8 w-8 rounded border border-border"
+                style={{ background: brand.colors[k] }}
+                title={`${k}: ${brand.colors[k]}`}
+              />
+            ))}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onRegenLogo}
+            disabled={logoLoading}
+          >
+            {logoLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            <span className="ml-1.5 text-xs">Logo</span>
+          </Button>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        Sélection ({selectedCount}) — Header: {brand.selected_header_id || "—"} · Hero:{" "}
+        {brand.selected_hero_id || "—"} · Sections:{" "}
+        {(brand.selected_section_ids ?? []).join(", ") || "—"} · Footer:{" "}
+        {brand.selected_footer_id || "—"}
+        <span className="ml-2 italic">Utilise le chat à gauche pour ajuster couleurs, style ou composants.</span>
+      </div>
+
+      <Tabs defaultValue="header" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="header">
+            Header {brand.selected_header_id && <Check className="ml-1 h-3 w-3" />}
+          </TabsTrigger>
+          <TabsTrigger value="hero">
+            Hero {brand.selected_hero_id && <Check className="ml-1 h-3 w-3" />}
+          </TabsTrigger>
+          <TabsTrigger value="section">
+            Sections ({brand.selected_section_ids?.length ?? 0})
+          </TabsTrigger>
+          <TabsTrigger value="footer">
+            Footer {brand.selected_footer_id && <Check className="ml-1 h-3 w-3" />}
+          </TabsTrigger>
+        </TabsList>
+
+        {[
+          { key: "header", list: headers, onSel: selectHeader, isSel: (id: string) => brand.selected_header_id === id, hint: "Choisis 1 header" },
+          { key: "hero", list: heroes, onSel: selectHero, isSel: (id: string) => brand.selected_hero_id === id, hint: "Choisis 1 hero" },
+          { key: "section", list: sections, onSel: toggleSection, isSel: (id: string) => (brand.selected_section_ids ?? []).includes(id), hint: "Choisis plusieurs sections (dans l'ordre de clic)" },
+          { key: "footer", list: footers, onSel: selectFooter, isSel: (id: string) => brand.selected_footer_id === id, hint: "Choisis 1 footer" },
+        ].map((cat) => (
+          <TabsContent key={cat.key} value={cat.key} className="mt-3">
+            <div className="mb-2 text-xs text-muted-foreground">{cat.hint}</div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+              {cat.list.map((c) => (
+                <ComponentPreview
+                  key={c.id}
+                  comp={c}
+                  brand={brand}
+                  overrideHtml={overrides[c.id]}
+                  selected={cat.isSel(c.id)}
+                  onSelect={() => cat.onSel(c.id)}
+                  onRefine={(msg) => refineOne(c, msg)}
                 />
               ))}
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onRegenLogo}
-              disabled={logoLoading}
-            >
-              {logoLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-              <span className="ml-1.5 text-xs">Logo</span>
-            </Button>
-          </div>
-        </div>
+          </TabsContent>
+        ))}
+      </Tabs>
 
-        <Tabs defaultValue="header" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="header">
-              Header {brand.selected_header_id && <Check className="ml-1 h-3 w-3" />}
-            </TabsTrigger>
-            <TabsTrigger value="hero">
-              Hero {brand.selected_hero_id && <Check className="ml-1 h-3 w-3" />}
-            </TabsTrigger>
-            <TabsTrigger value="section">
-              Sections ({brand.selected_section_ids?.length ?? 0})
-            </TabsTrigger>
-            <TabsTrigger value="footer">
-              Footer {brand.selected_footer_id && <Check className="ml-1 h-3 w-3" />}
-            </TabsTrigger>
-          </TabsList>
-
-          {[
-            { key: "header", list: headers, onSel: selectHeader, isSel: (id: string) => brand.selected_header_id === id, hint: "Choisis 1 header" },
-            { key: "hero", list: heroes, onSel: selectHero, isSel: (id: string) => brand.selected_hero_id === id, hint: "Choisis 1 hero" },
-            { key: "section", list: sections, onSel: toggleSection, isSel: (id: string) => (brand.selected_section_ids ?? []).includes(id), hint: "Choisis plusieurs sections (dans l'ordre de clic)" },
-            { key: "footer", list: footers, onSel: selectFooter, isSel: (id: string) => brand.selected_footer_id === id, hint: "Choisis 1 footer" },
-          ].map((cat) => (
-            <TabsContent key={cat.key} value={cat.key} className="mt-3">
-              <div className="mb-2 text-xs text-muted-foreground">{cat.hint}</div>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {cat.list.map((c) => (
-                  <ComponentPreview
-                    key={c.id}
-                    comp={c}
-                    brand={brand}
-                    overrideHtml={overrides[c.id]}
-                    selected={cat.isSel(c.id)}
-                    onSelect={() => cat.onSel(c.id)}
-                    onRefine={(msg) => refineOne(c, msg)}
-                  />
-                ))}
-              </div>
-            </TabsContent>
-          ))}
-        </Tabs>
-      </div>
-
-      {/* RIGHT — chat + summary */}
-      <div className="flex flex-col gap-3">
-        <div className="rounded-lg border border-border bg-card p-3 text-xs">
-          <div className="mb-1 font-semibold uppercase tracking-wide text-muted-foreground">
-            Sélection ({selectedCount})
-          </div>
-          <div>Header: {brand.selected_header_id || "—"}</div>
-          <div>Hero: {brand.selected_hero_id || "—"}</div>
-          <div>Sections: {(brand.selected_section_ids ?? []).join(", ") || "—"}</div>
-          <div>Footer: {brand.selected_footer_id || "—"}</div>
-        </div>
-        <div className="flex min-h-[440px] flex-1 flex-col rounded-lg border border-border bg-card">
-          <div className="border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Chat direction artistique
-          </div>
-          <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
-            {chat.map((m, i) => (
-              <div
-                key={i}
-                className={
-                  "max-w-[85%] rounded-lg px-3 py-2 " +
-                  (m.role === "user"
-                    ? "ml-auto bg-primary text-primary-foreground"
-                    : "bg-muted text-foreground")
-                }
-              >
-                {m.text}
-              </div>
-            ))}
-            {refining && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" /> L'IA ajuste…
-              </div>
-            )}
-          </div>
-          <div className="border-t border-border p-2">
-            <div className="flex gap-2">
-              <Input
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    void sendChat();
-                  }
-                }}
-                placeholder="Ajuste la marque (couleurs, ton…)"
-                disabled={refining}
-              />
-              <Button size="icon" onClick={() => void sendChat()} disabled={refining || !chatInput.trim()}>
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
-            <p className="mt-1.5 text-[10px] text-muted-foreground">
-              Pour modifier un composant précis, utilise l'input « Modifier avec l'IA » sur la carte.
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center justify-between">
-          <Button variant="ghost" onClick={onBack}>
-            <ArrowLeft className="mr-1.5 h-4 w-4" /> Retour
-          </Button>
-          <Button onClick={onNext} disabled={logoLoading || selectedCount === 0}>
-            Valider le thème <ArrowRight className="ml-1.5 h-4 w-4" />
-          </Button>
-        </div>
+      <div className="flex items-center justify-between pt-2">
+        <Button variant="ghost" onClick={onBack}>
+          <ArrowLeft className="mr-1.5 h-4 w-4" /> Retour
+        </Button>
+        <Button onClick={onNext} disabled={logoLoading || selectedCount === 0}>
+          Valider le thème <ArrowRight className="ml-1.5 h-4 w-4" />
+        </Button>
       </div>
     </div>
   );
