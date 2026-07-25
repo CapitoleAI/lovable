@@ -235,6 +235,7 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
 
   async function runLogo(prompt: string, current: BrandIdentity) {
     setLogoLoading(true);
+    const t = toast.loading("Génération du nouveau logo…");
     try {
       const { data_url } = await genImage({ data: { prompt } });
       setBrand((prev) => {
@@ -242,8 +243,9 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
         brandRef.current = next;
         return next;
       });
+      toast.success("Logo mis à jour", { id: t });
     } catch (e) {
-      toast.error(`Logo: ${(e as Error).message}`);
+      toast.error(`Logo: ${(e as Error).message}`, { id: t });
     } finally {
       setLogoLoading(false);
     }
@@ -489,8 +491,8 @@ export const CreationWizard = forwardRef<CreationWizardHandle, Props>(function C
         const th = (input.theme ?? theme).trim();
         const ci = (input.city ?? city).trim();
         const br = (input.brief ?? brief).trim();
-        if (!n || !th || !ci || !br) {
-          toast.info("Précise nom, thématique, ville et brief pour lancer le studio.");
+        if (!n || !th || !br) {
+          toast.info("Précise au moins le nom, la thématique et un brief pour lancer le studio.");
           return;
         }
         try {
@@ -1311,16 +1313,23 @@ function ThemeBuilder({
       {/* Brand summary */}
       <div className="rounded-lg border border-border bg-card p-3">
         <div className="flex items-center gap-3">
-          {brand.logo_url ? (
-            <img src={brand.logo_url} alt="" className="h-12 w-12 rounded object-contain" />
-          ) : (
-            <div
-              className="flex h-12 w-12 items-center justify-center rounded font-bold text-white"
-              style={{ background: brand.colors.primary }}
-            >
-              {(brand.brand_name?.[0] ?? "L").toUpperCase()}
-            </div>
-          )}
+          <div className="relative h-12 w-12 shrink-0">
+            {brand.logo_url ? (
+              <img src={brand.logo_url} alt="" className="h-12 w-12 rounded object-contain" />
+            ) : (
+              <div
+                className="flex h-12 w-12 items-center justify-center rounded font-bold text-white"
+                style={{ background: brand.colors.primary }}
+              >
+                {(brand.brand_name?.[0] ?? "L").toUpperCase()}
+              </div>
+            )}
+            {logoLoading && (
+              <div className="absolute inset-0 flex items-center justify-center rounded bg-background/70 backdrop-blur-sm">
+                <Loader2 className="h-5 w-5 animate-spin text-foreground" />
+              </div>
+            )}
+          </div>
           <div className="flex-1">
             <Input
               value={brand.brand_name}

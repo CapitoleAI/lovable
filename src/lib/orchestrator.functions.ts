@@ -245,7 +245,7 @@ function inferCreationIntent(data: z.infer<typeof orchestrateSchema>) {
   const joined = userTexts.join(". ");
 
   const cityMatch = firstProjectText.match(
-    /(?:\bà\b|\ba\b|\bsur\b|près de|proche de|dans)\s+([A-ZÀ-Ÿ][A-Za-zÀ-ÿ' -]{1,38}?)(?=\s+(?:premium|haut|luxe|minimal|moderne|urgent|pas\s+cher|corporate|élégant|elegant)|[,.!?;]|$)/i,
+    /(?:\bà\b|\ba\b|\bsur\b|près de|proche de|dans|situé[e]?\s+à)\s+([A-ZÀ-Ÿ][A-Za-zÀ-ÿ' -]{1,38}?)(?=\s+(?:premium|haut|luxe|minimal|moderne|urgent|pas\s+cher|corporate|élégant|elegant|pour|avec|qui|afin|dans|autour|centre|nord|sud|est|ouest)|[,.!?;]|$)/i,
   );
   const city = (cctx?.city || cityMatch?.[1] || "").trim();
 
@@ -288,9 +288,21 @@ function inferCreateFallbackAction(data: z.infer<typeof orchestrateSchema>): Orc
     return { type: "generate_seo_and_tree" };
   }
 
-  if (/\b(logo|image|ic[oô]ne)\b/i.test(msg) && /\b(change|modifie|refais|r[eé]g[eé]n[eè]re|devien|remplace)\b/i.test(msg)) {
+  if (/\b(logo|image|ic[oô]ne)\b/i.test(msg) && /\b(change|modifie|refais|r[eé]g[eé]n[eè]re|devien|remplace|nouveau|nouvelle)\b/i.test(msg)) {
     return { type: "regenerate_logo", prompt: `logo ${msg}`.slice(0, 500) };
   }
+
+  // Rename brand: "appelle-la X", "renomme la marque X", "le nom devient X", "marque: X"
+  {
+    const renameRe =
+      /(?:(?:renomme(?:r)?|appelle(?:-la|s)?|nomme(?:r)?|rebaptise|le\s+nom\s+(?:devient|est|sera)|nom\s+de\s+(?:la\s+)?marque\s*[:=]?|marque\s*[:=])\s+["«]?([A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9 '&.\-]{1,60}?)["»]?)(?:[.,;!?]|$)/i;
+    const m = msg.match(renameRe);
+    if (m && m[1]) {
+      const brand_name = m[1].trim().replace(/\s+/g, " ");
+      if (brand_name) return { type: "update_creation_theme", brand_name };
+    }
+  }
+
 
   if ((cctx?.step ?? 1) >= 2) {
     const hexes = Array.from(msg.matchAll(/#([0-9a-fA-F]{6})/g)).map((m) => `#${m[1]}`);
@@ -374,14 +386,14 @@ Renvoie STRICTEMENT le JSON {"reply": string, "actions": Action[]}. reply = ta r
 
 Actions disponibles (mode CRÉATION):
 - advance_to_brand_studio({ name?, theme?, city?, brief?, hint_colors? }) — remplit les champs manquants du brief PUIS passe à l'étape 2 et génère automatiquement la marque + le logo
-- update_creation_theme({ colors?, selected_header_id?, selected_hero_id?, selected_footer_id?, selected_section_ids?, design_style?, brand_name?, tagline? }) — ajuste les choix du Theme Builder à l'étape 2 (couleurs en hex #RRGGBB)
+- update_creation_theme({ colors?, selected_header_id?, selected_hero_id?, selected_footer_id?, selected_section_ids?, design_style?, brand_name?, tagline? }) — ajuste les choix du Theme Builder à l'étape 2 (couleurs en hex #RRGGBB). Utilise brand_name dès que l'utilisateur veut renommer/rebaptiser la marque (ex: "renomme la marque en Acme" → { brand_name: "Acme" }).
 - regenerate_logo({ prompt }) — régénère le logo à l'étape 2 avec un nouveau prompt d'image (ex: "logo minimaliste en forme de casquette bleue sur fond blanc"). Utilise cette action dès que l'utilisateur demande de changer, modifier ou refaire le logo.
 - generate_seo_and_tree({ main_keyword?, keywords?, sitemap? }) — passe aux étapes 3 puis 4 ; si vides, l'app suggère automatiquement
 - finalize_and_build() — clôture la création et lance le build
 
 Règles:
 - Pose UNE seule question courte à la fois pour compléter les infos manquantes.
-- Dès que tu as (nom + thème + ville + brief), appelle advance_to_brand_studio.
+- Dès que tu as (nom + thème + brief), appelle advance_to_brand_studio (la ville est facultative — laisse "" si l'utilisateur ne la précise pas).
 - À l'étape 2, propose spontanément des ajustements de couleurs, de style ou de logo.
 - Ne réclame pas au user des infos déjà présentes dans le CONTEXTE CRÉATION.
 - Réponses courtes, en français, ton pro et chaleureux.
