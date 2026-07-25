@@ -212,7 +212,10 @@ function DashboardPage() {
   // When active site changes, reset drafts from server state
   useEffect(() => {
     if (activeSite) {
-      setDraftPages(activeSite.site_data?.pages ?? null);
+      const pages = activeSite.site_data?.pages ?? null;
+      setDraftPages(pages);
+      setPreviewSlug(pages?.[0]?.slug ?? "index");
+      setTab("preview");
       // brand is only stored partially in site_info; keep colors + logo
       const info = activeSite.site_data?.site_info;
       setDraftBrand(
