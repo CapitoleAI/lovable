@@ -183,6 +183,12 @@ function DashboardPage() {
   const [draftBrand, setDraftBrand] = useState<Partial<BrandIdentity> | null>(null);
   const [publishing, setPublishing] = useState(false);
 
+  // Workspace UI state (lifted from tabs/preview)
+  const [tab, setTab] = useState<"preview" | "code" | "sitemap" | "analytics">("preview");
+  const [device, setDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  const [previewSlug, setPreviewSlug] = useState<string>("index");
+  const [previewNonce, setPreviewNonce] = useState(0);
+
 
   const sitesQuery = useQuery({
     ...sitesQueryOptions,
