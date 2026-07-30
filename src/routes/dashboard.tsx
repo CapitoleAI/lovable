@@ -55,6 +55,9 @@ import {
 } from "@/components/ui/popover";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { ProjectTypePicker } from "@/components/project-type-picker";
+import { AppWizard, type AppWizardHandle } from "@/components/app-wizard";
+import type { AppCreationSnapshot, AppStack, ProjectType } from "@/lib/vfs";
 import {
   CreationWizard,
   type CreationSnapshot,
@@ -176,7 +179,10 @@ function DashboardPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mode, setMode] = useState<"edit" | "create" | "empty">("empty");
   const [creationSnapshot, setCreationSnapshot] = useState<CreationSnapshot | null>(null);
+  const [projectType, setProjectType] = useState<ProjectType | null>(null);
+  const [appSnapshot, setAppSnapshot] = useState<AppCreationSnapshot | null>(null);
   const wizardRef = useRef<CreationWizardHandle | null>(null);
+  const appWizardRef = useRef<AppWizardHandle | null>(null);
 
   // Local draft state per active site
   const [draftPages, setDraftPages] = useState<PageContent[] | null>(null);
@@ -253,6 +259,8 @@ function DashboardPage() {
     setActiveId(null);
     setMode("create");
     setCreationSnapshot(null);
+    setAppSnapshot(null);
+    setProjectType(null);
   }
 
   function exitCreate() {
@@ -397,6 +405,22 @@ function DashboardPage() {
 
   // ---------- Chat action handler ----------
   async function handleAction(action: OrchestratorAction) {
+    // Phase 3 — aiguillage & mode application
+    if (action.type === "select_project_type") {
+      setMode("create");
+      setActiveId(null);
+      setProjectType(action.project_type);
+      return;
+    }
+    if (action.type === "update_app_architecture") {
+      appWizardRef.current?.updateArchitecture({
+        name: action.name,
+        brief: action.brief,
+        stack: action.stack as AppStack | undefined,
+        features: action.features,
+      });
+      return;
+    }
 
     // Create-mode actions target the wizard imperatively
     if (action.type === "advance_to_brand_studio") {
@@ -851,7 +875,11 @@ function DashboardPage() {
               siteName={activeSite?.name}
               brand={draftBrand ?? undefined}
               pages={draftPages ?? undefined}
-              creationContext={mode === "create" ? creationSnapshot ?? undefined : undefined}
+              creationContext={
+                mode === "create"
+                  ? { ...(creationSnapshot ?? {}), project_type: projectType, app: appSnapshot ?? undefined }
+                  : undefined
+              }
               onAction={handleAction}
               onCreateWizard={openCreate}
             />
@@ -860,7 +888,15 @@ function DashboardPage() {
 
         {/* RIGHT: Workspace */}
         <main className="flex min-w-0 flex-1 flex-col bg-muted/30">
-          {mode === "create" ? (
+          {mode === "create" && !projectType ? (
+            <ProjectTypePicker onSelect={(t) => setProjectType(t)} />
+          ) : mode === "create" && projectType === "full_app" ? (
+            <AppWizard
+              ref={appWizardRef}
+              onSnapshotChange={setAppSnapshot}
+              onExit={exitCreate}
+            />
+          ) : mode === "create" ? (
             <CreationWizard
               ref={wizardRef}
               onSnapshotChange={setCreationSnapshot}
@@ -869,6 +905,7 @@ function DashboardPage() {
                 setActiveId(id);
                 setMode("edit");
                 setCreationSnapshot(null);
+                setProjectType(null);
                 sitesQuery.refetch();
               }}
             />
