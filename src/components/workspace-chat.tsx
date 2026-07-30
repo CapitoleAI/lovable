@@ -102,7 +102,7 @@ export function WorkspaceChat({
     mode === "edit"
       ? `Modifier "${siteName ?? ""}" — essayez : « passe la couleur principale en bleu marine » ou « ajoute une page Contact »`
       : mode === "create"
-        ? "Directeur d'agence à l'écoute. Décrivez votre projet : nom, thème, ville, ambiance…"
+        ? "Décrivez votre projet : un site vitrine ou une application web ? Je m'occupe de l'aiguillage."
         : "Bienvenue. Décrivez le site que vous voulez créer, ou cliquez sur « + Nouveau site » à droite.";
 
   return (
