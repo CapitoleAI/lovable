@@ -14,6 +14,97 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_project_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          project_id: string
+          role: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          project_id: string
+          role: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          project_id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_project_messages_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "app_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_project_versions: {
+        Row: {
+          created_at: string
+          files: Json
+          id: string
+          message: string
+          project_id: string
+        }
+        Insert: {
+          created_at?: string
+          files?: Json
+          id?: string
+          message?: string
+          project_id: string
+        }
+        Update: {
+          created_at?: string
+          files?: Json
+          id?: string
+          message?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_project_versions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "app_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_projects: {
+        Row: {
+          created_at: string
+          files: Json
+          id: string
+          name: string
+          owner_email: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          files?: Json
+          id?: string
+          name?: string
+          owner_email: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          files?: Json
+          id?: string
+          name?: string
+          owner_email?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sites: {
         Row: {
           address: string
