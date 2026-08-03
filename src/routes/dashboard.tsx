@@ -737,11 +737,6 @@ function DashboardPage() {
     <div className="flex h-screen w-full flex-col overflow-hidden bg-[#1D1D1C] text-neutral-100">
       <header className="flex h-14 shrink-0 items-stretch bg-[#1D1D1C]">
         <div className="flex w-80 shrink-0 items-center gap-3 px-3">
-          {/* Nom affiché à gauche du logo */}
-          <span className="max-w-[120px] truncate text-xs font-medium text-neutral-100">
-            {mode === "create" ? createProjectName : activeSite ? activeSite.name : "Dashboard"}
-          </span>
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button type="button" className="flex items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-[#272726]" title="Menu">
