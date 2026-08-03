@@ -319,8 +319,8 @@ function DashboardPage() {
   // Project persistence
   const [createProjectId, setCreateProjectId] = useState<string | null>(null);
   const [createProjectName, setCreateProjectName] = useState<string>("Nouveau projet");
-  const [chatMessages, setChatMessages] = useState<Array<{role: string; content: string}>>([]);
-  const [savedChats, setSavedChats] = useState<Record<string, Array<{role: string; content: string}>>>({});
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [savedChats, setSavedChats] = useState<Record<string, ChatMessage[]>>({});
   
   // Version history
   const [versionHistory, setVersionHistory] = useState<Array<{
