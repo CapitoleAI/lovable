@@ -37,6 +37,13 @@ import {
 import { regeneratePageContent, generateNewPage } from "@/lib/orchestrator.functions";
 import { getSiteBuildProgress } from "@/lib/github-runs.functions";
 import { commitAppVfs } from "@/lib/github-vfs.functions";
+import {
+  listProjects,
+  getProject,
+  saveProject as saveProjectServer,
+  saveProjectMessages,
+  saveProjectVersion,
+} from "@/lib/projects.functions";
 import type { OrchestratorAction } from "@/lib/orchestrator.functions";
 import type { BrandIdentity, PageContent } from "@/lib/sites-schema";
 import type { VfsFile } from "@/lib/vfs";
@@ -355,6 +362,11 @@ function DashboardPage() {
   const regen = useServerFn(regeneratePageContent);
   const genPage = useServerFn(generateNewPage);
   const buildProgress = useServerFn(getSiteBuildProgress);
+  const listProjectsFn = useServerFn(listProjects);
+  const getProjectFn = useServerFn(getProject);
+  const saveProjectFn = useServerFn(saveProjectServer);
+  const saveMessagesFn = useServerFn(saveProjectMessages);
+  const saveVersionFn = useServerFn(saveProjectVersion);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mode, setMode] = useState<"edit" | "create" | "empty">("empty");
@@ -564,9 +576,10 @@ function DashboardPage() {
 
 
   function openCreate(projectId?: string) {
-    if (projectId) { loadProject(projectId); return; }
+    if (projectId) { void loadProject(projectId); return; }
     setActiveId(null);
     setMode("create");
+    projectIdRef.current = null;
     setCreateProjectId(null);
     setCreateProjectName("Nouveau projet");
     setVfsFiles([]);
@@ -577,11 +590,12 @@ function DashboardPage() {
   }
 
   function exitCreate() {
-    saveProject();
+    void saveProject();
     setMode(sites.length > 0 ? "edit" : "empty");
     if (sites.length > 0 && !activeId) setActiveId(sites[0].id);
     setVfsFiles([]);
     setSelectedPath(null);
+    projectIdRef.current = null;
     setCreateProjectId(null);
     setChatMessages([]);
     setVersionHistory([]);
@@ -788,9 +802,9 @@ function DashboardPage() {
               {savedProjects.length > 0 && (
                 <>
                   <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Projets locaux</DropdownMenuLabel>
+                  <DropdownMenuLabel>Vos projets</DropdownMenuLabel>
                   {savedProjects.map((p) => (
-                    <DropdownMenuItem key={p.id} onClick={() => loadProject(p.id)} className="flex items-center gap-2">
+                    <DropdownMenuItem key={p.id} onClick={() => void loadProject(p.id)} className="flex items-center gap-2">
                       <FileCode2 className="h-3.5 w-3.5 opacity-60" />
                       <span className="flex-1 truncate text-xs">{p.name}</span>
                       <span className="text-[10px] text-muted-foreground">{new Date(p.updatedAt).toLocaleDateString()}</span>
@@ -809,7 +823,7 @@ function DashboardPage() {
           {mode === "create" ? (
             <EditableName
               value={createProjectName}
-              onChange={(name) => { setCreateProjectName(name); saveProject(); }}
+              onChange={(name) => { setCreateProjectName(name); void saveProject(); }}
             />
           ) : activeSite ? (
             <div className="flex items-center gap-2">
