@@ -274,10 +274,12 @@ function DashboardPage() {
   
   // Version history
   const [versionHistory, setVersionHistory] = useState<Array<{
+    id: string;
     files: VfsFile[];
     timestamp: number;
     message: string;
   }>>([]);
+  const [pendingSnapshotId, setPendingSnapshotId] = useState<string | null>(null);
 
   // Local draft state per active site
   const [draftPages, setDraftPages] = useState<PageContent[] | null>(null);
@@ -384,6 +386,38 @@ function DashboardPage() {
     localStorage.setItem("capitoleai_chats", JSON.stringify(updated));
   }
 
+  // Schedule a version snapshot after React commits file changes
+  function handleMessageProcessed(versionId: string) {
+    setPendingSnapshotId(versionId);
+  }
+
+  // Effect: create snapshot once vfsFiles has been updated after pendingSnapshotId is set
+  useEffect(() => {
+    if (!pendingSnapshotId || vfsFiles.length === 0) return;
+    setVersionHistory((prev) => [
+      {
+        id: pendingSnapshotId,
+        files: JSON.parse(JSON.stringify(vfsFiles)),
+        timestamp: Date.now(),
+        message: `Version ${prev.length + 1}`,
+      },
+      ...prev,
+    ].slice(0, 20));
+    setPendingSnapshotId(null);
+  }, [pendingSnapshotId, vfsFiles]);
+
+  // Restore files from a specific version
+  function handleRevertToVersion(versionId: string) {
+    const version = versionHistory.find((v) => v.id === versionId);
+    if (!version) {
+      toast.error("Version introuvable");
+      return;
+    }
+    setVfsFiles(JSON.parse(JSON.stringify(version.files)));
+    setVfsPreviewNonce((n) => n + 1);
+    toast.success("Version restaurée");
+  }
+
   function loadProject(id: string) {
     const p = savedProjects.find(x => x.id === id);
     if (!p) return;
@@ -395,11 +429,11 @@ function DashboardPage() {
     setChatMessages(savedChats[p.id] ?? []);
     setSelectedPath(null);
     setTab("preview");
-    setVersionHistory([{files:JSON.parse(JSON.stringify(p.files)),timestamp:Date.now(),message:"Chargé"}]);
+    setVersionHistory([{id: "init", files: JSON.parse(JSON.stringify(p.files)), timestamp: Date.now(), message:"Chargé"}]);
     setVfsPreviewNonce(n=>n+1);
   }
 
-  function revertToVersion(v: {files:VfsFile[];timestamp:number;message:string}) {
+  function revertToVersion(v: {id:string; files:VfsFile[];timestamp:number;message:string}) {
     setVfsFiles(JSON.parse(JSON.stringify(v.files)));
     setVfsPreviewNonce(n=>n+1);
     toast.success("Version restaurée");
@@ -751,6 +785,8 @@ function DashboardPage() {
               onCreateWizard={openCreate}
               initialMessages={mode === "create" ? chatMessages : undefined}
               onMessagesChange={mode === "create" ? updateChatMessages : undefined}
+              onMessageProcessed={handleMessageProcessed}
+              onRevertToVersion={handleRevertToVersion}
             />
           </div>
         </aside>

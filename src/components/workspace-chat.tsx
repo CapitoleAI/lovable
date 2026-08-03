@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronDown, Cog, Loader2, Plus, Send, Sparkles } from "lucide-react";
+import { ChevronDown, Cog, Loader2, Plus, RotateCcw, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,7 +11,12 @@ import {
 } from "@/lib/orchestrator.functions";
 import type { BrandIdentity, PageContent } from "@/lib/sites-schema";
 
-export type ChatMessage = { role: "user" | "assistant"; content: string };
+export type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+  versionId?: string;
+  hasFileChanges?: boolean;
+};
 
 interface Props {
   mode: "edit" | "empty" | "create";
@@ -23,7 +28,11 @@ interface Props {
   onCreateWizard?: () => void;
   initialMessages?: ChatMessage[];
   onMessagesChange?: (messages: ChatMessage[]) => void;
+  onMessageProcessed?: (versionId: string) => void;
+  onRevertToVersion?: (versionId: string) => void;
 }
+
+const FILE_ACTION_TYPES = new Set(["write_file", "modify_file", "delete_file"]);
 
 export function WorkspaceChat({
   mode,
@@ -35,6 +44,8 @@ export function WorkspaceChat({
   onCreateWizard,
   initialMessages,
   onMessagesChange,
+  onMessageProcessed,
+  onRevertToVersion,
 }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -89,12 +100,33 @@ export function WorkspaceChat({
         },
       });
 
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
-      for (const a of actions) {
-        if (a.type === "open_create_wizard") {
-          onCreateWizard?.();
-        } else {
-          await onAction(a);
+      // Determine if this AI message triggers file changes
+      const hasFileChanges = actions.some((a) => FILE_ACTION_TYPES.has(a.type));
+
+      if (hasFileChanges && onMessageProcessed) {
+        // First execute actions, then create a version snapshot
+        for (const a of actions) {
+          if (a.type === "open_create_wizard") {
+            onCreateWizard?.();
+          } else {
+            await onAction(a);
+          }
+        }
+        // Now create the version snapshot AFTER files are modified
+        const versionId = crypto.randomUUID();
+        onMessageProcessed(versionId);
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: reply, versionId, hasFileChanges: true },
+        ]);
+      } else {
+        setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+        for (const a of actions) {
+          if (a.type === "open_create_wizard") {
+            onCreateWizard?.();
+          } else {
+            await onAction(a);
+          }
         }
       }
     } catch (e) {
@@ -128,16 +160,31 @@ export function WorkspaceChat({
           </div>
         ) : (
           messages.map((m, i) => (
-            <div key={i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
-              <div
-                className={
-                  m.role === "user"
-                    ? "max-w-[85%] rounded-2xl rounded-tr-md bg-[#272726] px-3.5 py-2 text-sm text-neutral-100"
-                    : "max-w-[85%] text-sm text-neutral-200"
-                }
-              >
-                {m.content}
+            <div key={i}>
+              <div className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
+                <div
+                  className={
+                    m.role === "user"
+                      ? "max-w-[85%] rounded-2xl rounded-tr-md bg-[#272726] px-3.5 py-2 text-sm text-neutral-100"
+                      : "max-w-[85%] text-sm text-neutral-200"
+                  }
+                >
+                  {m.content}
+                </div>
               </div>
+              {m.role === "assistant" && m.hasFileChanges && m.versionId && (
+                <div className="mt-1.5 flex justify-start">
+                  <button
+                    type="button"
+                    onClick={() => onRevertToVersion?.(m.versionId!)}
+                    className="inline-flex items-center gap-1 rounded-md border border-[#3a3a38] bg-[#272726] px-2 py-1 text-[11px] text-neutral-400 transition-colors hover:border-[#3B6DF5] hover:text-[#3B6DF5]"
+                    title="Restaurer les fichiers à cette version"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    Restaurer cette version
+                  </button>
+                </div>
+              )}
             </div>
           ))
         )}
