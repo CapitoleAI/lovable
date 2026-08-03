@@ -18,23 +18,29 @@ export type Database = {
         Row: {
           content: string
           created_at: string
+          has_file_changes: boolean
           id: string
           project_id: string
           role: string
+          version_id: string | null
         }
         Insert: {
           content: string
           created_at?: string
+          has_file_changes?: boolean
           id?: string
           project_id: string
           role: string
+          version_id?: string | null
         }
         Update: {
           content?: string
           created_at?: string
+          has_file_changes?: boolean
           id?: string
           project_id?: string
           role?: string
+          version_id?: string | null
         }
         Relationships: [
           {
