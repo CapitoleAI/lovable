@@ -38,6 +38,7 @@ import { regeneratePageContent, generateNewPage } from "@/lib/orchestrator.funct
 import { getSiteBuildProgress } from "@/lib/github-runs.functions";
 import type { OrchestratorAction } from "@/lib/orchestrator.functions";
 import type { BrandIdentity, PageContent } from "@/lib/sites-schema";
+import type { VfsFile } from "@/lib/vfs";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -55,11 +56,6 @@ import {
 } from "@/components/ui/popover";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import {
-  CreationWizard,
-  type CreationSnapshot,
-  type CreationWizardHandle,
-} from "@/components/creation-wizard";
 import { WorkspaceChat } from "@/components/workspace-chat";
 import { WorkspacePreview } from "@/components/workspace-preview";
 import { WorkspaceCode } from "@/components/workspace-code";
@@ -159,6 +155,102 @@ function StatusDot({ up, title }: { up: boolean; title: string }) {
   );
 }
 
+function getFileLabel(path: string): string {
+  const ext = path.split(".").pop()?.toLowerCase();
+  switch (ext) {
+    case "html": return "HTML";
+    case "css": return "CSS";
+    case "js": return "JS";
+    case "jsx": return "React";
+    case "ts": return "TS";
+    case "tsx": return "React TS";
+    case "json": return "JSON";
+    case "md": return "MD";
+    default: return ext?.toUpperCase() ?? "Fichier";
+  }
+}
+
+// ---------------- Create mode preview component ----------------
+
+function CreatePreview({ files, nonce }: { files: VfsFile[]; nonce: number }) {
+  const htmlFile = files.find(f => f.path.endsWith(".html") || f.path === "index.html");
+  if (!htmlFile) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        Aucun fichier HTML. L'IA va générer l'application.
+      </div>
+    );
+  }
+
+  // Build a full document for the iframe
+  const cssFiles = files.filter(f => f.path.endsWith(".css"));
+  const jsFiles = files.filter(f => f.path.endsWith(".js") || f.path.endsWith(".mjs"));
+
+  const styles = cssFiles.map(f => `<style>${f.content}</style>`).join("\n");
+  const scripts = jsFiles.map(f => `<script>${f.content}</script>`).join("\n");
+
+  const doc = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${styles}</head><body>${htmlFile.content}${scripts}</body></html>`;
+
+  return (
+    <iframe
+      key={`create-preview-${nonce}`}
+      title="Aperçu"
+      sandbox="allow-scripts allow-forms allow-modals"
+      srcDoc={doc}
+      className="h-full w-full bg-white rounded-lg border border-[#272726]"
+    />
+  );
+}
+
+// ---------------- Create mode file tree component ----------------
+
+function CreateFileTree({ files, selectedPath, onSelect }: {
+  files: VfsFile[];
+  selectedPath: string | null;
+  onSelect: (path: string) => void;
+}) {
+  // Group by directory
+  const dirs = new Map<string, VfsFile[]>();
+  for (const f of files) {
+    const parts = f.path.split("/");
+    const dir = parts.length > 1 ? parts.slice(0, -1).join("/") : "(racine)";
+    if (!dirs.has(dir)) dirs.set(dir, []);
+    dirs.get(dir)!.push(f);
+  }
+
+  return (
+    <div className="space-y-1 p-2">
+      {Array.from(dirs.entries()).map(([dir, dirFiles]) => (
+        <div key={dir}>
+          {dir !== "(racine)" && (
+            <div className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-neutral-400">
+              <ChevronDown className="h-3 w-3 opacity-50" />
+              {dir}
+            </div>
+          )}
+          {dirFiles.map(f => (
+            <button
+              key={f.path}
+              type="button"
+              onClick={() => onSelect(f.path)}
+              className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs transition ${
+                selectedPath === f.path
+                  ? "bg-[#272726] text-white"
+                  : "text-neutral-300 hover:bg-[#2a2a29]"
+              }`}
+            >
+              <span className="rounded bg-[#3a3a38] px-1 py-0.5 text-[10px] font-medium text-neutral-400">
+                {getFileLabel(f.path)}
+              </span>
+              <span className="flex-1 truncate font-mono">{f.path}</span>
+            </button>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ---------------- Component ----------------
 
 function DashboardPage() {
@@ -175,8 +267,10 @@ function DashboardPage() {
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mode, setMode] = useState<"edit" | "create" | "empty">("empty");
-  const [creationSnapshot, setCreationSnapshot] = useState<CreationSnapshot | null>(null);
-  const wizardRef = useRef<CreationWizardHandle | null>(null);
+
+  // VFS state for create mode
+  const [vfsFiles, setVfsFiles] = useState<VfsFile[]>([]);
+  const [vfsPreviewNonce, setVfsPreviewNonce] = useState(0);
 
   // Local draft state per active site
   const [draftPages, setDraftPages] = useState<PageContent[] | null>(null);
@@ -188,6 +282,9 @@ function DashboardPage() {
   const [device, setDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [previewSlug, setPreviewSlug] = useState<string>("index");
   const [previewNonce, setPreviewNonce] = useState(0);
+
+  // Create mode code tab state
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
 
 
   const sitesQuery = useQuery({
@@ -216,7 +313,6 @@ function DashboardPage() {
       setDraftPages(pages);
       setPreviewSlug(pages?.[0]?.slug ?? "index");
       setTab("preview");
-      // brand is only stored partially in site_info; keep colors + logo
       const info = activeSite.site_data?.site_info;
       setDraftBrand(
         info
@@ -240,7 +336,6 @@ function DashboardPage() {
       setActiveId(firstDeployed.id);
       setMode("edit");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sites.length]);
 
   // Keep mode in sync with active site
@@ -252,7 +347,9 @@ function DashboardPage() {
   function openCreate() {
     setActiveId(null);
     setMode("create");
-    setCreationSnapshot(null);
+    setVfsFiles([]);
+    setSelectedPath(null);
+    setTab("preview");
   }
 
   function exitCreate() {
@@ -260,7 +357,8 @@ function DashboardPage() {
     if (sites.length > 0 && !activeId) {
       setActiveId(sites[0].id);
     }
-    setCreationSnapshot(null);
+    setVfsFiles([]);
+    setSelectedPath(null);
   }
 
 
@@ -286,11 +384,9 @@ function DashboardPage() {
       cancelled = true;
       clearInterval(t);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sites.map((s) => s.id).join(","), sites.map((s) => s.status).join(",")]);
 
   // While the active site is building, reconcile its status against GitHub every 5s
-  // (getSiteBuildProgress updates the DB to "deployed"/"failed" when the run completes).
   useEffect(() => {
     if (!activeSite) return;
     const inProgress = ["pending", "generating", "building", "deploying"].includes(
@@ -312,7 +408,6 @@ function DashboardPage() {
       cancelled = true;
       clearInterval(t);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSite?.id, activeSite?.status]);
 
   const isDirty = useMemo(() => {
@@ -397,57 +492,46 @@ function DashboardPage() {
 
   // ---------- Chat action handler ----------
   async function handleAction(action: OrchestratorAction) {
-    // Create-mode actions target the wizard imperatively
-    if (action.type === "advance_to_brand_studio") {
-      await wizardRef.current?.advanceToBrandStudio({
-        name: action.name,
-        theme: action.theme,
-        city: action.city,
-        brief: action.brief,
-        hint_colors: action.hint_colors,
+    // Create-mode: coding tools
+    if (action.type === "write_file") {
+      setVfsFiles((prev) => {
+        const existing = prev.filter(f => f.path !== action.path);
+        return [...existing, { path: action.path, content: action.content }];
       });
+      setVfsPreviewNonce(n => n + 1);
+      toast.success(`Fichier créé : ${action.path}`);
       return;
     }
-    if (action.type === "update_creation_brief") {
-      wizardRef.current?.updateBrief({
-        name: action.name,
-        theme: action.theme,
-        city: action.city,
-        brief: action.brief,
-        hint_colors: action.hint_colors,
+    if (action.type === "modify_file") {
+      setVfsFiles((prev) => {
+        const idx = prev.findIndex(f => f.path === action.path);
+        if (idx === -1) return prev;
+        const file = prev[idx];
+        const newContent = file.content.replace(action.old_code, action.new_code);
+        if (newContent === file.content) {
+          toast.error(`Modification échouée sur ${action.path} : le code à remplacer n'a pas été trouvé.`);
+          return prev;
+        }
+        const updated = [...prev];
+        updated[idx] = { ...file, content: newContent };
+        return updated;
       });
+      setVfsPreviewNonce(n => n + 1);
+      toast.success(`Fichier modifié : ${action.path}`);
       return;
     }
-    if (action.type === "update_creation_theme") {
-      wizardRef.current?.updateTheme({
-        ...(action.brand_name ? { brand_name: action.brand_name } : {}),
-        ...(action.tagline ? { tagline: action.tagline } : {}),
-        ...(action.design_style ? { design_style: action.design_style as BrandIdentity["design_style"] } : {}),
-        ...(action.selected_header_id ? { selected_header_id: action.selected_header_id } : {}),
-        ...(action.selected_hero_id ? { selected_hero_id: action.selected_hero_id } : {}),
-        ...(action.selected_footer_id ? { selected_footer_id: action.selected_footer_id } : {}),
-        ...(action.selected_section_ids ? { selected_section_ids: action.selected_section_ids } : {}),
-        ...(action.colors ? { colors: action.colors as BrandIdentity["colors"] } : {}),
-      });
+    if (action.type === "delete_file") {
+      setVfsFiles((prev) => prev.filter(f => f.path !== action.path));
+      if (selectedPath === action.path) setSelectedPath(null);
+      setVfsPreviewNonce(n => n + 1);
+      toast.success(`Fichier supprimé : ${action.path}`);
       return;
     }
-    if (action.type === "generate_seo_and_tree") {
-      await wizardRef.current?.generateSeoAndTree({
-        main_keyword: action.main_keyword,
-        keywords: action.keywords,
-        sitemap: action.sitemap,
-      });
+    // open_create_wizard handled in onCreateWizard
+    if (action.type === "open_create_wizard") {
+      openCreate();
       return;
     }
-    if (action.type === "regenerate_logo") {
-      await wizardRef.current?.regenerateLogo(action.prompt);
-      return;
-    }
-    if (action.type === "finalize_and_build") {
-      await wizardRef.current?.finalizeAndBuild();
-      return;
-    }
-
 
     if (!activeSite || !draftPages) return;
 
@@ -541,7 +625,6 @@ function DashboardPage() {
     }
   }
 
-  // Compute background color for preview from draft brand
   const previewBg = draftBrand?.colors?.background;
 
   return (
@@ -607,7 +690,7 @@ function DashboardPage() {
             ))}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={openCreate}>
-              <Plus className="mr-2 h-3.5 w-3.5" /> Nouveau site
+              <Plus className="mr-2 h-3.5 w-3.5" /> Nouveau projet
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
@@ -632,13 +715,57 @@ function DashboardPage() {
           </div>
         ) : (
           <span className="text-sm text-neutral-400">
-            {mode === "create" ? "Nouveau site" : "Dashboard"}
+            {mode === "create" ? "Nouveau projet" : "Dashboard"}
           </span>
         )}
 
         </div>
 
         <div className="flex min-w-0 flex-1 items-center gap-2 px-3">
+        {mode === "create" && (
+          <div className="flex flex-1 items-center gap-2">
+            <div className="flex items-center rounded-full bg-[#272726] p-0.5">
+              {[
+                { value: "preview" as const, label: "Aperçu", icon: Globe },
+                { value: "code" as const, label: "Code", icon: FileCode2 },
+              ].map((t) => {
+                const active = tab === t.value;
+                const Icon = t.icon;
+                return (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setTab(t.value)}
+                    title={t.label}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors",
+                      active
+                        ? "bg-[#272726] text-white shadow-sm"
+                        : "text-neutral-400 hover:text-neutral-100",
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {active && <span>{t.label}</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {tab === "preview" && (
+              <div className="mx-auto flex items-center gap-2">
+                <button
+                  type="button"
+                  title="Rafraîchir"
+                  onClick={() => setVfsPreviewNonce((n) => n + 1)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-300 hover:bg-[#272726] hover:text-white"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {activeSite && mode === "edit" && (
           <div className="flex flex-1 items-center gap-2">
             <div className="flex items-center rounded-full bg-[#272726] p-0.5">
@@ -852,7 +979,7 @@ function DashboardPage() {
               pages={draftPages ?? undefined}
               creationContext={
                 mode === "create"
-                  ? (creationSnapshot ?? {})
+                  ? { app: { files: vfsFiles.map(f => ({ path: f.path })) } }
                   : undefined
               }
               onAction={handleAction}
@@ -863,21 +990,53 @@ function DashboardPage() {
 
         {/* RIGHT: Workspace */}
         <main className="flex min-w-0 flex-1 flex-col bg-muted/30">
-          <div style={{ display: mode === "create" ? "none" : "none", position: "absolute", width: 0, height: 0, overflow: "hidden" }}>
-            <CreationWizard
-              ref={wizardRef}
-              onSnapshotChange={setCreationSnapshot}
-              onExit={exitCreate}
-              onFinalized={(id) => {
-                setActiveId(id);
-                setMode("edit");
-                setCreationSnapshot(null);
-                sitesQuery.refetch();
-              }}
-            />
-          </div>
           {mode === "create" ? (
-            <ChatGuidingPlaceholder onExit={exitCreate} />
+            tab === "code" ? (
+              <div className="flex min-h-0 flex-1">
+                <div className="w-56 shrink-0 overflow-y-auto border-r border-[#272726] bg-[#1D1D1C]">
+                  <CreateFileTree
+                    files={vfsFiles}
+                    selectedPath={selectedPath}
+                    onSelect={setSelectedPath}
+                  />
+                </div>
+                <div className="min-h-0 flex-1 overflow-auto bg-muted/40 p-3">
+                  {selectedPath ? (
+                    <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-neutral-200">
+                      {vfsFiles.find(f => f.path === selectedPath)?.content ?? ""}
+                    </pre>
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                      {vfsFiles.length === 0
+                        ? "Décrivez votre projet dans le chat. L'IA va coder votre application."
+                        : "Sélectionnez un fichier dans l'arborescence."}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="min-h-0 flex-1 p-4">
+                {vfsFiles.length === 0 ? (
+                  <div className="flex h-full items-center justify-center">
+                    <div className="max-w-md text-center">
+                      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#3B6DF5]/10">
+                        <MessageSquare className="h-6 w-6 text-[#3B6DF5]" />
+                      </div>
+                      <h2 className="text-xl font-semibold">Nouveau projet</h2>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        Décrivez votre application dans le chat à gauche. L'IA va coder
+                        et vous verrez le résultat ici en temps réel.
+                      </p>
+                      <Button className="mt-6" variant="ghost" onClick={exitCreate}>
+                        ← Retour au dashboard
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <CreatePreview files={vfsFiles} nonce={vfsPreviewNonce} />
+                )}
+              </div>
+            )
           ) : !activeSite ? (
             <EmptyWorkspace onCreate={openCreate} />
           ) : ["pending", "generating", "building", "deploying"].includes(activeSite.status) &&
@@ -940,26 +1099,6 @@ function DashboardPage() {
 }
 
 
-function ChatGuidingPlaceholder({ onExit }: { onExit: () => void }) {
-  return (
-    <div className="flex flex-1 items-center justify-center p-10">
-      <div className="max-w-md text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#3B6DF5]/10">
-          <MessageSquare className="h-6 w-6 text-[#3B6DF5]" />
-        </div>
-        <h2 className="text-xl font-semibold">Création guidée</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Décrivez votre projet dans le chat à gauche. L'IA vous posera des questions
-          et construira le site pour vous, sans formulaire à remplir.
-        </p>
-        <Button className="mt-6" variant="ghost" onClick={onExit}>
-          ← Retour au dashboard
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 function EmptyWorkspace({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="flex flex-1 items-center justify-center p-10">
@@ -967,13 +1106,13 @@ function EmptyWorkspace({ onCreate }: { onCreate: () => void }) {
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
           <Plus className="h-6 w-6" />
         </div>
-        <h2 className="text-xl font-semibold">Créer votre premier site</h2>
+        <h2 className="text-xl font-semibold">Créer un nouveau projet</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Utilisez le chat à gauche ou lancez l'assistant de création guidé.
+          Utilisez le chat à gauche pour décrire votre application. L'IA codera pour vous.
         </p>
         <Button className="mt-6" onClick={onCreate}>
           <Plus className="mr-2 h-4 w-4" />
-          Nouveau site
+          Nouveau projet
         </Button>
       </div>
     </div>

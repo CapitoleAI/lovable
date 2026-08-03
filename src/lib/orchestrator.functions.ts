@@ -227,52 +227,21 @@ const actionSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("open_create_wizard"),
   }),
-  // Create-mode actions
+  // Create-mode actions (coding tools)
   z.object({
-    type: z.literal("advance_to_brand_studio"),
-    name: z.string().optional(),
-    theme: z.string().optional(),
-    city: z.string().optional(),
-    brief: z.string().optional(),
-    hint_colors: z.array(z.string()).max(6).optional(),
+    type: z.literal("write_file"),
+    path: z.string().min(1).max(300),
+    content: z.string().max(200_000),
   }),
   z.object({
-    type: z.literal("update_creation_brief"),
-    name: z.string().optional(),
-    theme: z.string().optional(),
-    city: z.string().optional(),
-    brief: z.string().optional(),
-    hint_colors: z.array(z.string()).max(6).optional(),
+    type: z.literal("modify_file"),
+    path: z.string().min(1).max(300),
+    old_code: z.string().min(1).max(50_000),
+    new_code: z.string().max(200_000),
   }),
   z.object({
-    type: z.literal("update_creation_theme"),
-    colors: z.object({
-      primary: z.string().optional(),
-      secondary: z.string().optional(),
-      accent: z.string().optional(),
-      neutral: z.string().optional(),
-      background: z.string().optional(),
-    }).optional(),
-    selected_header_id: z.string().optional(),
-    selected_hero_id: z.string().optional(),
-    selected_footer_id: z.string().optional(),
-    selected_section_ids: z.array(z.string()).optional(),
-    design_style: z.string().optional(),
-    brand_name: z.string().optional(),
-    tagline: z.string().optional(),
-  }),
-  z.object({
-    type: z.literal("generate_seo_and_tree"),
-    main_keyword: z.string().optional(),
-    keywords: z.array(z.string()).max(30).optional(),
-    sitemap: z.array(sitemapPageSchema).max(30).optional(),
-  }),
-  z.object({
-    type: z.literal("regenerate_logo"),
-    prompt: z.string().min(1).max(500),
-  }),
-  z.object({
-    type: z.literal("finalize_and_build"),
+    type: z.literal("delete_file"),
+    path: z.string().min(1).max(300),
   }),
 ]);
 export type OrchestratorAction = z.infer<typeof actionSchema>;
@@ -440,100 +409,48 @@ const createTools: OpenAiTool[] = [
   {
     type: "function",
     function: {
-      name: "update_creation_brief",
+      name: "write_file",
       description:
-        "Remplit ou MODIFIE un ou plusieurs champs de l'étape 1 (brief) SANS changer d'étape. À utiliser seulement pour le brief, pas pour changer le nom/tagline affichés dans le Studio de marque à l'étape 2.",
+        "Écrit ou remplace complètement un fichier du projet. Utilise ce tool pour créer les fichiers initiaux (index.html, styles.css, app.js, etc.) ou écraser un fichier existant.",
       parameters: {
         type: "object",
         properties: {
-          name: { type: "string" },
-          theme: { type: "string" },
-          city: { type: "string" },
-          brief: { type: "string" },
-          hint_colors: { type: "array", items: { type: "string" } },
+          path: { type: "string", description: "Chemin relatif du fichier (ex: index.html, css/style.css, js/app.js)" },
+          content: { type: "string", description: "Contenu complet du fichier" },
         },
+        required: ["path", "content"],
       },
     },
   },
   {
     type: "function",
     function: {
-      name: "advance_to_brand_studio",
+      name: "modify_file",
       description:
-        "Passe à l'étape 2 et génère la marque + logo. À n'appeler QUE quand nom + thème + brief sont présents ET l'utilisateur confirme vouloir avancer.",
+        "Modifie une partie d'un fichier existant. Fournis l'ancien code à remplacer (old_code) et le nouveau (new_code). L'ancien code doit correspondre exactement au contenu actuel pour que le remplacement fonctionne.",
       parameters: {
         type: "object",
         properties: {
-          name: { type: "string" },
-          theme: { type: "string" },
-          city: { type: "string" },
-          brief: { type: "string" },
-          hint_colors: { type: "array", items: { type: "string" } },
+          path: { type: "string", description: "Chemin relatif du fichier à modifier" },
+          old_code: { type: "string", description: "Le code exact à remplacer (doit matcher le fichier actuel)" },
+          new_code: { type: "string", description: "Le nouveau code qui remplacera l'ancien" },
         },
+        required: ["path", "old_code", "new_code"],
       },
     },
   },
   {
     type: "function",
     function: {
-      name: "update_creation_theme",
-      description:
-        "Ajuste à l'étape 2 : couleurs, sélection Header/Hero/Sections/Footer, style de design, nom de marque affiché, tagline/description courte. Utilise cet outil pour tout changement de nom ou description demandé dans le Studio de marque. N'inclus que les champs à changer.",
+      name: "delete_file",
+      description: "Supprime un fichier du projet.",
       parameters: {
         type: "object",
         properties: {
-          colors: colorsProp,
-          selected_header_id: { type: "string" },
-          selected_hero_id: { type: "string" },
-          selected_footer_id: { type: "string" },
-          selected_section_ids: { type: "array", items: { type: "string" } },
-          design_style: { type: "string" },
-          brand_name: { type: "string", description: "Nouveau nom de la marque" },
-          tagline: { type: "string", description: "Nouvelle tagline / description courte" },
+          path: { type: "string", description: "Chemin relatif du fichier à supprimer" },
         },
+        required: ["path"],
       },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "regenerate_logo",
-      description: "Régénère le logo à l'étape 2 avec un nouveau prompt d'image détaillé.",
-      parameters: {
-        type: "object",
-        properties: { prompt: { type: "string" } },
-        required: ["prompt"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "generate_seo_and_tree",
-      description: "Passe aux étapes 3 puis 4 (SEO + arborescence). Champs optionnels.",
-      parameters: {
-        type: "object",
-        properties: {
-          main_keyword: { type: "string" },
-          keywords: { type: "array", items: { type: "string" } },
-          sitemap: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: { title: { type: "string" }, slug: { type: "string" } },
-              required: ["title", "slug"],
-            },
-          },
-        },
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "finalize_and_build",
-      description: "Lance la génération finale et le build (étape 5).",
-      parameters: { type: "object", properties: {} },
     },
   },
 ];
@@ -566,20 +483,30 @@ export const orchestrateChat = createServerFn({ method: "POST" })
       system = await getPromptContent("orchestrator.edit");
       tools = editTools;
     } else if (data.mode === "create") {
-      // Mode création autonome : un seul prompt, pas de steps, pas de questions
-      system = `Tu es un BUILD BOT AUTONOME. Tu crées des sites web complets sans JAMAIS poser de question à l'utilisateur. Tu extrais ce que tu peux du message, tu INVENTES le reste, et tu ENCHAÎNES les actions.
+      // Coding bot : crée des fichiers directement, comme Lovable
+      const existingFiles = cctx?.app?.files
+        ? cctx.app.files.map((f: { path: string }) => f.path).join(", ")
+        : "aucun";
+      const filesContext = cctx?.app?.files?.length
+        ? `\n\nFICHIERS EXISTANTS : ${existingFiles}\nContenu des fichiers : ${JSON.stringify(cctx.app.files)}`
+        : "\n\nAucun fichier existant. C'est un projet vide. Commence par créer les fichiers essentiels (index.html, style.css, script.js ou app.tsx, etc.).";
+      
+      system = `Tu es un BUILD BOT AUTONOME. Tu crées des applications web en ÉCRIVANT DIRECTEMENT les fichiers de code. Ne pose JAMAIS de question. Code tout de suite.
 
-Actions disponibles :
-- update_creation_brief({ name, theme, city, brief, hint_colors? }) — remplis TOUS les champs d'un coup. INVENTE un nom crédible si absent, mets "Paris" si pas de ville, déduis le thème.
-- advance_to_brand_studio({ name, theme, city, brief, hint_colors? }) — génère la marque + logo automatiquement.
-- generate_seo_and_tree({ main_keyword?, keywords?, sitemap? }) — génère SEO + arborescence. Laisse vide pour auto-génération.
-- finalize_and_build() — lance le build final.
+${filesContext}
 
-RÈGLES :
-1. NE POSE JAMAIS DE QUESTION. Pas de "quel est le nom ?", pas de "quelle ville ?", RIEN.
-2. Appelle update_creation_brief + advance_to_brand_studio dans le MÊME tour.
-3. Si tu reçois déjà un contexte avec brand/colors remplis, passe directement à generate_seo_and_tree + finalize_and_build.
-4. Ton message = 1 phrase de confirmation. JAMAIS de point d'interrogation.`;
+OUTILS DISPONIBLES :
+- write_file({ path, content }) — crée un nouveau fichier ou écrase un fichier existant
+- modify_file({ path, old_code, new_code }) — modifie une partie d'un fichier existant
+- delete_file({ path }) — supprime un fichier
+
+RÈGLES IMPÉRATIVES :
+1. NE POSE JAMAIS DE QUESTION. Pas de "Quel nom ?", "Quelle stack ?", RIEN. Code immédiatement.
+2. Pour un nouveau projet, crée TOUS les fichiers nécessaires avec write_file dans le MÊME TOUR (index.html, style.css, script.js, etc.).
+3. Utilise HTML/CSS/JS vanilla par défaut. Si l'utilisateur demande React, Next.js, etc., crée la structure appropriée.
+4. Le code doit être COMPLET et FONCTIONNEL. Pas de "// TODO", pas de placeholders.
+5. Pour modifier, fournis old_code (le code exact à remplacer) et new_code (le remplacement).
+6. Ton message texte = 1 phrase décrivant ce que tu viens de créer. JAMAIS de question.`;
       tools = createTools;
     } else {
       system = await getPromptContent("orchestrator.empty");
@@ -604,19 +531,13 @@ RÈGLES :
         const parsed = actionSchema.safeParse(normalizeRawAction({ ...args, type: call.name }));
         if (!parsed.success) continue;
         const act = parsed.data;
-        if (act.type === "update_colors" || act.type === "update_creation_theme") {
+        if (act.type === "update_colors") {
           if (act.colors) {
             const clean: Record<string, string> = {};
             for (const [k, v] of Object.entries(act.colors)) {
               if (typeof v === "string" && HEX_RE.test(v.trim())) clean[k] = v.trim();
             }
-            if (act.type === "update_colors") {
-              if (Object.keys(clean).length > 0) actions.push({ type: "update_colors", colors: clean });
-            } else {
-              actions.push({ ...act, colors: clean });
-            }
-          } else {
-            actions.push(act);
+            if (Object.keys(clean).length > 0) actions.push({ type: "update_colors", colors: clean });
           }
         } else {
           actions.push(act);
