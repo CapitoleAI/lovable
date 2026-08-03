@@ -274,19 +274,6 @@ const actionSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("finalize_and_build"),
   }),
-  // Phase 3 — Aiguillage / mode application complète
-  z.object({
-    type: z.literal("select_project_type"),
-    project_type: z.enum(["astro_site", "full_app"]),
-  }),
-  z.object({
-    type: z.literal("update_app_architecture"),
-    name: z.string().optional(),
-    brief: z.string().optional(),
-    stack: z.enum(["react_vite", "react_node_express", "nextjs", "node_api"]).optional(),
-    features: z.array(z.string()).max(30).optional(),
-  }),
-
 ]);
 export type OrchestratorAction = z.infer<typeof actionSchema>;
 
@@ -551,46 +538,6 @@ const createTools: OpenAiTool[] = [
   },
 ];
 
-// ---- Phase 3 : aiguillage du type de projet ----
-const projectTypeTool: OpenAiTool = {
-  type: "function",
-  function: {
-    name: "select_project_type",
-    description:
-      "Choisit le type de projet à créer : 'astro_site' pour un site vitrine statique (design, SEO, pages), 'full_app' pour une application web React/Node (architecture de fichiers, GitHub).",
-    parameters: {
-      type: "object",
-      properties: {
-        project_type: { type: "string", enum: ["astro_site", "full_app"] },
-      },
-      required: ["project_type"],
-    },
-  },
-};
-
-const appTools: OpenAiTool[] = [
-  {
-    type: "function",
-    function: {
-      name: "update_app_architecture",
-      description:
-        "Met à jour l'architecture de l'application : nom, brief technique, stack et liste de fonctionnalités. N'inclus que les champs à changer.",
-      parameters: {
-        type: "object",
-        properties: {
-          name: { type: "string" },
-          brief: { type: "string" },
-          stack: {
-            type: "string",
-            enum: ["react_vite", "react_node_express", "nextjs", "node_api"],
-          },
-          features: { type: "array", items: { type: "string" } },
-        },
-      },
-    },
-  },
-  projectTypeTool,
-];
 
 
 export const orchestrateChat = createServerFn({ method: "POST" })
@@ -613,25 +560,15 @@ export const orchestrateChat = createServerFn({ method: "POST" })
       ? `\nTYPE DE PROJET: ${cctx.project_type ?? "non choisi"}${cctx.project_type === "full_app" ? `\nAPP: ${JSON.stringify(cctx.app ?? {})}` : ""}\nCONTEXTE CRÉATION (étape ${cctx.step ?? 1}/5):\n- Nom brief: ${cctx.name || "-"}\n- Thème: ${cctx.theme || "-"}\n- Ville: ${cctx.city || "-"}\n- Brief: ${cctx.brief || "-"}\n- Couleurs indices: ${(cctx.hint_colors ?? []).join(", ") || "-"}\n- Marque affichée: ${cctx.brand ? JSON.stringify({ brand_name: cctx.brand.brand_name, tagline: cctx.brand.tagline, colors: cctx.brand.colors, design_style: cctx.brand.design_style, logo_url: cctx.brand.logo_url ? "présent" : "absent" }) : "-"}\n- Mot-clé principal: ${cctx.main_keyword || "-"}\n- Mots-clés: ${(cctx.keywords ?? []).join(", ") || "-"}\n- Sitemap: ${(cctx.sitemap ?? []).map((p) => p.title).join(", ") || "-"}`
       : "";
 
-    const projectType = cctx?.project_type ?? null;
     let promptKey: PromptKey;
     let tools: OpenAiTool[];
     if (data.mode === "edit") {
       promptKey = "orchestrator.edit";
       tools = editTools;
     } else if (data.mode === "create") {
-      if (!projectType) {
-        // Étape 0 : aiguillage
-        promptKey = "orchestrator.create.project_type";
-        tools = [projectTypeTool];
-      } else if (projectType === "full_app") {
-        promptKey = "orchestrator.app.architecture";
-        tools = appTools;
-      } else {
-        const step = Math.min(5, Math.max(1, cctx?.step ?? 1));
-        promptKey = `orchestrator.create.step${step}` as PromptKey;
-        tools = createTools;
-      }
+      const step = Math.min(5, Math.max(1, cctx?.step ?? 1));
+      promptKey = `orchestrator.create.step${step}` as PromptKey;
+      tools = createTools;
     } else {
       promptKey = "orchestrator.empty";
       tools = emptyTools;
