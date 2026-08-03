@@ -47,6 +47,7 @@ import {
 import type { OrchestratorAction } from "@/lib/orchestrator.functions";
 import type { BrandIdentity, PageContent } from "@/lib/sites-schema";
 import type { VfsFile } from "@/lib/vfs";
+import { buildPreviewDoc } from "@/lib/preview-bundler";
 
 import { Button } from "@/components/ui/button";
 import {
