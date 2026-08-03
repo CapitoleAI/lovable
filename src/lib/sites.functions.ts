@@ -887,7 +887,14 @@ export const updateSite = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     if (!row || row.owner_email !== email) throw new Error("Not found");
 
-    const updatePayload: Record<string, unknown> = {};
+    type SiteUpdate = {
+      name?: string;
+      site_data?: SiteData;
+      random_seed?: Record<string, unknown>;
+      status?: string;
+      last_error?: null;
+    };
+    const updatePayload: SiteUpdate = {};
     if (data.name && data.name !== row.name) updatePayload.name = data.name;
 
     if (data.pages) {
