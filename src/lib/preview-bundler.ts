@@ -131,6 +131,18 @@ export function buildReactPreviewDoc(files: PreviewFile[]): string {
 (function () {
   var DATA = ${payload};
   var errBox = document.getElementById("__err");
+  var capturedLogs = [];
+  ["log", "info", "warn", "error"].forEach(function (level) {
+    var orig = console[level].bind(console);
+    console[level] = function () {
+      try {
+        capturedLogs.push("[" + level + "] " + Array.prototype.map.call(arguments, function (a) {
+          return typeof a === "string" ? a : JSON.stringify(a);
+        }).join(" "));
+      } catch (e) {}
+      orig.apply(null, arguments);
+    };
+  });
   function showError(e) {
     errBox.style.display = "block";
     errBox.textContent = "Erreur de rendu de l'aperçu\\n\\n" + (e && (e.stack || e.message) || String(e));
@@ -355,10 +367,26 @@ export function buildReactPreviewDoc(files: PreviewFile[]): string {
       }
     }
     if (!Comp) {
-      showError("Aucun composant React exporté n'a été trouvé dans " + DATA.entry + ".");
+      renderConsoleView();
       return;
     }
     root.render(React.createElement(Comp));
+  }
+
+  // Fallback view for projects without UI (scripts, API/back-end code)
+  function renderConsoleView() {
+    var list = Object.keys(DATA.files).sort().map(function (p) {
+      return '<li style="padding:2px 0">' + p + '</li>';
+    }).join("");
+    var logs = capturedLogs.length
+      ? '<pre style="margin:16px 0 0;padding:12px;border-radius:8px;background:#111;color:#a7f3d0;white-space:pre-wrap">' + capturedLogs.join("\n").replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }) + "</pre>"
+      : "";
+    document.getElementById("root").innerHTML =
+      '<div style="height:100%;overflow:auto;padding:28px;background:#1D1D1C;color:#e5e5e5;font:13px/1.6 ui-sans-serif,system-ui">' +
+      '<div style="font-size:16px;font-weight:600;margin-bottom:4px">Projet sans interface</div>' +
+      '<div style="color:#a3a3a3">Ce projet ne contient pas de composant à afficher. Voici son contenu et la sortie console.</div>' +
+      '<ul style="margin:16px 0 0;padding:0;list-style:none;color:#a3a3a3;font-family:ui-monospace,monospace">' + list + "</ul>" +
+      logs + "</div>";
   }
 
   function start() {
