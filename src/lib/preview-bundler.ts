@@ -143,9 +143,16 @@ export function buildReactPreviewDoc(files: PreviewFile[]): string {
       orig.apply(null, arguments);
     };
   });
+  function notifyParent(type, message) {
+    try {
+      parent.postMessage({ source: "capitole-preview", type: type, message: message, logs: capturedLogs.slice(-30) }, "*");
+    } catch (e) {}
+  }
   function showError(e) {
+    var detail = (e && (e.stack || e.message)) || String(e);
     errBox.style.display = "block";
-    errBox.textContent = "Erreur de rendu de l'aperçu\\n\\n" + (e && (e.stack || e.message) || String(e));
+    errBox.textContent = "Erreur de rendu de l'aperçu\\n\\n" + detail;
+    notifyParent("error", detail);
   }
   window.addEventListener("error", function (ev) { showError(ev.error || ev.message); });
   window.addEventListener("unhandledrejection", function (ev) { showError(ev.reason); });
@@ -390,7 +397,11 @@ export function buildReactPreviewDoc(files: PreviewFile[]): string {
   }
 
   function start() {
-    boot().catch(showError);
+    boot().then(function () {
+      setTimeout(function () {
+        if (errBox.style.display !== "block") notifyParent("ok", "");
+      }, 300);
+    }).catch(showError);
   }
 
   if (window.Babel) start();
