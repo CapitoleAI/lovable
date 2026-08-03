@@ -445,42 +445,53 @@ function DashboardPage() {
     setMode(activeId ? "edit" : "empty");
   }, [activeId, mode]);
 
-  const [savedProjects, setSavedProjects] = useState<Array<{id: string; name: string; files: VfsFile[]; updatedAt: number}>>([]);
-  useEffect(() => {
-    try { 
-      const raw = localStorage.getItem("capitoleai_projects"); 
-      if (raw) setSavedProjects(JSON.parse(raw)); 
-      const chats = localStorage.getItem("capitoleai_chats"); 
-      if (chats) setSavedChats(JSON.parse(chats));
-    } catch {}
-  }, []);
+  const [savedProjects, setSavedProjects] = useState<Array<{id: string; name: string; updatedAt: number}>>([]);
+  const projectIdRef = useRef<string | null>(null);
+  useEffect(() => { projectIdRef.current = createProjectId; }, [createProjectId]);
 
-  function saveProject() {
+  async function refreshProjects() {
+    try {
+      const res = await listProjectsFn();
+      setSavedProjects(res.projects);
+    } catch {}
+  }
+
+  useEffect(() => { void refreshProjects(); }, []);
+
+  async function saveProject() {
     if (vfsFiles.length === 0) return;
-    const now = Date.now();
-    const id = createProjectId ?? crypto.randomUUID();
-    if (!createProjectId) setCreateProjectId(id);
-    const existing = savedProjects.filter(p => p.id !== id);
-    const project = { id, name: createProjectName, files: vfsFiles, updatedAt: now };
-    const all = [project, ...existing].slice(0, 50);
-    setSavedProjects(all);
-    localStorage.setItem("capitoleai_projects", JSON.stringify(all));
+    try {
+      const res = await saveProjectFn({
+        data: { id: projectIdRef.current, name: createProjectName, files: vfsFiles },
+      });
+      if (!projectIdRef.current) {
+        projectIdRef.current = res.id;
+        setCreateProjectId(res.id);
+      }
+      void refreshProjects();
+      return res.id;
+    } catch {
+      return null;
+    }
   }
 
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (mode !== "create" || vfsFiles.length === 0) return;
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(() => saveProject(), 2000);
+    saveTimeoutRef.current = setTimeout(() => { void saveProject(); }, 2000);
     return () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); };
   }, [vfsFiles]);
 
-  function updateChatMessages(msgs: ChatMessage[]) {
-    if (!createProjectId || msgs.length === 0) return;
+  async function updateChatMessages(msgs: ChatMessage[]) {
+    if (msgs.length === 0) return;
     setChatMessages(msgs);
-    const updated = { ...savedChats, [createProjectId]: msgs.slice(-100) };
-    setSavedChats(updated);
-    localStorage.setItem("capitoleai_chats", JSON.stringify(updated));
+    let pid = projectIdRef.current;
+    if (!pid) pid = (await saveProject()) ?? null;
+    if (!pid) return;
+    try {
+      await saveMessagesFn({ data: { projectId: pid, messages: msgs.slice(-100) } });
+    } catch {}
   }
 
   // Schedule a version snapshot after React commits file changes
@@ -491,16 +502,23 @@ function DashboardPage() {
   // Effect: create snapshot once vfsFiles has been updated after pendingSnapshotId is set
   useEffect(() => {
     if (!pendingSnapshotId || vfsFiles.length === 0) return;
+    const snapshotId = pendingSnapshotId;
+    const files: VfsFile[] = JSON.parse(JSON.stringify(vfsFiles));
     setVersionHistory((prev) => [
-      {
-        id: pendingSnapshotId,
-        files: JSON.parse(JSON.stringify(vfsFiles)),
-        timestamp: Date.now(),
-        message: `Version ${prev.length + 1}`,
-      },
+      { id: snapshotId, files, timestamp: Date.now(), message: `Version ${prev.length + 1}` },
       ...prev,
     ].slice(0, 20));
     setPendingSnapshotId(null);
+    void (async () => {
+      let pid = projectIdRef.current;
+      if (!pid) pid = (await saveProject()) ?? null;
+      if (!pid) return;
+      try {
+        await saveVersionFn({
+          data: { projectId: pid, id: snapshotId, message: `Version ${versionHistory.length + 1}`, files },
+        });
+      } catch {}
+    })();
   }, [pendingSnapshotId, vfsFiles]);
 
   // Restore files from a specific version
@@ -515,19 +533,27 @@ function DashboardPage() {
     toast.success("Version restaurée");
   }
 
-  function loadProject(id: string) {
-    const p = savedProjects.find(x => x.id === id);
-    if (!p) return;
-    setMode("create");
-    setActiveId(null);
-    setCreateProjectId(p.id);
-    setCreateProjectName(p.name);
-    setVfsFiles(p.files);
-    setChatMessages(savedChats[p.id] ?? []);
-    setSelectedPath(null);
-    setTab("preview");
-    setVersionHistory([{id: "init", files: JSON.parse(JSON.stringify(p.files)), timestamp: Date.now(), message:"Chargé"}]);
-    setVfsPreviewNonce(n=>n+1);
+  async function loadProject(id: string) {
+    try {
+      const p = await getProjectFn({ data: { id } });
+      setMode("create");
+      setActiveId(null);
+      projectIdRef.current = p.id;
+      setCreateProjectId(p.id);
+      setCreateProjectName(p.name);
+      setVfsFiles(p.files as VfsFile[]);
+      setChatMessages(p.messages as ChatMessage[]);
+      setSelectedPath(null);
+      setTab("preview");
+      setVersionHistory(
+        p.versions.length > 0
+          ? (p.versions as Array<{ id: string; files: VfsFile[]; timestamp: number; message: string }>)
+          : [{ id: "init", files: JSON.parse(JSON.stringify(p.files)), timestamp: Date.now(), message: "Chargé" }],
+      );
+      setVfsPreviewNonce((n) => n + 1);
+    } catch {
+      toast.error("Impossible de charger le projet");
+    }
   }
 
   function revertToVersion(v: {id:string; files:VfsFile[];timestamp:number;message:string}) {
@@ -535,6 +561,7 @@ function DashboardPage() {
     setVfsPreviewNonce(n=>n+1);
     toast.success("Version restaurée");
   }
+
 
   function openCreate(projectId?: string) {
     if (projectId) { loadProject(projectId); return; }
