@@ -869,7 +869,8 @@ export const syncCloudflareStatus = createServerFn({ method: "POST" })
 
 const updateSiteSchema = z.object({
   id: z.string().uuid(),
-  pages: z.array(pageContentSchema).min(1).max(60),
+  name: z.string().min(1).max(120).optional(),
+  pages: z.array(pageContentSchema).min(1).max(60).optional(),
   brand: brandIdentitySchema.optional(),
 });
 
