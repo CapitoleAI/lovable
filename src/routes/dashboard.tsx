@@ -727,64 +727,67 @@ function DashboardPage() {
     <div className="flex h-screen w-full flex-col overflow-hidden bg-[#1D1D1C] text-neutral-100">
       <header className="flex h-14 shrink-0 items-stretch bg-[#1D1D1C]">
         <div className="flex w-80 shrink-0 items-center gap-3 px-3">
-        {mode === "create" ? (
-          <input
-            value={createProjectName}
-            onChange={(e) => { setCreateProjectName(e.target.value); saveProject(); }}
-            className="h-8 w-[160px] rounded-md border border-[#3a3a38] bg-[#272726] px-2 text-sm text-neutral-100 outline-none focus:border-[#3B6DF5]"
-            title="Renommer le projet"
-          />
-        ) : null}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button type="button" className="flex items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-[#272726]" title="Menu">
-              <img src={logoAsset.url} alt="CapitoleAI" className="h-7 w-7 object-contain" />
-              <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-[260px]">
-            <DropdownMenuItem onClick={() => { setActiveId(null); setMode("empty"); }}>
-              <LayoutDashboard className="mr-2 h-3.5 w-3.5" /> Dashboard
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Vos sites</DropdownMenuLabel>
-            {sites.length === 0 && <div className="px-2 py-2 text-xs text-muted-foreground">Aucun site pour l'instant.</div>}
-            {sites.map((s) => (
-              <DropdownMenuItem key={s.id} onClick={() => { setActiveId(s.id); setMode("edit"); }} className="flex items-center gap-2">
-                {s.id === activeId ? <Check className="h-3.5 w-3.5" /> : <span className="w-3.5" />}
-                <span className="flex-1 truncate">{s.name}</span>
-                <span className={"text-[10px] " + (s.status === "deployed" ? "text-emerald-600" : s.status === "failed" ? "text-red-600" : "text-muted-foreground")}>{STATUS_LABEL[s.status]}</span>
-              </DropdownMenuItem>
-            ))}
-            {savedProjects.length > 0 && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>Projets locaux</DropdownMenuLabel>
-                {savedProjects.map((p) => (
-                  <DropdownMenuItem key={p.id} onClick={() => loadProject(p.id)} className="flex items-center gap-2">
-                    <FileCode2 className="h-3.5 w-3.5 opacity-60" />
-                    <span className="flex-1 truncate text-xs">{p.name}</span>
-                    <span className="text-[10px] text-muted-foreground">{new Date(p.updatedAt).toLocaleDateString()}</span>
-                  </DropdownMenuItem>
-                ))}
-              </>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => openCreate()}><Plus className="mr-2 h-3.5 w-3.5" /> Nouveau projet</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout}><LogOut className="mr-2 h-3.5 w-3.5" /> Se déconnecter</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          {/* Nom affiché à gauche du logo */}
+          <span className="max-w-[120px] truncate text-xs font-medium text-neutral-100">
+            {mode === "create" ? createProjectName : activeSite ? activeSite.name : "Dashboard"}
+          </span>
 
-        {activeSite ? (
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium">{activeSite.name}</span>
-            {activeSite.status === "deployed" ? <StatusDot up title="En ligne" /> : activeSite.status === "failed" ? <StatusDot up={false} title="Hors ligne" /> : <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-            <span className="text-xs text-muted-foreground">{STATUS_LABEL[activeSite.status]}</span>
-          </div>
-        ) : (
-          <span className="text-sm text-neutral-400">{mode === "create" ? "Nouveau projet" : "Dashboard"}</span>
-        )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className="flex items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-[#272726]" title="Menu">
+                <img src={logoAsset.url} alt="CapitoleAI" className="h-7 w-7 object-contain" />
+                <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-[260px]">
+              <DropdownMenuItem onClick={() => { setActiveId(null); setMode("empty"); }}>
+                <LayoutDashboard className="mr-2 h-3.5 w-3.5" /> Dashboard
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Vos sites</DropdownMenuLabel>
+              {sites.length === 0 && <div className="px-2 py-2 text-xs text-muted-foreground">Aucun site pour l'instant.</div>}
+              {sites.map((s) => (
+                <DropdownMenuItem key={s.id} onClick={() => { setActiveId(s.id); setMode("edit"); }} className="flex items-center gap-2">
+                  {s.id === activeId ? <Check className="h-3.5 w-3.5" /> : <span className="w-3.5" />}
+                  <span className="flex-1 truncate">{s.name}</span>
+                  <span className={"text-[10px] " + (s.status === "deployed" ? "text-emerald-600" : s.status === "failed" ? "text-red-600" : "text-muted-foreground")}>{STATUS_LABEL[s.status]}</span>
+                </DropdownMenuItem>
+              ))}
+              {savedProjects.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Projets locaux</DropdownMenuLabel>
+                  {savedProjects.map((p) => (
+                    <DropdownMenuItem key={p.id} onClick={() => loadProject(p.id)} className="flex items-center gap-2">
+                      <FileCode2 className="h-3.5 w-3.5 opacity-60" />
+                      <span className="flex-1 truncate text-xs">{p.name}</span>
+                      <span className="text-[10px] text-muted-foreground">{new Date(p.updatedAt).toLocaleDateString()}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => openCreate()}><Plus className="mr-2 h-3.5 w-3.5" /> Nouveau projet</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout}><LogOut className="mr-2 h-3.5 w-3.5" /> Se déconnecter</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Nom modifiable à droite du menu */}
+          {mode === "create" ? (
+            <EditableName
+              value={createProjectName}
+              onChange={(name) => { setCreateProjectName(name); saveProject(); }}
+            />
+          ) : activeSite ? (
+            <div className="flex items-center gap-2">
+              <EditableName value={activeSite.name} onChange={handleRenameSite} />
+              {activeSite.status === "deployed" ? <StatusDot up title="En ligne" /> : activeSite.status === "failed" ? <StatusDot up={false} title="Hors ligne" /> : <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+              <span className="text-xs text-muted-foreground">{STATUS_LABEL[activeSite.status]}</span>
+            </div>
+          ) : (
+            <span className="text-sm text-neutral-400">Dashboard</span>
+          )}
         </div>
 
         <div className="flex min-w-0 flex-1 items-center gap-2 px-3">
