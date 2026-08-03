@@ -780,7 +780,7 @@ function DashboardPage() {
               siteName={activeSite?.name}
               brand={draftBrand ?? undefined}
               pages={draftPages ?? undefined}
-              creationContext={mode === "create" ? { app: { files: vfsFiles.map(f => ({ path: f.path })) } } : undefined}
+              creationContext={mode === "create" ? { name: createProjectName, app: { files: vfsFiles.map(f => ({ path: f.path })) } } : undefined}
               onAction={handleAction}
               onCreateWizard={openCreate}
               initialMessages={mode === "create" ? chatMessages : undefined}

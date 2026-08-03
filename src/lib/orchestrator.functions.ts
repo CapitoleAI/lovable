@@ -500,30 +500,13 @@ export const orchestrateChat = createServerFn({ method: "POST" })
       tools = editTools;
     } else if (data.mode === "create") {
       // Coding bot : crée des fichiers directement, comme Lovable
-      const existingFiles = cctx?.app?.files
-        ? cctx.app.files.map((f: { path: string }) => f.path).join(", ")
-        : "aucun";
-      const filesContext = cctx?.app?.files?.length
-        ? `\n\nFICHIERS EXISTANTS : ${existingFiles}\nContenu des fichiers : ${JSON.stringify(cctx.app.files)}`
-        : "\n\nAucun fichier existant. C'est un projet vide. Commence par créer les fichiers essentiels (index.html, style.css, script.js ou app.tsx, etc.).";
-      
-      system = `Tu es un BUILD BOT AUTONOME. Tu crées des applications web en ÉCRIVANT DIRECTEMENT les fichiers de code. Ne pose JAMAIS de question. Code tout de suite.
-
-${filesContext}
-
-OUTILS DISPONIBLES :
-- write_file({ path, content }) — crée un nouveau fichier ou écrase un fichier existant. Fournis le contenu COMPLET.
-- modify_file({ path, content }) — écrase un fichier existant avec son nouveau contenu complet. Pratique quand tu modifies un fichier.
-- delete_file({ path }) — supprime un fichier
-
-RÈGLES IMPÉRATIVES :
-1. NE POSE JAMAIS DE QUESTION. Pas de "Quel nom ?", "Quelle stack ?", RIEN. Code immédiatement.
-2. Pour un nouveau projet, crée TOUS les fichiers nécessaires avec write_file dans le MÊME TOUR (index.html, style.css, script.js, etc.).
-3. Utilise HTML/CSS/JS vanilla par défaut. Si l'utilisateur demande React, Next.js, etc., crée la structure appropriée.
-4. Le code doit être COMPLET et FONCTIONNEL. Pas de "// TODO", pas de placeholders.
-5. Pour modifier un fichier, utilise modify_file() avec le contenu COMPLET du fichier (pas juste le diff).
-6. Après avoir créé les fichiers, appelle set_project_name({ name }) avec un nom court et descriptif.
-7. Ton message texte = 1 phrase décrivant ce que tu viens de faire. JAMAIS de question.`;
+      const basePrompt = await getPromptContent("orchestrator.create.coding");
+      // Injecter le nom du projet dans le placeholder {project_name}
+      const projectName = cctx?.name ?? cctx?.app?.name ?? "Nouveau projet";
+      const fileList = cctx?.app?.files
+        ? `\n\nFICHIERS EXISTANTS : ${cctx.app.files.map((f: { path: string }) => f.path).join(", ")}`
+        : "";
+      system = basePrompt.replace("{project_name}", projectName) + fileList;
       tools = createTools;
     } else {
       system = await getPromptContent("orchestrator.empty");
