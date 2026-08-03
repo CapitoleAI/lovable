@@ -16,6 +16,7 @@ import {
   LogOut,
   Monitor,
   Network,
+  MessageSquare,
   Plus,
   RefreshCw,
   Smartphone,
@@ -862,7 +863,7 @@ function DashboardPage() {
 
         {/* RIGHT: Workspace */}
         <main className="flex min-w-0 flex-1 flex-col bg-muted/30">
-          {mode === "create" ? (
+          <div style={{ display: mode === "create" ? "none" : "none", position: "absolute", width: 0, height: 0, overflow: "hidden" }}>
             <CreationWizard
               ref={wizardRef}
               onSnapshotChange={setCreationSnapshot}
@@ -874,6 +875,9 @@ function DashboardPage() {
                 sitesQuery.refetch();
               }}
             />
+          </div>
+          {mode === "create" ? (
+            <ChatGuidingPlaceholder onExit={exitCreate} />
           ) : !activeSite ? (
             <EmptyWorkspace onCreate={openCreate} />
           ) : ["pending", "generating", "building", "deploying"].includes(activeSite.status) &&
@@ -935,6 +939,26 @@ function DashboardPage() {
   );
 }
 
+
+function ChatGuidingPlaceholder({ onExit }: { onExit: () => void }) {
+  return (
+    <div className="flex flex-1 items-center justify-center p-10">
+      <div className="max-w-md text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#3B6DF5]/10">
+          <MessageSquare className="h-6 w-6 text-[#3B6DF5]" />
+        </div>
+        <h2 className="text-xl font-semibold">Création guidée</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Décrivez votre projet dans le chat à gauche. L'IA vous posera des questions
+          et construira le site pour vous, sans formulaire à remplir.
+        </p>
+        <Button className="mt-6" variant="ghost" onClick={onExit}>
+          ← Retour au dashboard
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 function EmptyWorkspace({ onCreate }: { onCreate: () => void }) {
   return (
