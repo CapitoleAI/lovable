@@ -187,12 +187,12 @@ export const saveProjectVersion = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!owned) throw new Error("Projet introuvable");
 
-    const payload: Record<string, unknown> = {
+    const payload = {
       project_id: data.projectId,
       message: data.message,
       files: data.files,
+      ...(data.id && /^[0-9a-f-]{36}$/i.test(data.id) ? { id: data.id } : {}),
     };
-    if (data.id && /^[0-9a-f-]{36}$/i.test(data.id)) payload.id = data.id;
 
     const { data: row, error } = await supabase
       .from("app_project_versions")
