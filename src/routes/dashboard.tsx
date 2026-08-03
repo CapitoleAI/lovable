@@ -504,17 +504,8 @@ function DashboardPage() {
     }
     if (action.type === "modify_file") {
       setVfsFiles((prev) => {
-        const idx = prev.findIndex(f => f.path === action.path);
-        if (idx === -1) return prev;
-        const file = prev[idx];
-        const newContent = file.content.replace(action.old_code, action.new_code);
-        if (newContent === file.content) {
-          toast.error(`Modification échouée sur ${action.path} : le code à remplacer n'a pas été trouvé.`);
-          return prev;
-        }
-        const updated = [...prev];
-        updated[idx] = { ...file, content: newContent };
-        return updated;
+        const existing = prev.filter(f => f.path !== action.path);
+        return [...existing, { path: action.path, content: action.content }];
       });
       setVfsPreviewNonce(n => n + 1);
       toast.success(`Fichier modifié : ${action.path}`);

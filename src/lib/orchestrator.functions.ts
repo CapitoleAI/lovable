@@ -236,8 +236,7 @@ const actionSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("modify_file"),
     path: z.string().min(1).max(300),
-    old_code: z.string().min(1).max(50_000),
-    new_code: z.string().max(200_000),
+    content: z.string().max(200_000),
   }),
   z.object({
     type: z.literal("delete_file"),
@@ -427,15 +426,14 @@ const createTools: OpenAiTool[] = [
     function: {
       name: "modify_file",
       description:
-        "Modifie une partie d'un fichier existant. Fournis l'ancien code à remplacer (old_code) et le nouveau (new_code). L'ancien code doit correspondre exactement au contenu actuel pour que le remplacement fonctionne.",
+        "Remplace complètement un fichier existant par son nouveau contenu. Équivalent à write_file mais signale que c'est une modification. Fournis le contenu COMPLET du fichier.",
       parameters: {
         type: "object",
         properties: {
           path: { type: "string", description: "Chemin relatif du fichier à modifier" },
-          old_code: { type: "string", description: "Le code exact à remplacer (doit matcher le fichier actuel)" },
-          new_code: { type: "string", description: "Le nouveau code qui remplacera l'ancien" },
+          content: { type: "string", description: "Nouveau contenu COMPLET du fichier" },
         },
-        required: ["path", "old_code", "new_code"],
+        required: ["path", "content"],
       },
     },
   },
@@ -496,8 +494,8 @@ export const orchestrateChat = createServerFn({ method: "POST" })
 ${filesContext}
 
 OUTILS DISPONIBLES :
-- write_file({ path, content }) — crée un nouveau fichier ou écrase un fichier existant
-- modify_file({ path, old_code, new_code }) — modifie une partie d'un fichier existant
+- write_file({ path, content }) — crée un nouveau fichier ou écrase un fichier existant. Fournis le contenu COMPLET.
+- modify_file({ path, content }) — écrase un fichier existant avec son nouveau contenu complet. Pratique quand tu modifies un fichier.
 - delete_file({ path }) — supprime un fichier
 
 RÈGLES IMPÉRATIVES :
@@ -505,8 +503,8 @@ RÈGLES IMPÉRATIVES :
 2. Pour un nouveau projet, crée TOUS les fichiers nécessaires avec write_file dans le MÊME TOUR (index.html, style.css, script.js, etc.).
 3. Utilise HTML/CSS/JS vanilla par défaut. Si l'utilisateur demande React, Next.js, etc., crée la structure appropriée.
 4. Le code doit être COMPLET et FONCTIONNEL. Pas de "// TODO", pas de placeholders.
-5. Pour modifier, fournis old_code (le code exact à remplacer) et new_code (le remplacement).
-6. Ton message texte = 1 phrase décrivant ce que tu viens de créer. JAMAIS de question.`;
+5. Pour modifier un fichier, utilise modify_file() avec le contenu COMPLET du fichier (pas juste le diff).
+6. Ton message texte = 1 phrase décrivant ce que tu viens de faire. JAMAIS de question.`;
       tools = createTools;
     } else {
       system = await getPromptContent("orchestrator.empty");
