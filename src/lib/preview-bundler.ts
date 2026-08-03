@@ -397,7 +397,11 @@ export function buildReactPreviewDoc(files: PreviewFile[]): string {
   }
 
   function start() {
-    boot().catch(showError);
+    boot().then(function () {
+      setTimeout(function () {
+        if (errBox.style.display !== "block") notifyParent("ok", "");
+      }, 300);
+    }).catch(showError);
   }
 
   if (window.Babel) start();
