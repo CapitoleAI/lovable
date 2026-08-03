@@ -887,14 +887,7 @@ export const updateSite = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     if (!row || row.owner_email !== email) throw new Error("Not found");
 
-    type SiteUpdate = {
-      name?: string;
-      site_data?: SiteData;
-      random_seed?: Record<string, unknown>;
-      status?: string;
-      last_error?: null;
-    };
-    const updatePayload: SiteUpdate = {};
+    const updatePayload: Record<string, unknown> = {};
     if (data.name && data.name !== row.name) updatePayload.name = data.name;
 
     if (data.pages) {
@@ -928,7 +921,7 @@ export const updateSite = createServerFn({ method: "POST" })
     }
 
     if (Object.keys(updatePayload).length > 0) {
-      await supabase.from("sites").update(updatePayload).eq("id", data.id);
+      await supabase.from("sites").update(updatePayload as Record<string, never>).eq("id", data.id);
     }
 
     // Only trigger a rebuild when pages changed, not on a simple rename
