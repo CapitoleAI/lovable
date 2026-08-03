@@ -181,11 +181,32 @@ function getFileLabel(path: string): string {
 
 // ---------------- Create mode preview component ----------------
 
-function CreatePreview({ files, nonce }: { files: VfsFile[]; nonce: number }) {
+function CreatePreview({
+  files,
+  nonce,
+  onError,
+}: {
+  files: VfsFile[];
+  nonce: number;
+  onError: (message: string | null) => void;
+}) {
   const doc = useMemo(
     () => (files.length === 0 ? null : buildPreviewDoc(files)),
     [files, nonce],
   );
+
+  useEffect(() => {
+    function onMessage(ev: MessageEvent) {
+      const d = ev.data as { source?: string; type?: string; message?: string } | null;
+      if (!d || d.source !== "capitole-preview") return;
+      if (d.type === "error") onError(d.message ?? "Erreur inconnue");
+      else if (d.type === "ok") onError(null);
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [onError]);
+
+  useEffect(() => { onError(null); }, [nonce, files]);
 
   if (!doc) {
     return (
@@ -207,6 +228,41 @@ function CreatePreview({ files, nonce }: { files: VfsFile[]; nonce: number }) {
       srcDoc={doc}
       className="h-full w-full rounded-lg border border-[#272726] bg-white"
     />
+  );
+}
+
+function PreviewErrorBox({
+  error,
+  onFix,
+  onDismiss,
+  fixing,
+}: {
+  error: string;
+  onFix: () => void;
+  onDismiss: () => void;
+  fixing: boolean;
+}) {
+  return (
+    <div className="pointer-events-auto absolute inset-x-4 bottom-4 z-20 rounded-xl border border-red-500/40 bg-[#241a1a] p-3 shadow-xl">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-red-500/15">
+          <AlertTriangle className="h-4 w-4 text-red-400" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-red-200">Erreur détectée dans l'aperçu</p>
+          <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-red-300/80">{error}</pre>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button size="sm" className="bg-red-500 text-white hover:bg-red-600" onClick={onFix} disabled={fixing}>
+            {fixing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Wrench className="mr-1.5 h-3.5 w-3.5" />}
+            Fix bug
+          </Button>
+          <button type="button" className="rounded p-1 text-neutral-400 hover:bg-white/5" onClick={onDismiss} title="Ignorer">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -308,6 +364,9 @@ function EditableName({ value, onChange }: { value: string; onChange: (value: st
 // ---------------- Component ----------------
 
 function DashboardPage() {
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [fixPrompt, setFixPrompt] = useState<{ text: string; nonce: number }>({ text: "", nonce: 0 });
+  const [fixing, setFixing] = useState(false);
   const { sites: initialSites } = Route.useLoaderData();
   const router = useRouter();
   const logout = useServerFn(signOut);
@@ -889,6 +948,8 @@ function DashboardPage() {
               onMessagesChange={mode === "create" ? updateChatMessages : undefined}
               onMessageProcessed={handleMessageProcessed}
               onRevertToVersion={handleRevertToVersion}
+              externalPrompt={fixPrompt}
+              onExternalPromptSent={() => { setFixing(false); setPreviewError(null); }}
             />
           </div>
         </aside>
@@ -905,8 +966,24 @@ function DashboardPage() {
                 </div>
               </div>
             ) : (
-              <div className="min-h-0 flex-1 p-4">
-                <CreatePreview files={vfsFiles} nonce={vfsPreviewNonce} />
+              <div className="relative min-h-0 flex-1 p-4">
+                <CreatePreview files={vfsFiles} nonce={vfsPreviewNonce} onError={setPreviewError} />
+                {previewError && (
+                  <PreviewErrorBox
+                    error={previewError}
+                    fixing={fixing}
+                    onDismiss={() => setPreviewError(null)}
+                    onFix={() => {
+                      setFixing(true);
+                      setFixPrompt({
+                        nonce: Date.now(),
+                        text:
+                          "L'aperçu de l'application plante avec l'erreur suivante. Analyse les fichiers du projet, identifie la cause et corrige directement le ou les fichiers concernés.\n\nErreur :\n" +
+                          previewError,
+                      });
+                    }}
+                  />
+                )}
               </div>
             )
           ) : !activeSite ? (
