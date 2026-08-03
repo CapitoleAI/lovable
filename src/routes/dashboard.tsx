@@ -295,6 +295,53 @@ function CreateFileTree({ files, selectedPath, onSelect }: {
   );
 }
 
+// ---------------- Editable project/site name ----------------
+
+function EditableName({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setDraft(value); }, [value]);
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [editing]);
+
+  function commit() {
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== value) onChange(trimmed);
+    setEditing(false);
+  }
+
+  function cancel() {
+    setDraft(value);
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") cancel(); }}
+        className="h-7 w-[140px] rounded-md border border-[#3B6DF5] bg-[#272726] px-2 text-xs font-medium text-neutral-100 outline-none"
+      />
+    );
+  }
+
+  return (
+    <button type="button" onClick={() => setEditing(true)} className="group flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-[#272726]" title="Cliquer pour renommer">
+      <span className="max-w-[160px] truncate text-xs font-medium text-neutral-100">{value}</span>
+    </button>
+  );
+}
+
 // ---------------- Component ----------------
 
 function DashboardPage() {
