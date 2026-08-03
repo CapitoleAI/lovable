@@ -23,6 +23,9 @@ import {
   Tablet,
   Trash2,
   Upload,
+  AlertTriangle,
+  Wrench,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
