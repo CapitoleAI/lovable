@@ -173,7 +173,7 @@ async function callAiWithTools(
         {
           role: "user",
           content:
-            "Réponds maintenant en français, 1 à 3 phrases max, en confirmant ce que tu viens de faire ET en posant la prochaine question utile pour avancer. Ne répète pas juste 'OK'.",
+            "Réponds maintenant en français, 1 phrase max, en confirmant ce que tu viens de faire. Ne pose PAS de question, ne demande rien. Sois direct et conclusif.",
         },
       ];
       const r2 = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -560,20 +560,31 @@ export const orchestrateChat = createServerFn({ method: "POST" })
       ? `\nTYPE DE PROJET: ${cctx.project_type ?? "non choisi"}${cctx.project_type === "full_app" ? `\nAPP: ${JSON.stringify(cctx.app ?? {})}` : ""}\nCONTEXTE CRÉATION (étape ${cctx.step ?? 1}/5):\n- Nom brief: ${cctx.name || "-"}\n- Thème: ${cctx.theme || "-"}\n- Ville: ${cctx.city || "-"}\n- Brief: ${cctx.brief || "-"}\n- Couleurs indices: ${(cctx.hint_colors ?? []).join(", ") || "-"}\n- Marque affichée: ${cctx.brand ? JSON.stringify({ brand_name: cctx.brand.brand_name, tagline: cctx.brand.tagline, colors: cctx.brand.colors, design_style: cctx.brand.design_style, logo_url: cctx.brand.logo_url ? "présent" : "absent" }) : "-"}\n- Mot-clé principal: ${cctx.main_keyword || "-"}\n- Mots-clés: ${(cctx.keywords ?? []).join(", ") || "-"}\n- Sitemap: ${(cctx.sitemap ?? []).map((p) => p.title).join(", ") || "-"}`
       : "";
 
-    let promptKey: PromptKey;
+    let system: string;
     let tools: OpenAiTool[];
     if (data.mode === "edit") {
-      promptKey = "orchestrator.edit";
+      system = await getPromptContent("orchestrator.edit");
       tools = editTools;
     } else if (data.mode === "create") {
-      const step = Math.min(5, Math.max(1, cctx?.step ?? 1));
-      promptKey = `orchestrator.create.step${step}` as PromptKey;
+      // Mode création autonome : un seul prompt, pas de steps, pas de questions
+      system = `Tu es un BUILD BOT AUTONOME. Tu crées des sites web complets sans JAMAIS poser de question à l'utilisateur. Tu extrais ce que tu peux du message, tu INVENTES le reste, et tu ENCHAÎNES les actions.
+
+Actions disponibles :
+- update_creation_brief({ name, theme, city, brief, hint_colors? }) — remplis TOUS les champs d'un coup. INVENTE un nom crédible si absent, mets "Paris" si pas de ville, déduis le thème.
+- advance_to_brand_studio({ name, theme, city, brief, hint_colors? }) — génère la marque + logo automatiquement.
+- generate_seo_and_tree({ main_keyword?, keywords?, sitemap? }) — génère SEO + arborescence. Laisse vide pour auto-génération.
+- finalize_and_build() — lance le build final.
+
+RÈGLES :
+1. NE POSE JAMAIS DE QUESTION. Pas de "quel est le nom ?", pas de "quelle ville ?", RIEN.
+2. Appelle update_creation_brief + advance_to_brand_studio dans le MÊME tour.
+3. Si tu reçois déjà un contexte avec brand/colors remplis, passe directement à generate_seo_and_tree + finalize_and_build.
+4. Ton message = 1 phrase de confirmation. JAMAIS de point d'interrogation.`;
       tools = createTools;
     } else {
-      promptKey = "orchestrator.empty";
+      system = await getPromptContent("orchestrator.empty");
       tools = emptyTools;
     }
-    const system = await getPromptContent(promptKey);
 
 
     let reply = "OK.";
