@@ -75,10 +75,10 @@ export function WorkspaceChat({
     });
   }, [messages, busy]);
 
-  async function send() {
-    const text = input.trim();
+  async function send(override?: string) {
+    const text = (override ?? input).trim();
     if (!text || busy) return;
-    setInput("");
+    if (!override) setInput("");
     const nextHistory: ChatMessage[] = [...messages, { role: "user", content: text }];
     setMessages(nextHistory);
     setBusy(true);
