@@ -57,7 +57,7 @@ import {
 } from "@/components/ui/popover";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { WorkspaceChat } from "@/components/workspace-chat";
+import { WorkspaceChat, type ChatMessage } from "@/components/workspace-chat";
 import { WorkspacePreview } from "@/components/workspace-preview";
 import { WorkspaceCode } from "@/components/workspace-code";
 import { WorkspaceSitemap } from "@/components/workspace-sitemap";
