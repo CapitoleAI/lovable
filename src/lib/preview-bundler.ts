@@ -379,7 +379,7 @@ export function buildReactPreviewDoc(files: PreviewFile[]): string {
       return '<li style="padding:2px 0">' + p + '</li>';
     }).join("");
     var logs = capturedLogs.length
-      ? '<pre style="margin:16px 0 0;padding:12px;border-radius:8px;background:#111;color:#a7f3d0;white-space:pre-wrap">' + capturedLogs.join("\n").replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }) + "</pre>"
+      ? '<pre style="margin:16px 0 0;padding:12px;border-radius:8px;background:#111;color:#a7f3d0;white-space:pre-wrap">' + capturedLogs.join("\\n").replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }) + "</pre>"
       : "";
     document.getElementById("root").innerHTML =
       '<div style="height:100%;overflow:auto;padding:28px;background:#1D1D1C;color:#e5e5e5;font:13px/1.6 ui-sans-serif,system-ui">' +
