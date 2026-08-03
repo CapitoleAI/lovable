@@ -271,6 +271,17 @@ function DashboardPage() {
   // VFS state for create mode
   const [vfsFiles, setVfsFiles] = useState<VfsFile[]>([]);
   const [vfsPreviewNonce, setVfsPreviewNonce] = useState(0);
+  
+  // Project persistence
+  const [createProjectId, setCreateProjectId] = useState<string | null>(null);
+  const [createProjectName, setCreateProjectName] = useState<string>("Nouveau projet");
+  
+  // Version history: array of snapshots [{files, timestamp, message}]
+  const [versionHistory, setVersionHistory] = useState<Array<{
+    files: VfsFile[];
+    timestamp: number;
+    message: string;
+  }>>([]);
 
   // Local draft state per active site
   const [draftPages, setDraftPages] = useState<PageContent[] | null>(null);
@@ -344,21 +355,71 @@ function DashboardPage() {
     setMode(activeId ? "edit" : "empty");
   }, [activeId, mode]);
 
-  function openCreate() {
+  const [savedProjects, setSavedProjects] = useState<Array<{id: string; name: string; files: VfsFile[]; updatedAt: number}>>([]);
+  useEffect(() => {
+    try { const raw = localStorage.getItem("capitoleai_projects"); if (raw) setSavedProjects(JSON.parse(raw)); } catch {}
+  }, []);
+
+  function saveProject() {
+    if (vfsFiles.length === 0) return;
+    const now = Date.now();
+    const id = createProjectId ?? crypto.randomUUID();
+    if (!createProjectId) setCreateProjectId(id);
+    const existing = savedProjects.filter(p => p.id !== id);
+    const project = { id, name: createProjectName, files: vfsFiles, updatedAt: now };
+    const all = [project, ...existing].slice(0, 50);
+    setSavedProjects(all);
+    localStorage.setItem("capitoleai_projects", JSON.stringify(all));
+  }
+
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (mode !== "create" || vfsFiles.length === 0) return;
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => saveProject(), 2000);
+    return () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); };
+  }, [vfsFiles]);
+
+  function loadProject(id: string) {
+    const p = savedProjects.find(x => x.id === id);
+    if (!p) return;
+    setMode("create");
+    setActiveId(null);
+    setCreateProjectId(p.id);
+    setCreateProjectName(p.name);
+    setVfsFiles(p.files);
+    setSelectedPath(null);
+    setTab("preview");
+    setVersionHistory([{files:JSON.parse(JSON.stringify(p.files)),timestamp:Date.now(),message:"Chargé"}]);
+    setVfsPreviewNonce(n=>n+1);
+  }
+
+  function revertToVersion(v: {files:VfsFile[];timestamp:number;message:string}) {
+    setVfsFiles(JSON.parse(JSON.stringify(v.files)));
+    setVfsPreviewNonce(n=>n+1);
+    toast.success("Version restaurée");
+  }
+
+  function openCreate(projectId?: string) {
+    if (projectId) { loadProject(projectId); return; }
     setActiveId(null);
     setMode("create");
+    setCreateProjectId(null);
+    setCreateProjectName("Nouveau projet");
     setVfsFiles([]);
+    setVersionHistory([]);
     setSelectedPath(null);
     setTab("preview");
   }
 
   function exitCreate() {
+    saveProject();
     setMode(sites.length > 0 ? "edit" : "empty");
-    if (sites.length > 0 && !activeId) {
-      setActiveId(sites[0].id);
-    }
+    if (sites.length > 0 && !activeId) setActiveId(sites[0].id);
     setVfsFiles([]);
     setSelectedPath(null);
+    setCreateProjectId(null);
+    setVersionHistory([]);
   }
 
 
@@ -679,8 +740,28 @@ function DashboardPage() {
                 </span>
               </DropdownMenuItem>
             ))}
+            {/* Saved local projects */}
+            {savedProjects.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Projets locaux</DropdownMenuLabel>
+                {savedProjects.map((p) => (
+                  <DropdownMenuItem
+                    key={p.id}
+                    onClick={() => loadProject(p.id)}
+                    className="flex items-center gap-2"
+                  >
+                    <FileCode2 className="h-3.5 w-3.5 opacity-60" />
+                    <span className="flex-1 truncate text-xs">{p.name}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {new Date(p.updatedAt).toLocaleDateString()}
+                    </span>
+                  </DropdownMenuItem>
+                ))}
+              </>
+            )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={openCreate}>
+            <DropdownMenuItem onClick={() => openCreate()}>
               <Plus className="mr-2 h-3.5 w-3.5" /> Nouveau projet
             </DropdownMenuItem>
             <DropdownMenuSeparator />
