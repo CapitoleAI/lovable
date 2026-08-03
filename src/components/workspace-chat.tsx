@@ -30,6 +30,9 @@ interface Props {
   onMessagesChange?: (messages: ChatMessage[]) => void;
   onMessageProcessed?: (versionId: string) => void;
   onRevertToVersion?: (versionId: string) => void;
+  /** Prompt injected from outside (e.g. "Fix bug"). Change `nonce` to trigger a send. */
+  externalPrompt?: { text: string; nonce: number };
+  onExternalPromptSent?: () => void;
 }
 
 const FILE_ACTION_TYPES = new Set(["write_file", "modify_file", "delete_file"]);
@@ -46,6 +49,8 @@ export function WorkspaceChat({
   onMessagesChange,
   onMessageProcessed,
   onRevertToVersion,
+  externalPrompt,
+  onExternalPromptSent,
 }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -67,6 +72,15 @@ export function WorkspaceChat({
       onMessagesChange(messages);
     }
   }, [messages.length]);
+
+  const sentPromptNonce = useRef<number>(0);
+  useEffect(() => {
+    if (!externalPrompt || externalPrompt.nonce === 0) return;
+    if (sentPromptNonce.current === externalPrompt.nonce) return;
+    if (busy) return;
+    sentPromptNonce.current = externalPrompt.nonce;
+    void send(externalPrompt.text).then(() => onExternalPromptSent?.());
+  }, [externalPrompt?.nonce, busy]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -249,7 +263,7 @@ export function WorkspaceChat({
                 type="button"
                 size="icon"
                 className="h-9 w-9 rounded-full bg-neutral-500 text-white hover:bg-neutral-400 disabled:opacity-50"
-                onClick={send}
+                onClick={() => send()}
                 disabled={busy || !input.trim()}
               >
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
