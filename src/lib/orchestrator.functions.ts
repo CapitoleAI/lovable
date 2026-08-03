@@ -242,6 +242,10 @@ const actionSchema = z.discriminatedUnion("type", [
     type: z.literal("delete_file"),
     path: z.string().min(1).max(300),
   }),
+  z.object({
+    type: z.literal("set_project_name"),
+    name: z.string().min(1).max(120),
+  }),
 ]);
 export type OrchestratorAction = z.infer<typeof actionSchema>;
 
@@ -451,6 +455,20 @@ const createTools: OpenAiTool[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "set_project_name",
+      description: "Donne un nom au projet. Appelle ce tool après avoir créé les premiers fichiers pour nommer le projet.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Nom du projet" },
+        },
+        required: ["name"],
+      },
+    },
+  },
 ];
 
 
@@ -504,7 +522,8 @@ RÈGLES IMPÉRATIVES :
 3. Utilise HTML/CSS/JS vanilla par défaut. Si l'utilisateur demande React, Next.js, etc., crée la structure appropriée.
 4. Le code doit être COMPLET et FONCTIONNEL. Pas de "// TODO", pas de placeholders.
 5. Pour modifier un fichier, utilise modify_file() avec le contenu COMPLET du fichier (pas juste le diff).
-6. Ton message texte = 1 phrase décrivant ce que tu viens de faire. JAMAIS de question.`;
+6. Après avoir créé les fichiers, appelle set_project_name({ name }) avec un nom court et descriptif.
+7. Ton message texte = 1 phrase décrivant ce que tu viens de faire. JAMAIS de question.`;
       tools = createTools;
     } else {
       system = await getPromptContent("orchestrator.empty");

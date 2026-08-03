@@ -181,16 +181,11 @@ function CreatePreview({ files, nonce }: { files: VfsFile[]; nonce: number }) {
       </div>
     );
   }
-
-  // Build a full document for the iframe
   const cssFiles = files.filter(f => f.path.endsWith(".css"));
   const jsFiles = files.filter(f => f.path.endsWith(".js") || f.path.endsWith(".mjs"));
-
   const styles = cssFiles.map(f => `<style>${f.content}</style>`).join("\n");
   const scripts = jsFiles.map(f => `<script>${f.content}</script>`).join("\n");
-
   const doc = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${styles}</head><body>${htmlFile.content}${scripts}</body></html>`;
-
   return (
     <iframe
       key={`create-preview-${nonce}`}
@@ -209,7 +204,6 @@ function CreateFileTree({ files, selectedPath, onSelect }: {
   selectedPath: string | null;
   onSelect: (path: string) => void;
 }) {
-  // Group by directory
   const dirs = new Map<string, VfsFile[]>();
   for (const f of files) {
     const parts = f.path.split("/");
@@ -217,7 +211,6 @@ function CreateFileTree({ files, selectedPath, onSelect }: {
     if (!dirs.has(dir)) dirs.set(dir, []);
     dirs.get(dir)!.push(f);
   }
-
   return (
     <div className="space-y-1 p-2">
       {Array.from(dirs.entries()).map(([dir, dirFiles]) => (
@@ -275,8 +268,10 @@ function DashboardPage() {
   // Project persistence
   const [createProjectId, setCreateProjectId] = useState<string | null>(null);
   const [createProjectName, setCreateProjectName] = useState<string>("Nouveau projet");
+  const [chatMessages, setChatMessages] = useState<Array<{role: string; content: string}>>([]);
+  const [savedChats, setSavedChats] = useState<Record<string, Array<{role: string; content: string}>>>({});
   
-  // Version history: array of snapshots [{files, timestamp, message}]
+  // Version history
   const [versionHistory, setVersionHistory] = useState<Array<{
     files: VfsFile[];
     timestamp: number;
@@ -288,13 +283,11 @@ function DashboardPage() {
   const [draftBrand, setDraftBrand] = useState<Partial<BrandIdentity> | null>(null);
   const [publishing, setPublishing] = useState(false);
 
-  // Workspace UI state (lifted from tabs/preview)
+  // Workspace UI state
   const [tab, setTab] = useState<"preview" | "code" | "sitemap" | "analytics">("preview");
   const [device, setDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [previewSlug, setPreviewSlug] = useState<string>("index");
   const [previewNonce, setPreviewNonce] = useState(0);
-
-  // Create mode code tab state
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
 
 
@@ -317,7 +310,6 @@ function DashboardPage() {
     [sites, activeId],
   );
 
-  // When active site changes, reset drafts from server state
   useEffect(() => {
     if (activeSite) {
       const pages = activeSite.site_data?.pages ?? null;
@@ -340,7 +332,6 @@ function DashboardPage() {
     }
   }, [activeSite?.id]);
 
-  // Auto-select first site on first load if none selected AND not creating
   useEffect(() => {
     if (!activeId && mode !== "create" && sites.length > 0) {
       const firstDeployed = sites.find((s) => s.status === "deployed") ?? sites[0];
@@ -349,7 +340,6 @@ function DashboardPage() {
     }
   }, [sites.length]);
 
-  // Keep mode in sync with active site
   useEffect(() => {
     if (mode === "create") return;
     setMode(activeId ? "edit" : "empty");
@@ -357,7 +347,12 @@ function DashboardPage() {
 
   const [savedProjects, setSavedProjects] = useState<Array<{id: string; name: string; files: VfsFile[]; updatedAt: number}>>([]);
   useEffect(() => {
-    try { const raw = localStorage.getItem("capitoleai_projects"); if (raw) setSavedProjects(JSON.parse(raw)); } catch {}
+    try { 
+      const raw = localStorage.getItem("capitoleai_projects"); 
+      if (raw) setSavedProjects(JSON.parse(raw)); 
+      const chats = localStorage.getItem("capitoleai_chats"); 
+      if (chats) setSavedChats(JSON.parse(chats));
+    } catch {}
   }, []);
 
   function saveProject() {
@@ -380,6 +375,14 @@ function DashboardPage() {
     return () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); };
   }, [vfsFiles]);
 
+  function updateChatMessages(msgs: Array<{role: string; content: string}>) {
+    if (!createProjectId || msgs.length === 0) return;
+    setChatMessages(msgs);
+    const updated = { ...savedChats, [createProjectId]: msgs.slice(-100) };
+    setSavedChats(updated);
+    localStorage.setItem("capitoleai_chats", JSON.stringify(updated));
+  }
+
   function loadProject(id: string) {
     const p = savedProjects.find(x => x.id === id);
     if (!p) return;
@@ -388,6 +391,7 @@ function DashboardPage() {
     setCreateProjectId(p.id);
     setCreateProjectName(p.name);
     setVfsFiles(p.files);
+    setChatMessages(savedChats[p.id] ?? []);
     setSelectedPath(null);
     setTab("preview");
     setVersionHistory([{files:JSON.parse(JSON.stringify(p.files)),timestamp:Date.now(),message:"Chargé"}]);
@@ -407,6 +411,7 @@ function DashboardPage() {
     setCreateProjectId(null);
     setCreateProjectName("Nouveau projet");
     setVfsFiles([]);
+    setChatMessages([]);
     setVersionHistory([]);
     setSelectedPath(null);
     setTab("preview");
@@ -419,11 +424,12 @@ function DashboardPage() {
     setVfsFiles([]);
     setSelectedPath(null);
     setCreateProjectId(null);
+    setChatMessages([]);
     setVersionHistory([]);
   }
 
 
-  // Background Cloudflare sync every 60s for deployed/failed sites
+  // Background Cloudflare sync
   useEffect(() => {
     const ids = sites
       .filter((s) => s.status === "deployed" || s.status === "failed")
@@ -432,43 +438,26 @@ function DashboardPage() {
     let cancelled = false;
     async function tick() {
       for (const id of ids) {
-        try {
-          await syncCf({ data: { id } });
-        } catch {
-          /* silent */
-        }
+        try { await syncCf({ data: { id } }); } catch {}
       }
       if (!cancelled) sitesQuery.refetch();
     }
     const t = setInterval(tick, 60_000);
-    return () => {
-      cancelled = true;
-      clearInterval(t);
-    };
+    return () => { cancelled = true; clearInterval(t); };
   }, [sites.map((s) => s.id).join(","), sites.map((s) => s.status).join(",")]);
 
-  // While the active site is building, reconcile its status against GitHub every 5s
   useEffect(() => {
     if (!activeSite) return;
-    const inProgress = ["pending", "generating", "building", "deploying"].includes(
-      activeSite.status,
-    );
+    const inProgress = ["pending", "generating", "building", "deploying"].includes(activeSite.status);
     if (!inProgress) return;
     let cancelled = false;
     async function tick() {
-      try {
-        await buildProgress({ data: { id: activeSite!.id } });
-      } catch {
-        /* silent */
-      }
+      try { await buildProgress({ data: { id: activeSite!.id } }); } catch {}
       if (!cancelled) sitesQuery.refetch();
     }
     tick();
     const t = setInterval(tick, 5000);
-    return () => {
-      cancelled = true;
-      clearInterval(t);
-    };
+    return () => { cancelled = true; clearInterval(t); };
   }, [activeSite?.id, activeSite?.status]);
 
   const isDirty = useMemo(() => {
@@ -503,57 +492,24 @@ function DashboardPage() {
       toast.success("Site supprimé");
       if (activeId === id) setActiveId(null);
       sitesQuery.refetch();
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
+    } catch (e) { toast.error((e as Error).message); }
   }
 
   async function handlePublish() {
     if (!activeSite || !draftPages) return;
     setPublishing(true);
     try {
-      const brandForSave = draftBrand
-        ? ({
-            brand_name: draftBrand.brand_name ?? activeSite.name,
-            tagline: draftBrand.tagline ?? "",
-            story: draftBrand.story ?? "",
-            colors: draftBrand.colors ?? {
-              primary: "#0f172a",
-              secondary: "#334155",
-              accent: "#38bdf8",
-              neutral: "#e2e8f0",
-              background: "#ffffff",
-            },
-            logo_url: draftBrand.logo_url ?? "",
-            moodboard_url: "",
-            design_style: draftBrand.design_style ?? "minimaliste",
-            header_style: draftBrand.header_style ?? "classique",
-            footer_style: draftBrand.footer_style ?? "simple",
-            sections: draftBrand.sections ?? [],
-            selected_header_id: "",
-            selected_hero_id: "",
-            selected_section_ids: [],
-            selected_footer_id: "",
-            component_overrides: {},
-            home_html: "",
-          } as BrandIdentity)
-        : undefined;
-      const res = await save({
-        data: { id: activeSite.id, pages: draftPages, brand: brandForSave },
-      });
+      const brandForSave = draftBrand ? ({ brand_name: draftBrand.brand_name ?? activeSite.name, tagline: draftBrand.tagline ?? "", story: draftBrand.story ?? "", colors: draftBrand.colors ?? { primary: "#0f172a", secondary: "#334155", accent: "#38bdf8", neutral: "#e2e8f0", background: "#ffffff" }, logo_url: draftBrand.logo_url ?? "", moodboard_url: "", design_style: draftBrand.design_style ?? "minimaliste", header_style: draftBrand.header_style ?? "classique", footer_style: draftBrand.footer_style ?? "simple", sections: draftBrand.sections ?? [], selected_header_id: "", selected_hero_id: "", selected_section_ids: [], selected_footer_id: "", component_overrides: {}, home_html: "" } as BrandIdentity) : undefined;
+      const res = await save({ data: { id: activeSite.id, pages: draftPages, brand: brandForSave } });
       if (!res.ok) throw new Error(res.error ?? "Échec de la publication");
       toast.success("Publication lancée");
       sitesQuery.refetch();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setPublishing(false);
-    }
+    } catch (e) { toast.error((e as Error).message); }
+    finally { setPublishing(false); }
   }
 
   // ---------- Chat action handler ----------
   async function handleAction(action: OrchestratorAction) {
-    // Create-mode: coding tools
     if (action.type === "write_file") {
       setVfsFiles((prev) => {
         const existing = prev.filter(f => f.path !== action.path);
@@ -579,7 +535,11 @@ function DashboardPage() {
       toast.success(`Fichier supprimé : ${action.path}`);
       return;
     }
-    // open_create_wizard handled in onCreateWizard
+    if (action.type === "set_project_name") {
+      setCreateProjectName(action.name);
+      saveProject();
+      return;
+    }
     if (action.type === "open_create_wizard") {
       openCreate();
       return;
@@ -587,21 +547,11 @@ function DashboardPage() {
 
     if (!activeSite || !draftPages) return;
 
-
     if (action.type === "update_colors") {
       setDraftBrand((prev) => {
         const base = prev ?? { brand_name: activeSite.name };
-        const cur = (base.colors ?? {
-          primary: "#0f172a",
-          secondary: "#334155",
-          accent: "#38bdf8",
-          neutral: "#e2e8f0",
-          background: "#ffffff",
-        }) as BrandIdentity["colors"];
-        return {
-          ...base,
-          colors: { ...cur, ...(action.colors as Partial<BrandIdentity["colors"]>) },
-        };
+        const cur = (base.colors ?? { primary: "#0f172a", secondary: "#334155", accent: "#38bdf8", neutral: "#e2e8f0", background: "#ffffff" }) as BrandIdentity["colors"];
+        return { ...base, colors: { ...cur, ...(action.colors as Partial<BrandIdentity["colors"]>) } };
       });
       toast.success("Palette mise à jour");
       return;
@@ -609,68 +559,30 @@ function DashboardPage() {
 
     if (action.type === "update_page_content") {
       const page = draftPages.find((p) => p.slug === action.slug);
-      if (!page) {
-        toast.error(`Page "${action.slug}" introuvable`);
-        return;
-      }
+      if (!page) { toast.error(`Page "${action.slug}" introuvable`); return; }
       toast.info(`Régénération de « ${page.seo_title.split("—")[0].trim() || page.slug} »…`);
       try {
-        const res = await regen({
-          data: {
-            instruction: action.instruction,
-            current_html: page.html_content,
-            page_title: page.seo_title,
-            slug: page.slug,
-            brand: draftBrand ?? undefined,
-          },
-        });
-        setDraftPages((prev) =>
-          (prev ?? []).map((p) =>
-            p.slug === action.slug
-              ? { ...p, html_content: res.html_content, seo_title: action.seo_title ?? res.seo_title }
-              : p,
-          ),
-        );
+        const res = await regen({ data: { instruction: action.instruction, current_html: page.html_content, page_title: page.seo_title, slug: page.slug, brand: draftBrand ?? undefined } });
+        setDraftPages((prev) => (prev ?? []).map((p) => p.slug === action.slug ? { ...p, html_content: res.html_content, seo_title: action.seo_title ?? res.seo_title } : p));
         toast.success("Page mise à jour");
-      } catch (e) {
-        toast.error((e as Error).message);
-      }
+      } catch (e) { toast.error((e as Error).message); }
       return;
     }
 
     if (action.type === "add_page") {
       const slug = action.slug ? slugify(action.slug) : slugify(action.title);
-      if (!slug || draftPages.some((p) => p.slug === slug)) {
-        toast.error("Slug invalide ou déjà utilisé");
-        return;
-      }
+      if (!slug || draftPages.some((p) => p.slug === slug)) { toast.error("Slug invalide ou déjà utilisé"); return; }
       toast.info(`Création de « ${action.title} »…`);
       try {
-        const page = await genPage({
-          data: {
-            title: action.title,
-            slug,
-            instruction: action.instruction ?? "",
-            brand: draftBrand ?? undefined,
-            site_context: {
-              name: activeSite.name,
-              pages: draftPages.map((p) => ({ slug: p.slug, seo_title: p.seo_title })),
-            },
-          },
-        });
+        const page = await genPage({ data: { title: action.title, slug, instruction: action.instruction ?? "", brand: draftBrand ?? undefined, site_context: { name: activeSite.name, pages: draftPages.map((p) => ({ slug: p.slug, seo_title: p.seo_title })) } } });
         setDraftPages((prev) => [...(prev ?? []), page]);
         toast.success("Page ajoutée");
-      } catch (e) {
-        toast.error((e as Error).message);
-      }
+      } catch (e) { toast.error((e as Error).message); }
       return;
     }
 
     if (action.type === "remove_page") {
-      if (action.slug === "index") {
-        toast.error("Impossible de supprimer la page d'accueil");
-        return;
-      }
+      if (action.slug === "index") { toast.error("Impossible de supprimer la page d'accueil"); return; }
       setDraftPages((prev) => (prev ?? []).filter((p) => p.slug !== action.slug));
       toast.success("Page supprimée");
       return;
@@ -681,156 +593,86 @@ function DashboardPage() {
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-[#1D1D1C] text-neutral-100">
-      {/* ================ TOP APP BAR ================ */}
       <header className="flex h-14 shrink-0 items-stretch bg-[#1D1D1C]">
         <div className="flex w-80 shrink-0 items-center gap-3 px-3">
+        {mode === "create" ? (
+          <input
+            value={createProjectName}
+            onChange={(e) => { setCreateProjectName(e.target.value); saveProject(); }}
+            className="h-8 w-[160px] rounded-md border border-[#3a3a38] bg-[#272726] px-2 text-sm text-neutral-100 outline-none focus:border-[#3B6DF5]"
+            title="Renommer le projet"
+          />
+        ) : null}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="flex items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-[#272726]"
-              title="Menu"
-            >
+            <button type="button" className="flex items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-[#272726]" title="Menu">
               <img src={logoAsset.url} alt="CapitoleAI" className="h-7 w-7 object-contain" />
               <ChevronDown className="h-3.5 w-3.5 opacity-60" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="min-w-[260px]">
-            <DropdownMenuItem
-              onClick={() => {
-                setActiveId(null);
-                setMode("empty");
-              }}
-            >
+            <DropdownMenuItem onClick={() => { setActiveId(null); setMode("empty"); }}>
               <LayoutDashboard className="mr-2 h-3.5 w-3.5" /> Dashboard
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuLabel>Vos sites</DropdownMenuLabel>
-            {sites.length === 0 && (
-              <div className="px-2 py-2 text-xs text-muted-foreground">
-                Aucun site pour l'instant.
-              </div>
-            )}
+            {sites.length === 0 && <div className="px-2 py-2 text-xs text-muted-foreground">Aucun site pour l'instant.</div>}
             {sites.map((s) => (
-              <DropdownMenuItem
-                key={s.id}
-                onClick={() => {
-                  setActiveId(s.id);
-                  setMode("edit");
-                }}
-                className="flex items-center gap-2"
-              >
-                {s.id === activeId ? (
-                  <Check className="h-3.5 w-3.5" />
-                ) : (
-                  <span className="w-3.5" />
-                )}
+              <DropdownMenuItem key={s.id} onClick={() => { setActiveId(s.id); setMode("edit"); }} className="flex items-center gap-2">
+                {s.id === activeId ? <Check className="h-3.5 w-3.5" /> : <span className="w-3.5" />}
                 <span className="flex-1 truncate">{s.name}</span>
-                <span
-                  className={
-                    "text-[10px] " +
-                    (s.status === "deployed"
-                      ? "text-emerald-600"
-                      : s.status === "failed"
-                        ? "text-red-600"
-                        : "text-muted-foreground")
-                  }
-                >
-                  {STATUS_LABEL[s.status]}
-                </span>
+                <span className={"text-[10px] " + (s.status === "deployed" ? "text-emerald-600" : s.status === "failed" ? "text-red-600" : "text-muted-foreground")}>{STATUS_LABEL[s.status]}</span>
               </DropdownMenuItem>
             ))}
-            {/* Saved local projects */}
             {savedProjects.length > 0 && (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Projets locaux</DropdownMenuLabel>
                 {savedProjects.map((p) => (
-                  <DropdownMenuItem
-                    key={p.id}
-                    onClick={() => loadProject(p.id)}
-                    className="flex items-center gap-2"
-                  >
+                  <DropdownMenuItem key={p.id} onClick={() => loadProject(p.id)} className="flex items-center gap-2">
                     <FileCode2 className="h-3.5 w-3.5 opacity-60" />
                     <span className="flex-1 truncate text-xs">{p.name}</span>
-                    <span className="text-[10px] text-muted-foreground">
-                      {new Date(p.updatedAt).toLocaleDateString()}
-                    </span>
+                    <span className="text-[10px] text-muted-foreground">{new Date(p.updatedAt).toLocaleDateString()}</span>
                   </DropdownMenuItem>
                 ))}
               </>
             )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => openCreate()}>
-              <Plus className="mr-2 h-3.5 w-3.5" /> Nouveau projet
-            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openCreate()}><Plus className="mr-2 h-3.5 w-3.5" /> Nouveau projet</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout}>
-              <LogOut className="mr-2 h-3.5 w-3.5" /> Se déconnecter
-            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}><LogOut className="mr-2 h-3.5 w-3.5" /> Se déconnecter</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
         {activeSite ? (
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium">{activeSite.name}</span>
-            {activeSite.status === "deployed" ? (
-              <StatusDot up title="En ligne" />
-            ) : activeSite.status === "failed" ? (
-              <StatusDot up={false} title="Hors ligne" />
-            ) : (
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-            )}
-            <span className="text-xs text-muted-foreground">
-              {STATUS_LABEL[activeSite.status]}
-            </span>
+            {activeSite.status === "deployed" ? <StatusDot up title="En ligne" /> : activeSite.status === "failed" ? <StatusDot up={false} title="Hors ligne" /> : <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+            <span className="text-xs text-muted-foreground">{STATUS_LABEL[activeSite.status]}</span>
           </div>
         ) : (
-          <span className="text-sm text-neutral-400">
-            {mode === "create" ? "Nouveau projet" : "Dashboard"}
-          </span>
+          <span className="text-sm text-neutral-400">{mode === "create" ? "Nouveau projet" : "Dashboard"}</span>
         )}
-
         </div>
 
         <div className="flex min-w-0 flex-1 items-center gap-2 px-3">
         {mode === "create" && (
           <div className="flex flex-1 items-center gap-2">
             <div className="flex items-center rounded-full bg-[#272726] p-0.5">
-              {[
-                { value: "preview" as const, label: "Aperçu", icon: Globe },
-                { value: "code" as const, label: "Code", icon: FileCode2 },
-              ].map((t) => {
+              {[{ value: "preview" as const, label: "Aperçu", icon: Globe }, { value: "code" as const, label: "Code", icon: FileCode2 }].map((t) => {
                 const active = tab === t.value;
                 const Icon = t.icon;
                 return (
-                  <button
-                    key={t.value}
-                    type="button"
-                    onClick={() => setTab(t.value)}
-                    title={t.label}
-                    className={cn(
-                      "flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors",
-                      active
-                        ? "bg-[#272726] text-white shadow-sm"
-                        : "text-neutral-400 hover:text-neutral-100",
-                    )}
-                  >
+                  <button key={t.value} type="button" onClick={() => setTab(t.value)} title={t.label} className={cn("flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors", active ? "bg-[#272726] text-white shadow-sm" : "text-neutral-400 hover:text-neutral-100")}>
                     <Icon className="h-3.5 w-3.5" />
                     {active && <span>{t.label}</span>}
                   </button>
                 );
               })}
             </div>
-
             {tab === "preview" && (
               <div className="mx-auto flex items-center gap-2">
-                <button
-                  type="button"
-                  title="Rafraîchir"
-                  onClick={() => setVfsPreviewNonce((n) => n + 1)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-300 hover:bg-[#272726] hover:text-white"
-                >
+                <button type="button" title="Rafraîchir" onClick={() => setVfsPreviewNonce((n) => n + 1)} className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-300 hover:bg-[#272726] hover:text-white">
                   <RefreshCw className="h-4 w-4" />
                 </button>
               </div>
@@ -841,195 +683,52 @@ function DashboardPage() {
         {activeSite && mode === "edit" && (
           <div className="flex flex-1 items-center gap-2">
             <div className="flex items-center rounded-full bg-[#272726] p-0.5">
-              {[
-                { value: "preview" as const, label: "Aperçu", icon: Globe },
-                { value: "code" as const, label: "Code", icon: FileCode2 },
-                { value: "sitemap" as const, label: "Arborescence", icon: Network },
-                { value: "analytics" as const, label: "Analytics", icon: BarChart3 },
-              ].map((t) => {
+              {[{ value: "preview" as const, label: "Aperçu", icon: Globe }, { value: "code" as const, label: "Code", icon: FileCode2 }, { value: "sitemap" as const, label: "Arborescence", icon: Network }, { value: "analytics" as const, label: "Analytics", icon: BarChart3 }].map((t) => {
                 const active = tab === t.value;
                 const Icon = t.icon;
                 return (
-                  <button
-                    key={t.value}
-                    type="button"
-                    onClick={() => setTab(t.value)}
-                    title={t.label}
-                    className={cn(
-                      "flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors",
-                      active
-                        ? "bg-[#272726] text-white shadow-sm"
-                        : "text-neutral-400 hover:text-neutral-100",
-                    )}
-                  >
+                  <button key={t.value} type="button" onClick={() => setTab(t.value)} title={t.label} className={cn("flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors", active ? "bg-[#272726] text-white shadow-sm" : "text-neutral-400 hover:text-neutral-100")}>
                     <Icon className="h-3.5 w-3.5" />
                     {active && <span>{t.label}</span>}
                   </button>
                 );
               })}
             </div>
-
             {tab === "preview" && (draftPages ?? []).length > 0 && (
               <div className="mx-auto flex items-center gap-2">
-                <button
-                  type="button"
-                  title="Changer d'appareil"
-                  onClick={() =>
-                    setDevice(
-                      device === "desktop"
-                        ? "tablet"
-                        : device === "tablet"
-                          ? "mobile"
-                          : "desktop",
-                    )
-                  }
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-300 hover:bg-[#272726] hover:text-white"
-                >
+                <button type="button" title="Changer d'appareil" onClick={() => setDevice(device === "desktop" ? "tablet" : device === "tablet" ? "mobile" : "desktop")} className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-300 hover:bg-[#272726] hover:text-white">
                   {device === "desktop" && <Monitor className="h-4 w-4" />}
                   {device === "tablet" && <Tablet className="h-4 w-4" />}
                   {device === "mobile" && <Smartphone className="h-4 w-4" />}
                 </button>
-
                 <div className="flex min-w-[165px] items-center gap-1 rounded-full bg-[#272726] px-1.5 py-1">
-                  <button
-                    type="button"
-                    onClick={() => setPreviewNonce((n) => n + 1)}
-                    title="Rafraîchir"
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-neutral-400 hover:text-neutral-100"
-                  >
+                  <button type="button" onClick={() => setPreviewNonce((n) => n + 1)} title="Rafraîchir" className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-neutral-400 hover:text-neutral-100">
                     <RefreshCw className="h-3 w-3" />
                   </button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        className="flex flex-1 items-center justify-start gap-1 rounded-full px-2 py-0.5 font-mono text-xs text-neutral-100"
-                      >
-                        <span className="truncate">{previewSlug === "index" ? "/" : `/${previewSlug}`}</span>
-                        <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
-                      </button>
-                    </DropdownMenuTrigger>
-
+                  <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="flex flex-1 items-center justify-start gap-1 rounded-full px-2 py-0.5 font-mono text-xs text-neutral-100"><span className="truncate">{previewSlug === "index" ? "/" : `/${previewSlug}`}</span><ChevronDown className="h-3 w-3 shrink-0 opacity-60" /></button></DropdownMenuTrigger>
                     <DropdownMenuContent align="center" className="min-w-[220px]">
                       <DropdownMenuLabel>Pages</DropdownMenuLabel>
-                      {(draftPages ?? []).map((p) => (
-                        <DropdownMenuItem
-                          key={p.slug}
-                          onClick={() => setPreviewSlug(p.slug)}
-                          className="flex items-center gap-2"
-                        >
-                          {p.slug === previewSlug ? (
-                            <Check className="h-3.5 w-3.5" />
-                          ) : (
-                            <span className="w-3.5" />
-                          )}
-                          <span className="font-mono text-xs">
-                            {p.slug === "index" ? "/" : `/${p.slug}`}
-                          </span>
-                        </DropdownMenuItem>
-                      ))}
+                      {(draftPages ?? []).map((p) => (<DropdownMenuItem key={p.slug} onClick={() => setPreviewSlug(p.slug)} className="flex items-center gap-2">{p.slug === previewSlug ? <Check className="h-3.5 w-3.5" /> : <span className="w-3.5" />}<span className="font-mono text-xs">{p.slug === "index" ? "/" : `/${p.slug}`}</span></DropdownMenuItem>))}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-
-                {activeSite.deploy_url && (
-                  <a
-                    href={
-                      previewSlug === "index"
-                        ? activeSite.deploy_url
-                        : `${activeSite.deploy_url.replace(/\/$/, "")}/${previewSlug}`
-                    }
-                    target="_blank"
-                    rel="noreferrer"
-                    title="Ouvrir dans un nouvel onglet"
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-300 hover:bg-[#272726] hover:text-white"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                )}
+                {activeSite.deploy_url && (<a href={previewSlug === "index" ? activeSite.deploy_url : `${activeSite.deploy_url.replace(/\/$/, "")}/${previewSlug}`} target="_blank" rel="noreferrer" title="Ouvrir dans un nouvel onglet" className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-300 hover:bg-[#272726] hover:text-white"><ExternalLink className="h-4 w-4" /></a>)}
               </div>
             )}
           </div>
         )}
 
-
         <div className="ml-auto flex items-center gap-2">
           {activeSite && (
             <Popover>
-              <PopoverTrigger asChild>
-                <Button size="sm" className="bg-[#3B6DF5] text-white hover:bg-[#3361de]">
-                  <Upload className="mr-1.5 h-4 w-4" />
-                  Publier
-                </Button>
-              </PopoverTrigger>
+              <PopoverTrigger asChild><Button size="sm" className="bg-[#3B6DF5] text-white hover:bg-[#3361de]"><Upload className="mr-1.5 h-4 w-4" /> Publier</Button></PopoverTrigger>
               <PopoverContent align="end" className="w-80 p-4">
-                <div className="mb-3">
-                  <p className="text-sm font-semibold">Publier</p>
-                  <p className="text-xs text-muted-foreground">
-                    {isDirty
-                      ? "Modifications non publiées."
-                      : "Aucune modification en attente."}
-                  </p>
-                </div>
-                {activeSite.deploy_url && (
-                  <div className="mb-3">
-                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      URL du site
-                    </p>
-                    <div className="mt-1 flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-1.5">
-                      <span className="flex-1 truncate text-xs">
-                        {activeSite.deploy_url.replace(/^https?:\/\//, "")}
-                      </span>
-                      <button
-                        type="button"
-                        className="rounded p-1 hover:bg-accent"
-                        title="Copier"
-                        onClick={() => {
-                          navigator.clipboard.writeText(activeSite.deploy_url!);
-                          toast.success("URL copiée");
-                        }}
-                      >
-                        <Copy className="h-3 w-3" />
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <div className="mb-3"><p className="text-sm font-semibold">Publier</p><p className="text-xs text-muted-foreground">{isDirty ? "Modifications non publiées." : "Aucune modification en attente."}</p></div>
+                {activeSite.deploy_url && (<div className="mb-3"><p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">URL du site</p><div className="mt-1 flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-1.5"><span className="flex-1 truncate text-xs">{activeSite.deploy_url.replace(/^https?:\/\//, "")}</span><button type="button" className="rounded p-1 hover:bg-accent" title="Copier" onClick={() => { navigator.clipboard.writeText(activeSite.deploy_url!); toast.success("URL copiée"); }}><Copy className="h-3 w-3" /></button></div></div>)}
                 <div className="space-y-1.5">
-                  {activeSite.deploy_url && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full justify-start"
-                      asChild
-                    >
-                      <a href={activeSite.deploy_url} target="_blank" rel="noreferrer">
-                        <ExternalLink className="mr-2 h-3.5 w-3.5" />
-                        Ouvrir le site
-                      </a>
-                    </Button>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-start text-destructive hover:text-destructive"
-                    onClick={() => handleDelete(activeSite.id)}
-                  >
-                    <Trash2 className="mr-2 h-3.5 w-3.5" />
-                    Supprimer le site
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="w-full bg-[#3B6DF5] text-white hover:bg-[#3361de]"
-                    onClick={handlePublish}
-                    disabled={!isDirty || publishing}
-                  >
-                    {publishing ? (
-                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Upload className="mr-1.5 h-4 w-4" />
-                    )}
-                    Publier les modifications
-                  </Button>
+                  {activeSite.deploy_url && (<Button variant="outline" size="sm" className="w-full justify-start" asChild><a href={activeSite.deploy_url} target="_blank" rel="noreferrer"><ExternalLink className="mr-2 h-3.5 w-3.5" /> Ouvrir le site</a></Button>)}
+                  <Button variant="outline" size="sm" className="w-full justify-start text-destructive hover:text-destructive" onClick={() => handleDelete(activeSite.id)}><Trash2 className="mr-2 h-3.5 w-3.5" /> Supprimer le site</Button>
+                  <Button size="sm" className="w-full bg-[#3B6DF5] text-white hover:bg-[#3361de]" onClick={handlePublish} disabled={!isDirty || publishing}>{publishing ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Upload className="mr-1.5 h-4 w-4" />} Publier les modifications</Button>
                 </div>
               </PopoverContent>
             </Popover>
@@ -1038,10 +737,7 @@ function DashboardPage() {
         </div>
       </header>
 
-
-      {/* ================ SPLIT BODY ================ */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        {/* LEFT: Chat */}
         <aside className="flex w-80 shrink-0 flex-col bg-[#1D1D1C]">
           <div className="min-h-0 flex-1">
             <WorkspaceChat
@@ -1049,41 +745,24 @@ function DashboardPage() {
               siteName={activeSite?.name}
               brand={draftBrand ?? undefined}
               pages={draftPages ?? undefined}
-              creationContext={
-                mode === "create"
-                  ? { app: { files: vfsFiles.map(f => ({ path: f.path })) } }
-                  : undefined
-              }
+              creationContext={mode === "create" ? { app: { files: vfsFiles.map(f => ({ path: f.path })) } } : undefined}
               onAction={handleAction}
               onCreateWizard={openCreate}
+              initialMessages={mode === "create" ? chatMessages : undefined}
+              onMessagesChange={mode === "create" ? updateChatMessages : undefined}
             />
           </div>
         </aside>
 
-        {/* RIGHT: Workspace */}
         <main className="flex min-w-0 flex-1 flex-col bg-muted/30">
           {mode === "create" ? (
             tab === "code" ? (
               <div className="flex min-h-0 flex-1">
                 <div className="w-56 shrink-0 overflow-y-auto border-r border-[#272726] bg-[#1D1D1C]">
-                  <CreateFileTree
-                    files={vfsFiles}
-                    selectedPath={selectedPath}
-                    onSelect={setSelectedPath}
-                  />
+                  <CreateFileTree files={vfsFiles} selectedPath={selectedPath} onSelect={setSelectedPath} />
                 </div>
                 <div className="min-h-0 flex-1 overflow-auto bg-muted/40 p-3">
-                  {selectedPath ? (
-                    <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-neutral-200">
-                      {vfsFiles.find(f => f.path === selectedPath)?.content ?? ""}
-                    </pre>
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                      {vfsFiles.length === 0
-                        ? "Décrivez votre projet dans le chat. L'IA va coder votre application."
-                        : "Sélectionnez un fichier dans l'arborescence."}
-                    </div>
-                  )}
+                  {selectedPath ? (<pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-neutral-200">{vfsFiles.find(f => f.path === selectedPath)?.content ?? ""}</pre>) : (<div className="flex h-full items-center justify-center text-sm text-muted-foreground">{vfsFiles.length === 0 ? "Décrivez votre projet dans le chat. L'IA va coder votre application." : "Sélectionnez un fichier dans l'arborescence."}</div>)}
                 </div>
               </div>
             ) : (
@@ -1091,74 +770,30 @@ function DashboardPage() {
                 {vfsFiles.length === 0 ? (
                   <div className="flex h-full items-center justify-center">
                     <div className="max-w-md text-center">
-                      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#3B6DF5]/10">
-                        <MessageSquare className="h-6 w-6 text-[#3B6DF5]" />
-                      </div>
+                      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#3B6DF5]/10"><MessageSquare className="h-6 w-6 text-[#3B6DF5]" /></div>
                       <h2 className="text-xl font-semibold">Nouveau projet</h2>
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        Décrivez votre application dans le chat à gauche. L'IA va coder
-                        et vous verrez le résultat ici en temps réel.
-                      </p>
-                      <Button className="mt-6" variant="ghost" onClick={exitCreate}>
-                        ← Retour au dashboard
-                      </Button>
+                      <p className="mt-2 text-sm text-muted-foreground">Décrivez votre application dans le chat à gauche. L'IA va coder et vous verrez le résultat ici en temps réel.</p>
+                      <Button className="mt-6" variant="ghost" onClick={exitCreate}>← Retour au dashboard</Button>
                     </div>
                   </div>
-                ) : (
-                  <CreatePreview files={vfsFiles} nonce={vfsPreviewNonce} />
-                )}
+                ) : (<CreatePreview files={vfsFiles} nonce={vfsPreviewNonce} />)}
               </div>
             )
           ) : !activeSite ? (
             <EmptyWorkspace onCreate={openCreate} />
-          ) : ["pending", "generating", "building", "deploying"].includes(activeSite.status) &&
-            !draftPages?.length ? (
-            <div className="flex flex-1 items-center justify-center p-6">
-              <div className="w-full max-w-md rounded-lg border border-border bg-card p-6">
-                <p className="mb-3 text-sm font-medium">Build en cours</p>
-                <SiteBuildProgress siteId={activeSite.id} active />
-              </div>
-            </div>
+          ) : ["pending", "generating", "building", "deploying"].includes(activeSite.status) && !draftPages?.length ? (
+            <div className="flex flex-1 items-center justify-center p-6"><div className="w-full max-w-md rounded-lg border border-border bg-card p-6"><p className="mb-3 text-sm font-medium">Build en cours</p><SiteBuildProgress siteId={activeSite.id} active /></div></div>
           ) : (
-            <Tabs
-              value={tab}
-              onValueChange={(v) => setTab(v as typeof tab)}
-              className="flex min-h-0 flex-1 flex-col"
-            >
-              <TabsContent
-                value="preview"
-                className="min-h-0 flex-1 mt-0"
-                style={{ backgroundColor: "#1D1D1C" }}
-              >
-                <WorkspacePreview
-                  pages={draftPages ?? []}
-                  brand={draftBrand ?? undefined}
-                  activeSlug={previewSlug}
-                  device={device}
-                  nonce={previewNonce}
-                />
+            <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="flex min-h-0 flex-1 flex-col">
+              <TabsContent value="preview" className="min-h-0 flex-1 mt-0" style={{ backgroundColor: "#1D1D1C" }}>
+                <WorkspacePreview pages={draftPages ?? []} brand={draftBrand ?? undefined} activeSlug={previewSlug} device={device} nonce={previewNonce} />
               </TabsContent>
-
               <TabsContent value="code" className="min-h-0 flex-1 mt-0">
-                <WorkspaceCode
-                  pages={draftPages ?? []}
-                  brand={draftBrand}
-                  onChange={({ pages, brand }) => {
-                    setDraftPages(pages);
-                    if (brand !== undefined) setDraftBrand(brand);
-                  }}
-                />
+                <WorkspaceCode pages={draftPages ?? []} brand={draftBrand} onChange={({ pages, brand }) => { setDraftPages(pages); if (brand !== undefined) setDraftBrand(brand); }} />
               </TabsContent>
-
               <TabsContent value="sitemap" className="min-h-0 flex-1 mt-0">
-                <WorkspaceSitemap
-                  siteName={activeSite.name}
-                  brand={draftBrand ?? undefined}
-                  pages={draftPages ?? []}
-                  onChange={(p) => setDraftPages(p)}
-                />
+                <WorkspaceSitemap siteName={activeSite.name} brand={draftBrand ?? undefined} pages={draftPages ?? []} onChange={(p) => setDraftPages(p)} />
               </TabsContent>
-
               <TabsContent value="analytics" className="min-h-0 flex-1 mt-0">
                 <WorkspaceAnalytics siteId={activeSite.id} />
               </TabsContent>
@@ -1175,17 +810,10 @@ function EmptyWorkspace({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="flex flex-1 items-center justify-center p-10">
       <div className="max-w-md text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <Plus className="h-6 w-6" />
-        </div>
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary"><Plus className="h-6 w-6" /></div>
         <h2 className="text-xl font-semibold">Créer un nouveau projet</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Utilisez le chat à gauche pour décrire votre application. L'IA codera pour vous.
-        </p>
-        <Button className="mt-6" onClick={onCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nouveau projet
-        </Button>
+        <p className="mt-2 text-sm text-muted-foreground">Utilisez le chat à gauche pour décrire votre application. L'IA codera pour vous.</p>
+        <Button className="mt-6" onClick={onCreate}><Plus className="mr-2 h-4 w-4" /> Nouveau projet</Button>
       </div>
     </div>
   );

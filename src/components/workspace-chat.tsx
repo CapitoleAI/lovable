@@ -21,6 +21,8 @@ interface Props {
   creationContext?: unknown;
   onAction: (action: OrchestratorAction) => void | Promise<void>;
   onCreateWizard?: () => void;
+  initialMessages?: ChatMessage[];
+  onMessagesChange?: (messages: ChatMessage[]) => void;
 }
 
 export function WorkspaceChat({
@@ -31,6 +33,8 @@ export function WorkspaceChat({
   creationContext,
   onAction,
   onCreateWizard,
+  initialMessages,
+  onMessagesChange,
 }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -41,10 +45,17 @@ export function WorkspaceChat({
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    setMessages([]);
+    setMessages(initialMessages ?? []);
     setInput("");
     inputRef.current?.focus();
   }, [mode, siteName]);
+  
+  // Notify parent when messages change
+  useEffect(() => {
+    if (onMessagesChange && messages.length > 0) {
+      onMessagesChange(messages);
+    }
+  }, [messages.length]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
