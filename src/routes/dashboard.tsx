@@ -36,6 +36,7 @@ import {
 } from "@/lib/sites.functions";
 import { regeneratePageContent, generateNewPage } from "@/lib/orchestrator.functions";
 import { getSiteBuildProgress } from "@/lib/github-runs.functions";
+import { commitAppVfs } from "@/lib/github-vfs.functions";
 import type { OrchestratorAction } from "@/lib/orchestrator.functions";
 import type { BrandIdentity, PageContent } from "@/lib/sites-schema";
 import type { VfsFile } from "@/lib/vfs";
