@@ -428,7 +428,7 @@ function DashboardPage() {
     return () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); };
   }, [vfsFiles]);
 
-  function updateChatMessages(msgs: Array<{role: string; content: string}>) {
+  function updateChatMessages(msgs: ChatMessage[]) {
     if (!createProjectId || msgs.length === 0) return;
     setChatMessages(msgs);
     const updated = { ...savedChats, [createProjectId]: msgs.slice(-100) };
