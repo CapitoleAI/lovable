@@ -291,9 +291,11 @@ export function buildReactPreviewDoc(files: PreviewFile[]): string {
     if (moduleCache[path]) return moduleCache[path].exports;
     var source = DATA.files[path];
     var isTs = /\\.tsx?$/.test(path);
-    var isJsx = /\\.(tsx|jsx)$/.test(path);
+    // Babel standalone cannot read babel.config or package.json from this
+    // virtual file system. Enable JSX directly for JavaScript modules too.
+    var supportsJsx = /\\.(tsx|jsx|js|mjs)$/.test(path);
     var presets = [["env", { modules: "commonjs", targets: { chrome: "100" } }]];
-    if (isJsx || isTs) presets.push(["react", { runtime: "classic" }]);
+    if (supportsJsx) presets.push(["react", { runtime: "classic" }]);
     if (isTs) presets.push(["typescript", { isTSX: /\\.tsx$/.test(path), allExtensions: true }]);
 
     var code;
