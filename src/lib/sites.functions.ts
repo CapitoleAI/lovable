@@ -887,48 +887,55 @@ export const updateSite = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     if (!row || row.owner_email !== email) throw new Error("Not found");
 
-    const pages = data.pages.map((p) => ({ ...p, slug: normalizePageSlug(p.slug) }));
-    const sitemap: SitemapPage[] = pages.map((p) => ({
-      title: p.seo_title.split("—")[0].trim() || p.slug,
-      slug: p.slug === "index" ? "/" : `/${p.slug}`,
-    }));
-    const seed = (row.random_seed ?? {}) as Record<string, unknown>;
-    const newSeed = { ...seed, sitemap };
+    const updatePayload: Record<string, unknown> = {};
+    if (data.name && data.name !== row.name) updatePayload.name = data.name;
 
-    const prevData = (row.site_data ?? {}) as SiteData;
-    const nextData: SiteData = { pages };
-    if (data.brand) {
-      nextData.site_info = {
-        brand_name: data.brand.brand_name,
-        tagline: data.brand.tagline,
-        story: data.brand.story,
-        colors: data.brand.colors,
-        logo_url: data.brand.logo_url,
-        moodboard_url: data.brand.moodboard_url,
-      };
-    } else if (prevData.site_info) {
-      nextData.site_info = prevData.site_info;
+    if (data.pages) {
+      const pages = data.pages.map((p) => ({ ...p, slug: normalizePageSlug(p.slug) }));
+      const sitemap: SitemapPage[] = pages.map((p) => ({
+        title: p.seo_title.split("—")[0].trim() || p.slug,
+        slug: p.slug === "index" ? "/" : `/${p.slug}`,
+      }));
+      const seed = (row.random_seed ?? {}) as Record<string, unknown>;
+      const newSeed = { ...seed, sitemap };
+
+      const prevData = (row.site_data ?? {}) as SiteData;
+      const nextData: SiteData = { pages };
+      if (data.brand) {
+        nextData.site_info = {
+          brand_name: data.brand.brand_name,
+          tagline: data.brand.tagline,
+          story: data.brand.story,
+          colors: data.brand.colors,
+          logo_url: data.brand.logo_url,
+          moodboard_url: data.brand.moodboard_url,
+        };
+      } else if (prevData.site_info) {
+        nextData.site_info = prevData.site_info;
+      }
+
+      updatePayload.site_data = nextData;
+      updatePayload.random_seed = newSeed;
+      updatePayload.status = "pending";
+      updatePayload.last_error = null;
     }
 
-    await supabase
-      .from("sites")
-      .update({
-        site_data: nextData,
-        random_seed: newSeed,
-        status: "pending",
-        last_error: null,
-      })
-      .eq("id", data.id);
-
-    const trig = await triggerRunner(data.id, row.name);
-    if (!trig.triggered) {
-      await supabase
-        .from("sites")
-        .update({ status: "failed", last_error: trig.error })
-        .eq("id", data.id);
-      return { ok: false, error: trig.error };
+    if (Object.keys(updatePayload).length > 0) {
+      await supabase.from("sites").update(updatePayload).eq("id", data.id);
     }
-    await supabase.from("sites").update({ status: "generating" }).eq("id", data.id);
+
+    // Only trigger a rebuild when pages changed, not on a simple rename
+    if (data.pages) {
+      const trig = await triggerRunner(data.id, data.name ?? row.name);
+      if (!trig.triggered) {
+        await supabase
+          .from("sites")
+          .update({ status: "failed", last_error: trig.error })
+          .eq("id", data.id);
+        return { ok: false, error: trig.error };
+      }
+      await supabase.from("sites").update({ status: "generating" }).eq("id", data.id);
+    }
     return { ok: true };
   });
 
