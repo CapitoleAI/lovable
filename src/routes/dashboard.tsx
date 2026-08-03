@@ -174,27 +174,77 @@ function getFileLabel(path: string): string {
 // ---------------- Create mode preview component ----------------
 
 function CreatePreview({ files, nonce }: { files: VfsFile[]; nonce: number }) {
-  const htmlFile = files.find(f => f.path.endsWith(".html") || f.path === "index.html");
-  if (!htmlFile) {
+  if (files.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Aucun fichier HTML. L'IA va générer l'application.
+      <div className="flex h-full items-center justify-center">
+        <div className="max-w-md text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#3B6DF5]/10"><MessageSquare className="h-6 w-6 text-[#3B6DF5]" /></div>
+          <h2 className="text-xl font-semibold">Nouveau projet</h2>
+          <p className="mt-2 text-sm text-muted-foreground">Décrivez votre application dans le chat à gauche. L'IA va coder et vous verrez le résultat ici en temps réel.</p>
+        </div>
       </div>
     );
   }
-  const cssFiles = files.filter(f => f.path.endsWith(".css"));
-  const jsFiles = files.filter(f => f.path.endsWith(".js") || f.path.endsWith(".mjs"));
-  const styles = cssFiles.map(f => `<style>${f.content}</style>`).join("\n");
-  const scripts = jsFiles.map(f => `<script>${f.content}</script>`).join("\n");
-  const doc = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${styles}</head><body>${htmlFile.content}${scripts}</body></html>`;
+
+  const filePaths = files.map(f => f.path);
+  const hasPackageJson = filePaths.some(p => p.endsWith("package.json"));
+  const hasViteConfig = filePaths.some(p => p.includes("vite.config"));
+  const hasNextConfig = filePaths.some(p => p.includes("next.config"));
+  const hasTsxFiles = filePaths.some(p => p.endsWith(".tsx"));
+  const hasJsxFiles = filePaths.some(p => p.endsWith(".jsx"));
+  const hasHtmlFiles = filePaths.some(p => p.endsWith(".html"));
+  const hasTsFiles = filePaths.some(p => p.endsWith(".ts") && !p.endsWith(".d.ts"));
+
+  // Detect project type
+  const isReact = hasViteConfig || hasTsxFiles || hasJsxFiles || (hasPackageJson && (hasTsFiles || hasTsxFiles || hasJsxFiles));
+  const isNext = hasNextConfig;
+  const isHtml = hasHtmlFiles;
+  const isNode = hasPackageJson && !hasViteConfig && !hasNextConfig && !hasTsxFiles && !hasJsxFiles;
+
+  // HTML-based project — render in iframe
+  if (isHtml) {
+    const htmlFile = files.find(f => f.path.endsWith(".html") || f.path === "index.html");
+    const cssFiles = files.filter(f => f.path.endsWith(".css"));
+    const jsFiles = files.filter(f => f.path.endsWith(".js") || f.path.endsWith(".mjs"));
+    const styles = cssFiles.map(f => `<style>${f.content}</style>`).join("\n");
+    const scripts = jsFiles.map(f => `<script>${f.content}</script>`).join("\n");
+    const doc = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${styles}</head><body>${htmlFile!.content}${scripts}</body></html>`;
+    return (
+      <iframe
+        key={`create-preview-${nonce}`}
+        title="Aperçu"
+        sandbox="allow-scripts allow-forms allow-modals"
+        srcDoc={doc}
+        className="h-full w-full bg-white rounded-lg border border-[#272726]"
+      />
+    );
+  }
+
+  // React / Vite / Next.js / Node project — preview unavailable
   return (
-    <iframe
-      key={`create-preview-${nonce}`}
-      title="Aperçu"
-      sandbox="allow-scripts allow-forms allow-modals"
-      srcDoc={doc}
-      className="h-full w-full bg-white rounded-lg border border-[#272726]"
-    />
+    <div className="flex h-full items-center justify-center bg-[#1D1D1C]">
+      <div className="max-w-md text-center px-4">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#3B6DF5]/10">
+          {isNext ? (
+            <svg className="h-7 w-7 text-[#3B6DF5]" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15l-4-4 1.41-1.41L11 14.17l5.59-5.59L18 10l-7 7z"/></svg>
+          ) : (
+            <FileCode2 className="h-7 w-7 text-[#3B6DF5]" />
+          )}
+        </div>
+        <h2 className="text-lg font-semibold text-white">
+          {isNext ? "Projet Next.js" : isReact ? "Projet React / Vite" : "Projet applicatif"}
+        </h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          L'aperçu intégré ne peut pas afficher ce type de projet. Pour le tester, ouvrez un terminal et lancez&nbsp;:
+        </p>
+        <div className="mt-3 rounded-lg bg-[#272726] px-3 py-2 font-mono text-xs text-neutral-300 text-left select-all">
+          cd project && npm install && npm run dev
+        </div>
+        <p className="mt-3 text-xs text-neutral-500">
+          {files.length} fichier{files.length > 1 ? "s" : ""} généré{files.length > 1 ? "s" : ""}
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -804,16 +854,7 @@ function DashboardPage() {
               </div>
             ) : (
               <div className="min-h-0 flex-1 p-4">
-                {vfsFiles.length === 0 ? (
-                  <div className="flex h-full items-center justify-center">
-                    <div className="max-w-md text-center">
-                      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#3B6DF5]/10"><MessageSquare className="h-6 w-6 text-[#3B6DF5]" /></div>
-                      <h2 className="text-xl font-semibold">Nouveau projet</h2>
-                      <p className="mt-2 text-sm text-muted-foreground">Décrivez votre application dans le chat à gauche. L'IA va coder et vous verrez le résultat ici en temps réel.</p>
-                      <Button className="mt-6" variant="ghost" onClick={exitCreate}>← Retour au dashboard</Button>
-                    </div>
-                  </div>
-                ) : (<CreatePreview files={vfsFiles} nonce={vfsPreviewNonce} />)}
+                <CreatePreview files={vfsFiles} nonce={vfsPreviewNonce} />
               </div>
             )
           ) : !activeSite ? (
