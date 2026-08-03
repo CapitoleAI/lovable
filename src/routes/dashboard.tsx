@@ -627,6 +627,16 @@ function DashboardPage() {
     } catch (e) { toast.error((e as Error).message); }
   }
 
+  async function handleRenameSite(newName: string) {
+    if (!activeSite || newName === activeSite.name) return;
+    try {
+      const res = await save({ data: { id: activeSite.id, name: newName } });
+      if (!res.ok) throw new Error(res.error ?? "Échec du renommage");
+      toast.success("Nom mis à jour");
+      sitesQuery.refetch();
+    } catch (e) { toast.error((e as Error).message); }
+  }
+
   async function handlePublish() {
     if (!activeSite || !draftPages) return;
     setPublishing(true);
